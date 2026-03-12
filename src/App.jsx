@@ -22,7 +22,7 @@ const META={
 };
 const USERS=["Santiago","Eliza","Jessica"];
 
-// ─── ICONS (Lucide-style SVG) ─────────────────────────────────────────────────
+// ─── ICONS ────────────────────────────────────────────────────────────────────
 const ICONS={
   building:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><rect x="3"y="3"width="18"height="18"rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>,
   sword:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13"y1="19"x2="19"y2="13"/><line x1="16"y1="16"x2="20"y2="20"/><line x1="19"y1="21"x2="21"y2="19"/></svg>,
@@ -57,9 +57,9 @@ const ICONS={
   user:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12"cy="7"r="4"/></svg>,
   lock:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><rect x="3"y="11"width="18"height="11"rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
   note:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16"y1="13"x2="8"y2="13"/><line x1="16"y1="17"x2="8"y2="17"/></svg>,
+  shield:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
 };
 const Ico=({n,c,s})=>(ICONS[n]?ICONS[n](c,s):<span style={{fontSize:s||18,color:c}}>•</span>);
-
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 const fmt=n=>{if(n==null||isNaN(n))return"—";const a=Math.abs(n),s=n<0?"-":"";if(a>=1e6)return s+"$"+(a/1e6).toFixed(1)+"M";if(a>=1e3)return s+"$"+(a/1e3).toFixed(0)+"K";return s+"$"+a.toLocaleString();};
@@ -68,7 +68,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 const MESES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 const fmtF=f=>f?`${f.slice(8)}-${MESES[parseInt(f.slice(5,7))-1]}-${f.slice(0,4)}`:"—";
 const maqC=(f,C)=>f===50?C.indigo:f===10?C.blue:C.orange;
-const maqIcon=n=>{const l=(n||"").toLowerCase();if(l.includes("poker"))return"poker";if(l.includes("wms")||l.includes("stand"))return"slot";if(l.includes("multi")||l.includes("gamin")||l.includes("dolphin")||l.includes("clon")||l.includes("bailar"))return"slot";return"slot";};
+const maqIcon=n=>{const l=(n||"").toLowerCase();if(l.includes("poker"))return"poker";return"slot";};
 
 // ─── PERSISTENCE ─────────────────────────────────────────────────────────────
 const enc=(s,k)=>{let o="";for(let i=0;i<s.length;i++)o+=String.fromCharCode(s.charCodeAt(i)^k.charCodeAt(i%k.length));return btoa(o);};
@@ -82,27 +82,56 @@ const loadCont=()=>{try{const s=localStorage.getItem("cc_v2");return s?JSON.pars
 const savePending=q=>{try{localStorage.setItem("cc_pending",JSON.stringify(q));}catch{}};
 const loadPending=()=>{try{const s=localStorage.getItem("cc_pending");return s?JSON.parse(s):[];}catch{return[];}};
 
-// ─── FACE ID / WEBAUTHN ───────────────────────────────────────────────────────
+// ─── ACCESS LOG ───────────────────────────────────────────────────────────────
+const LOG_KEY="cc_access_log";const MAX_LOG=200;
+function saveLog(entry){try{const logs=loadLogs();logs.unshift({...entry,ts:new Date().toISOString()});localStorage.setItem(LOG_KEY,JSON.stringify(logs.slice(0,MAX_LOG)));}catch{}}
+function loadLogs(){try{return JSON.parse(localStorage.getItem(LOG_KEY)||"[]");}catch{return[];}}
+
+// ─── SESSION TIMEOUT ──────────────────────────────────────────────────────────
+const TIMEOUT_KEY="cc_timeout";
+function saveTimeouts(t){localStorage.setItem(TIMEOUT_KEY,JSON.stringify(t));}
+function loadTimeouts(){try{return JSON.parse(localStorage.getItem(TIMEOUT_KEY)||"{}");}catch{return{};}}
+
+// ─── FACE ID MULTI-DEVICE ─────────────────────────────────────────────────────
 const WA=window.PublicKeyCredential;
+function getFaceDevices(user){try{return JSON.parse(localStorage.getItem("faceid_devs_"+user)||"[]");}catch{return[];}}
+function setFaceDevices(user,devs){
+  localStorage.setItem("faceid_devs_"+user,JSON.stringify(devs));
+  if(devs.length>0){localStorage.setItem("faceid_"+user,JSON.stringify({credId:devs[0].credId,user}));}
+  else{localStorage.removeItem("faceid_"+user);}
+}
+async function registerFaceIdDevice(user,label){
+  if(!WA)throw new Error("WebAuthn no soportado");
+  const devs=getFaceDevices(user);
+  if(devs.length>=2)throw new Error("Ya hay 2 dispositivos registrados. Revoca uno primero.");
+  const challenge=crypto.getRandomValues(new Uint8Array(32));
+  const cred=await navigator.credentials.create({publicKey:{challenge,rp:{name:"Casino Contadores",id:window.location.hostname},user:{id:new TextEncoder().encode(user+"_"+Date.now()),name:user,displayName:user},pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},timeout:60000}});
+  const credId=btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
+  const updated=[...devs,{credId,label:label||"Dispositivo "+(devs.length+1),registeredAt:new Date().toISOString()}];
+  setFaceDevices(user,updated);
+  return updated;
+}
+function revokeFaceDevice(user,credId){const updated=getFaceDevices(user).filter(d=>d.credId!==credId);setFaceDevices(user,updated);return updated;}
+
+// Legacy helpers for Login component
 async function registerFaceId(user){
   if(!WA)throw new Error("WebAuthn no soportado");
-  const challenge=crypto.getRandomValues(new Uint8Array(32));
-  const cred=await navigator.credentials.create({publicKey:{challenge,rp:{name:"Casino Contadores",id:window.location.hostname},user:{id:new TextEncoder().encode(user),name:user,displayName:user},pubKeyCredParams:[{type:"public-key",alg:-7},{type:"public-key",alg:-257}],authenticatorSelection:{authenticatorAttachment:"platform",userVerification:"required"},timeout:60000}});
-  const stored={credId:btoa(String.fromCharCode(...new Uint8Array(cred.rawId))),user};
-  localStorage.setItem("faceid_"+user,JSON.stringify(stored));
-  return true;
+  const devs=getFaceDevices(user);
+  if(devs.length>=2)throw new Error("Máx 2 dispositivos. Ve a Admin Panel para revocar.");
+  return registerFaceIdDevice(user,"Dispositivo "+(devs.length+1));
 }
 async function authFaceId(user){
   if(!WA)throw new Error("WebAuthn no soportado");
-  const stored=localStorage.getItem("faceid_"+user);
-  if(!stored)throw new Error("Face ID no registrado");
-  const{credId}=JSON.parse(stored);
+  const devs=getFaceDevices(user);
+  if(!devs.length){const old=localStorage.getItem("faceid_"+user);if(!old)throw new Error("Face ID no registrado");}
+  const allDevs=devs.length?devs:[JSON.parse(localStorage.getItem("faceid_"+user)||"null")].filter(Boolean);
+  if(!allDevs.length)throw new Error("Face ID no registrado");
   const challenge=crypto.getRandomValues(new Uint8Array(32));
-  const credIdBytes=Uint8Array.from(atob(credId),c=>c.charCodeAt(0));
-  await navigator.credentials.get({publicKey:{challenge,allowCredentials:[{type:"public-key",id:credIdBytes}],userVerification:"required",timeout:60000}});
+  const allowCreds=allDevs.map(d=>({type:"public-key",id:Uint8Array.from(atob(d.credId),c=>c.charCodeAt(0))}));
+  await navigator.credentials.get({publicKey:{challenge,allowCredentials:allowCreds,userVerification:"required",timeout:60000}});
   return true;
 }
-const hasFaceId=u=>!!localStorage.getItem("faceid_"+u);
+const hasFaceId=u=>getFaceDevices(u).length>0||!!localStorage.getItem("faceid_"+u);
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
 const sbLoad=()=>{window._sbUrl=localStorage.getItem("sb_url")||"";window._sbKey=localStorage.getItem("sb_key")||"";};
@@ -118,19 +147,11 @@ async function sbSave(row){
 }
 async function sbSync(){
   if(!sbReady())return 0;
-  const pending=loadPending();
-  if(!pending.length)return 0;
+  const pending=loadPending();if(!pending.length)return 0;
   let synced=0;
-  for(const row of pending){
-    const r=await sbFetch("lecturas?on_conflict=casino_id,maq_id,fecha",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(row)});
-    if(r!==null)synced++;
-  }
+  for(const row of pending){const r=await sbFetch("lecturas?on_conflict=casino_id,maq_id,fecha",{method:"POST",headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(row)});if(r!==null)synced++;}
   if(synced===pending.length)savePending([]);
   return synced;
-}
-async function sbPull(cid){
-  if(!sbReady())return null;
-  return sbFetch(`lecturas?casino_id=eq.${cid}&order=fecha.desc&limit=1000`,{method:"GET",headers:{"Prefer":""}});
 }
 
 // ─── GOOGLE DRIVE ─────────────────────────────────────────────────────────────
@@ -169,7 +190,6 @@ async function uploadPhoto(blob,casinoName,fecha,maqNombre){
   const ff=await gdMkFolder(fecha,cf);
   await gdUpload(blob,`${maqNombre}_${fecha}.jpg`,ff);
 }
-
 
 // ─── PRIMITIVES ───────────────────────────────────────────────────────────────
 function CasinoIcon({cid,size=32}){
@@ -216,12 +236,7 @@ function Nav({title,sub,right=[],sy=0,large=true,back,onBack}){
 }
 function Tabs({tab,setTab,color}){
   const C=getC();
-  const ts=[
-    {id:"lectura",lbl:"Contadores",icon:"counters"},
-    {id:"camara",lbl:"Cámara",icon:"camera"},
-    {id:"reporte",lbl:"Reporte",icon:"report"},
-    {id:"maquinas",lbl:"Máquinas",icon:"machines"},
-  ];
+  const ts=[{id:"lectura",lbl:"Contadores",icon:"counters"},{id:"camara",lbl:"Cámara",icon:"camera"},{id:"reporte",lbl:"Reporte",icon:"report"},{id:"maquinas",lbl:"Máquinas",icon:"machines"}];
   return<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:C.navBg,backdropFilter:"blur(20px)",borderTop:`0.5px solid ${C.sep}`,zIndex:100,paddingBottom:"max(env(safe-area-inset-bottom,0px),8px)"}}>
     <div style={{display:"flex",justifyContent:"space-around",paddingTop:8}}>
       {ts.map(t=><button key={t.id}onClick={()=>setTab(t.id)}style={{background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"0 8px",minWidth:60}}>
@@ -245,7 +260,10 @@ function Login({onAuth}){
     setErr("");
     if(paso==="new"){if(pin.length<4)return setErr("Mínimo 4 dígitos");return setPaso("conf");}
     if(paso==="conf"){if(pin!==pin2)return setErr("PINs no coinciden");savePin(user,pin);onAuth(user);return;}
-    if(paso==="in"){if(checkPin(user,pin))onAuth(user);else setErr("PIN incorrecto");}
+    if(paso==="in"){
+      if(checkPin(user,pin)){onAuth(user);}
+      else{saveLog({action:"login_fail",target:user,device:navigator.userAgent.slice(0,60)});setErr("PIN incorrecto");}
+    }
   }
   async function doFaceId(){
     setFL(true);setErr("");
@@ -297,8 +315,7 @@ function Login({onAuth}){
   );
 }
 
-
-// ─── COUNTERS (with delete/edit + Premio del Amor) ────────────────────────────
+// ─── COUNTERS ─────────────────────────────────────────────────────────────────
 function Counters({cid,cont,setCont,user}){
   const C=getC();const m=META[cid];const d=D[cid];const mqs=d?.m||[];
   const[fecha,setFecha]=useState(today());const[inp,setInp]=useState({});
@@ -312,19 +329,14 @@ function Counters({cid,cont,setCont,user}){
   const prevU=mq=>{const dr=parseFloat(gi(mq.id,"d")),ph=parseFloat(gi(mq.id,"p"));if(isNaN(dr)||isNaN(ph))return null;const u=getUlt(mq.id);if(!u)return null;return((dr-u.drop)-(ph-u.phys))*mq.factor;};
   const nOk=mqs.filter(mq=>!isNaN(parseFloat(gi(mq.id,"d")))&&!isNaN(parseFloat(gi(mq.id,"p")))).length;
   const pa=parseFloat(premioAmor)||0;
-
-  function deleteReading(fecha_del,maqId){
-    if(!confirm("¿Eliminar esta lectura?"))return;
-    setCont(p=>{const n={...p,[cid]:(p[cid]||[]).filter(c=>!(c.f===fecha_del&&c.i===maqId))};saveCont(n);return n;});
-  }
-
+  function deleteReading(fecha_del,maqId){if(!confirm("¿Eliminar esta lectura?"))return;setCont(p=>{const n={...p,[cid]:(p[cid]||[]).filter(c=>!(c.f===fecha_del&&c.i===maqId))};saveCont(n);return n;});}
   async function submit(force=false){
     const w=[],items=[];
     for(const mq of mqs){
       const dr=parseFloat(gi(mq.id,"d")),ph=parseFloat(gi(mq.id,"p"));
       if(isNaN(dr)||isNaN(ph))continue;
       const u=getUlt(mq.id);
-      if(!force&&u){if(dr<u.drop)w.push(`${mq.nombre}: DROP bajó (${u.drop.toLocaleString()} → ${dr.toLocaleString()})`);if(ph<u.phys)w.push(`${mq.nombre}: TOTAL OUT bajó`);}
+      if(!force&&u){if(dr<u.drop)w.push(`${mq.nombre}: DROP bajó`);if(ph<u.phys)w.push(`${mq.nombre}: TOTAL OUT bajó`);}
       const util=u?((dr-u.drop)-(ph-u.phys))*mq.factor:null;
       const pp=u?(ph-u.phys)*mq.factor:null;
       const item={i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:dr,p:ph,u:util,pp,src:"manual",pa:pa||null,nota:nota||null};
@@ -335,12 +347,9 @@ function Counters({cid,cont,setCont,user}){
     setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>c.f!==fecha),...items]};saveCont(n);return n;});
     setSt("ok");setInp({});setPremioAmor("");setNota("");setTimeout(()=>setSt(null),2500);
   }
-
-  // History modal for a machine
   if(viewHist){
     const mq=mqs.find(q=>q.id===viewHist);
     const hist=(cont[cid]||[]).filter(c=>c.i===viewHist).sort((a,b)=>b.f.localeCompare(a.f));
-    const excelHist=d?.b?.map(b=>({f:b.fecha,source:"excel"}))?.slice(0,5)||[];
     return<div style={{height:"100%",overflowY:"auto",background:C.bg}}>
       <Nav title={mq?.nombre||""}large={false}back="Contadores"onBack={()=>setViewHist(null)}/>
       <div style={{padding:"0 14px 100px"}}>
@@ -355,21 +364,18 @@ function Counters({cid,cont,setCont,user}){
               </div>
             </div>
             <div style={{display:"flex",gap:12,...T.fn,color:C.label2}}>
-              <span>IN: {c.d?.toLocaleString()}</span>
-              <span>OUT: {c.p?.toLocaleString()}</span>
+              <span>IN: {c.d?.toLocaleString()}</span><span>OUT: {c.p?.toLocaleString()}</span>
               {c.pp!=null&&<span style={{color:C.orange}}>Premios: {fmtE(c.pp)}</span>}
             </div>
-            {c.pa&&<div style={{...T.fn,color:C.yellow,marginTop:3}}>🏆 Premio Amor: {fmtE(c.pa)}</div>}
+            {c.pa&&<div style={{...T.fn,color:C.yellow,marginTop:3}}>Premio Amor: {fmtE(c.pa)}</div>}
             {c.nota&&<div style={{...T.fn,color:C.label3,marginTop:3,fontStyle:"italic"}}>"{c.nota}"</div>}
           </div>)}
         </Sec>
       </div>
     </div>;
   }
-
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-    <Nav title="Contadores"sub={`${m.n}`}sy={sy}
-      right={[{icon:editMode?"check":"edit",fn:()=>setEditMode(!editMode)}]}/>
+    <Nav title="Contadores"sub={`${m.n}`}sy={sy}right={[{icon:editMode?"check":"edit",fn:()=>setEditMode(!editMode)}]}/>
     <div style={{padding:"10px 14px",paddingBottom:120}}>
       {st==="warn"&&<div style={{background:`${C.orange}18`,border:`1px solid ${C.orange}`,borderRadius:12,padding:14,marginBottom:12}}>
         <div style={{...T.h,color:C.orange,marginBottom:8,display:"flex",alignItems:"center",gap:6}}><Ico n="warning"c={C.orange}s={16}/>Inconsistencias detectadas</div>
@@ -379,19 +385,15 @@ function Counters({cid,cont,setCont,user}){
           <button onClick={()=>setSt(null)}style={{flex:1,background:C.fill3,border:"none",borderRadius:10,padding:"10px",...T.h,color:C.label,cursor:"pointer"}}>Corregir</button>
         </div>
       </div>}
-
       <div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:10}}>
-        <Ico n="report"c={C.label3}s={16}/>
-        <span style={{...T.s,color:C.label2}}>Fecha:</span>
+        <Ico n="report"c={C.label3}s={16}/><span style={{...T.s,color:C.label2}}>Fecha:</span>
         <input type="date"value={fecha}onChange={e=>setFecha(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer",flex:1}}/>
       </div>
-
       {mqs.map(mq=>{
         const u=prevU(mq);const prev=getUlt(mq.id);const col=maqC(mq.factor,C);
         const histCount=(cont[cid]||[]).filter(c=>c.i===mq.id).length;
         return<div key={mq.id}style={{background:C.bg2,borderRadius:12,marginBottom:8,overflow:"hidden"}}>
-          <div style={{display:"flex",alignItems:"center",padding:"10px 12px",borderBottom:`0.5px solid ${C.sep}`,cursor:"pointer"}}
-            onClick={()=>editMode&&setViewHist(mq.id)}>
+          <div style={{display:"flex",alignItems:"center",padding:"10px 12px",borderBottom:`0.5px solid ${C.sep}`,cursor:"pointer"}}onClick={()=>editMode&&setViewHist(mq.id)}>
             <MaqIcon factor={mq.factor}nombre={mq.nombre}size={32}/>
             <div style={{flex:1,marginLeft:10}}>
               <div style={{...T.h,color:C.label}}>{mq.nombre}</div>
@@ -412,12 +414,9 @@ function Counters({cid,cont,setCont,user}){
           </div>
         </div>;
       })}
-
-      {/* Premio del Amor */}
       <div style={{background:C.bg2,borderRadius:12,marginBottom:8,padding:"12px 14px"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
-          <Ico n="trophy"c={C.yellow}s={18}/>
-          <span style={{...T.h,color:C.label}}>Premio del Amor</span>
+          <Ico n="trophy"c={C.yellow}s={18}/><span style={{...T.h,color:C.label}}>Premio del Amor</span>
           <span style={{...T.fn,color:C.label2,marginLeft:"auto"}}>Opcional</span>
         </div>
         <input type="number"inputMode="numeric"value={premioAmor}onChange={e=>setPremioAmor(e.target.value)}placeholder="Monto del premio pagado en efectivo"
@@ -427,7 +426,6 @@ function Counters({cid,cont,setCont,user}){
         <input value={nota}onChange={e=>setNota(e.target.value)}placeholder="Ej: se llenó hopper en maq 5, festival..."
           style={{width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"9px 11px",color:C.label,...T.s,boxSizing:"border-box",outline:"none"}}/>
       </div>
-
       <button onClick={()=>submit(false)}disabled={nOk===0||st==="ok"}
         style={{width:"100%",background:st==="ok"?C.green:nOk===0?C.fill3:color,border:"none",borderRadius:14,padding:"15px",color:nOk===0?C.label2:"#000",...T.h,cursor:nOk===0?"default":"pointer",marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
         {st==="ok"?<><Ico n="check"c="#000"s={18}/>Guardado</>:`Guardar ${nOk} máquina${nOk!==1?"s":""}`}
@@ -436,40 +434,18 @@ function Counters({cid,cont,setCont,user}){
   </div>;
 }
 
-
-
+// ─── CAMERA ───────────────────────────────────────────────────────────────────
 function Camera({cid,cont,setCont,apiKey,user}){
-  const C=getC();
-  const m=META[cid];const d=D[cid];const mqs=d?.m||[];
-  const[fecha,setFecha]=useState(today());
-  const[queue,setQueue]=useState([]);
-  const[driveStatus,setDriveStatus]=useState("");
-  const[saved,setSaved]=useState(false);
+  const C=getC();const m=META[cid];const d=D[cid];const mqs=d?.m||[];
+  const[fecha,setFecha]=useState(today());const[queue,setQueue]=useState([]);
+  const[driveStatus,setDriveStatus]=useState("");const[saved,setSaved]=useState(false);
   const fRef=useRef(null);
-
-  const getUlt=useCallback(id=>{
-    const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];
-    if(loc)return{d:loc.d,p:loc.p};
-    return d?.ul?.[id]||null;
-  },[cont,cid,d]);
-
+  const getUlt=useCallback(id=>{const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];if(loc)return{d:loc.d,p:loc.p};return d?.ul?.[id]||null;},[cont,cid,d]);
   async function analyzePhoto(blob,idx){
     setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"analyzing"}:x));
     try{
       const mq_list=mqs.map(q=>`${q.id}:${q.nombre}(x${q.factor})`).join(", ");
-      const prompt=`Eres experto en contadores de maquinas tragamonedas.
-Maquinas disponibles: ${mq_list}
-
-Tareas:
-1. Lee el NUMERO DE MAQUINA de la etiqueta fisica (esquina superior derecha u otro lugar visible)
-2. Lee los contadores:
-   DROP = TOTAL IN (el acumulado mayor)
-   PHYS = TOTAL OUT / COIN OUT
-   YIELD = TOTAL IN-OUT (diferencia, puede ser null)
-3. Identifica que maquina de la lista corresponde
-
-Responde SOLO JSON sin markdown:
-{"num_maquina":N,"maq_id":"ID","drop":N,"phys":N,"yield":N,"confianza":"alta|media|baja","nota":"breve"}`;
+      const prompt=`Eres experto en contadores de maquinas tragamonedas.\nMaquinas disponibles: ${mq_list}\n\nTareas:\n1. Lee el NUMERO DE MAQUINA de la etiqueta fisica\n2. Lee los contadores: DROP = TOTAL IN, PHYS = TOTAL OUT / COIN OUT, YIELD = TOTAL IN-OUT\n3. Identifica que maquina de la lista corresponde\n\nResponde SOLO JSON sin markdown:\n{"num_maquina":N,"maq_id":"ID","drop":N,"phys":N,"yield":N,"confianza":"alta|media|baja","nota":"breve"}`;
       const b64=await new Promise((ok,rej)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(blob);});
       const rsp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:300,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]}]})});
       const data=await rsp.json();
@@ -477,79 +453,51 @@ Responde SOLO JSON sin markdown:
       const parsed=JSON.parse((data.content?.[0]?.text||"").replace(/```json|```/g,"").trim());
       const mq=mqs.find(q=>q.id===parsed.maq_id)||mqs.find(q=>q.nombre.toLowerCase().includes(String(parsed.num_maquina)));
       setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"done",result:parsed,maqId:mq?.id||"",eDrop:String(parsed.drop||""),ePhys:String(parsed.phys||""),eYield:parsed.yield?String(parsed.yield):"",err:null}:x));
-    }catch(e){
-      setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"error",err:e.message}:x));
-    }
+    }catch(e){setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"error",err:e.message}:x));}
   }
-
   async function addPhotos(files){
     const newItems=[];
-    for(const file of Array.from(files)){
-      const blob=await compressImage(file);
-      newItems.push({file,blob,imgUrl:URL.createObjectURL(blob),status:"pending",result:null,maqId:"",eDrop:"",ePhys:"",eYield:"",err:null});
-    }
-    const startIdx=queue.length;
-    setQueue(q=>[...q,...newItems]);
-    for(let i=0;i<newItems.length;i++) await analyzePhoto(newItems[i].blob,startIdx+i);
+    for(const file of Array.from(files)){const blob=await compressImage(file);newItems.push({file,blob,imgUrl:URL.createObjectURL(blob),status:"pending",result:null,maqId:"",eDrop:"",ePhys:"",eYield:"",err:null});}
+    const startIdx=queue.length;setQueue(q=>[...q,...newItems]);
+    for(let i=0;i<newItems.length;i++)await analyzePhoto(newItems[i].blob,startIdx+i);
   }
-
   function upd(idx,field,val){setQueue(q=>q.map((x,i)=>i===idx?{...x,[field]:val}:x));}
   function remove(idx){setQueue(q=>q.filter((_,i)=>i!==idx));}
-
   async function confirmAll(){
-    const valid=queue.filter(x=>x.status==="done"&&x.maqId&&x.eDrop&&x.ePhys);
-    if(!valid.length)return;
+    const valid=queue.filter(x=>x.status==="done"&&x.maqId&&x.eDrop&&x.ePhys);if(!valid.length)return;
     const items=[];
     for(const x of valid){
       const mq=mqs.find(q=>q.id===x.maqId);if(!mq)continue;
-      const prev=getUlt(x.maqId);
-      const drop=parseInt(x.eDrop),phys=parseInt(x.ePhys),yld=x.eYield?parseInt(x.eYield):null;
-      const util=prev?((drop-prev.d)-(phys-prev.p))*mq.factor:null;
-      const pp=prev?(phys-prev.p)*mq.factor:null;
+      const prev=getUlt(x.maqId);const drop=parseInt(x.eDrop),phys=parseInt(x.ePhys),yld=x.eYield?parseInt(x.eYield):null;
+      const util=prev?((drop-prev.d)-(phys-prev.p))*mq.factor:null;const pp=prev?(phys-prev.p)*mq.factor:null;
       items.push({i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:drop,p:phys,y:yld,u:util,pp,src:"ocr"});
     }
     setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>!items.find(x=>x.i===c.i&&x.f===c.f)),...items]};saveCont(n);return n;});
-    // Save to Supabase
-    items.forEach(item=>{const mq=mqs.find(q=>q.id===item.i);if(mq)sbSaveLectura({casino_id:cid,maq_id:item.i,maq_nombre:item.n,factor:item.fc,fecha:item.f,drop_acum:item.d,phys_acum:item.p,yield_acum:item.y,util:item.u,phys_periodo:item.pp,source:"ocr"});});
-
-    if(GD_CLIENT_ID()&&GD_FOLDER_ID()){
-      setDriveStatus("Subiendo fotos a Drive...");
-      for(const x of valid){
-        const mq=mqs.find(q=>q.id===x.maqId);
-        try{
-          setDriveStatus(`Subiendo ${mq?.nombre||x.maqId}...`);
-          await uploadPhotoToDrive(x.blob,m.n,fecha,mq?.nombre||x.maqId);
-        }catch(e){console.warn("Drive:",e.message);}
-      }
-      setDriveStatus("✓ Fotos guardadas en Drive");
-      setTimeout(()=>setDriveStatus(""),3000);
+    if(GDClientId()&&GDFolderId()){
+      setDriveStatus("Subiendo fotos...");
+      for(const x of valid){const mq=mqs.find(q=>q.id===x.maqId);try{await uploadPhoto(x.blob,m.n,fecha,mq?.nombre||x.maqId);}catch(e){console.warn(e);}}
+      setDriveStatus("✓ Fotos en Drive");setTimeout(()=>setDriveStatus(""),3000);
     }
-
     setSaved(true);setTimeout(()=>{setQueue([]);setSaved(false);},2500);
   }
-
   const doneOk=queue.filter(x=>x.status==="done"&&x.maqId).length;
   const cCol=c=>c==="alta"?C.green:c==="media"?C.orange:C.red;
-
   return<div style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-    <Nav title="Cámara OCR"sub={`${m.e} ${m.n}`}large={false}/>
+    <Nav title="Cámara OCR"sub={`${m.n}`}large={false}/>
     <div style={{padding:"10px 14px",paddingBottom:120}}>
       <div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
         <span style={{...T.s,color:C.label2}}>Fecha:</span>
         <input type="date"value={fecha}onChange={e=>setFecha(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer"}}/>
         <span style={{...T.fn,color:C.label3,marginLeft:"auto"}}>{queue.length} foto{queue.length!==1?"s":""}</span>
       </div>
-
       <input ref={fRef}type="file"accept="image/*"multiple onChange={e=>{if(e.target.files?.length)addPhotos(e.target.files);e.target.value="";}}style={{display:"none"}}/>
       <div onClick={()=>fRef.current?.click()}style={{background:C.bg2,borderRadius:16,padding:"24px 20px",textAlign:"center",cursor:"pointer",border:`2px dashed ${C.sep}`,marginBottom:12}}>
         <div style={{fontSize:36,marginBottom:6}}>📷</div>
         <div style={{...T.h,color:C.label,marginBottom:3}}>Agregar fotos</div>
-        <div style={{...T.fn,color:C.label2}}>Selecciona varias a la vez · Claude detecta el número de máquina automáticamente</div>
+        <div style={{...T.fn,color:C.label2}}>Claude detecta el número de máquina automáticamente</div>
       </div>
-
       {queue.map((x,idx)=>{
-        const mq=mqs.find(q=>q.id===x.maqId);
-        const prev=x.maqId?getUlt(x.maqId):null;
+        const mq=mqs.find(q=>q.id===x.maqId);const prev=x.maqId?getUlt(x.maqId):null;
         const drop=parseInt(x.eDrop),phys=parseInt(x.ePhys);
         const util=mq&&prev&&!isNaN(drop)&&!isNaN(phys)?((drop-prev.d)-(phys-prev.p))*mq.factor:null;
         const pp=mq&&prev&&!isNaN(phys)?(phys-prev.p)*mq.factor:null;
@@ -559,21 +507,14 @@ Responde SOLO JSON sin markdown:
             <div style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,.75)",borderRadius:20,padding:"4px 10px",...T.fn,color:C.label}}>
               {x.status==="pending"?"⏳ Pendiente":x.status==="analyzing"?"🤖 Analizando...":x.status==="error"?"❌ Error":"✓ Listo"}
             </div>
-            {x.result?.confianza&&<div style={{position:"absolute",top:8,right:8,background:`${cCol(x.result.confianza)}22`,border:`1px solid ${cCol(x.result.confianza)}`,borderRadius:20,padding:"4px 10px",...T.cap,color:cCol(x.result.confianza)}}>
-              {x.result.confianza}
-            </div>}
+            {x.result?.confianza&&<div style={{position:"absolute",top:8,right:8,background:`${cCol(x.result.confianza)}22`,border:`1px solid ${cCol(x.result.confianza)}`,borderRadius:20,padding:"4px 10px",...T.cap,color:cCol(x.result.confianza)}}>{x.result.confianza}</div>}
             <button onClick={()=>remove(idx)}style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.7)",border:"none",borderRadius:16,padding:"4px 10px",...T.cap,color:C.red,cursor:"pointer"}}>✕</button>
           </div>
-
           {x.status==="error"&&<div style={{padding:"10px 14px",...T.s,color:C.red}}>❌ {x.err}<br/><button onClick={()=>analyzePhoto(x.blob,idx)}style={{background:"transparent",border:`1px solid ${C.blue}`,borderRadius:8,padding:"4px 10px",color:C.blue,cursor:"pointer",marginTop:6,...T.fn}}>Reintentar</button></div>}
-
           {(x.status==="done"||x.status==="analyzing")&&<div style={{padding:"10px 14px"}}>
             <div style={{marginBottom:10}}>
-              <div style={{...T.cap,color:C.label2,marginBottom:4}}>
-                Máquina{x.result?.num_maquina?` — etiqueta #${x.result.num_maquina}`:""}
-              </div>
-              <select value={x.maqId}onChange={e=>upd(idx,"maqId",e.target.value)}
-                style={{width:"100%",background:C.fill3,border:`1px solid ${x.maqId?C.sep:C.orange}`,borderRadius:8,padding:"8px 10px",color:x.maqId?C.label:C.orange,...T.c}}>
+              <div style={{...T.cap,color:C.label2,marginBottom:4}}>Máquina{x.result?.num_maquina?` — etiqueta #${x.result.num_maquina}`:""}</div>
+              <select value={x.maqId}onChange={e=>upd(idx,"maqId",e.target.value)}style={{width:"100%",background:C.fill3,border:`1px solid ${x.maqId?C.sep:C.orange}`,borderRadius:8,padding:"8px 10px",color:x.maqId?C.label:C.orange,...T.c}}>
                 <option value="">— Seleccionar máquina —</option>
                 {mqs.map(q=><option key={q.id}value={q.id}style={{background:C.bg2}}>{q.nombre} ×{q.factor}</option>)}
               </select>
@@ -597,31 +538,26 @@ Responde SOLO JSON sin markdown:
           </div>}
         </div>;
       })}
-
       {driveStatus&&<div style={{background:C.bg2,borderRadius:10,padding:"10px 14px",marginBottom:10,...T.s,color:C.label2,textAlign:"center"}}>{driveStatus}</div>}
-
       {queue.length>0&&<button onClick={confirmAll}disabled={doneOk===0||saved}
-        style={{width:"100%",background:saved?C.green:doneOk===0?"#333":m.c,border:"none",borderRadius:14,padding:"15px",color:"#000",...T.h,cursor:doneOk===0?"default":"pointer"}}>
+        style={{width:"100%",background:saved?C.green:doneOk===0?"#333":C[m.c],border:"none",borderRadius:14,padding:"15px",color:"#000",...T.h,cursor:doneOk===0?"default":"pointer"}}>
         {saved?"✓ Guardado":`Confirmar ${doneOk} máquina${doneOk!==1?"s":""}`}
       </button>}
-
       {!apiKey&&<div style={{background:"rgba(255,159,10,.1)",border:`1px solid ${C.orange}`,borderRadius:12,padding:12,marginTop:10}}>
         <div style={{...T.h,color:C.orange,marginBottom:4}}>Sin API Key</div>
-        <div style={{...T.s,color:C.label2}}>Ve a Ajustes ⚙️ para configurarla.</div>
+        <div style={{...T.s,color:C.label2}}>Ve a Ajustes para configurarla.</div>
       </div>}
     </div>
   </div>;
 }
 
-
-// ─── REPORT (with chart + table + PDF) ───────────────────────────────────────
+// ─── REPORT ───────────────────────────────────────────────────────────────────
 function Report({cid,cont}){
   const C=getC();const m=META[cid];const d=D[cid];const color=C[m.c];
   const[sy,setSy]=useState(0);const[vista,setVista]=useState("balance");
   const[filtro,setFiltro]=useState("todo");const[mes,setMes]=useState(today().slice(0,7));
   const[desde,setDesde]=useState("");const[hasta,setHasta]=useState("");
   const[chartTab,setChartTab]=useState("total");const[tableMode,setTableMode]=useState("byfecha");
-
   function getBals(){
     const b={};
     (d?.b||[]).forEach(bl=>{b[bl.fecha]={fecha:bl.fecha,util:bl.util_total,phys:bl.phys_total,nota:null};});
@@ -643,127 +579,48 @@ function Report({cid,cont}){
   const totCaja=totUtil+totPhys-totPA;
   const avg=bals.length?Math.round(totUtil/bals.length):0;
   const mqs=d?.m||[];
-
-  // Per-machine data for table
   const maqData=useMemo(()=>{
-    const dates=[...new Set(bals.map(b=>b.fecha))].sort();
-    const byMaq={};
-    mqs.forEach(mq=>{byMaq[mq.id]={...mq,byDate:{},total:0,periods:0};});
-    (cont[cid]||[]).filter(c=>bals.find(b=>b.fecha===c.f)).forEach(c=>{
-      if(byMaq[c.i]){byMaq[c.i].byDate[c.f]={u:c.u,pp:c.pp,d:c.d,p:c.p};byMaq[c.i].total+=(c.u||0);byMaq[c.i].periods++;}
-    });
-    return{dates,byMaq:Object.values(byMaq)};
+    const byMaq={};mqs.forEach(mq=>{byMaq[mq.id]={...mq,byDate:{},total:0,periods:0};});
+    (cont[cid]||[]).filter(c=>bals.find(b=>b.fecha===c.f)).forEach(c=>{if(byMaq[c.i]){byMaq[c.i].byDate[c.f]={u:c.u,pp:c.pp};byMaq[c.i].total+=(c.u||0);byMaq[c.i].periods++;}});
+    return{byMaq:Object.values(byMaq)};
   },[bals,cont,cid,mqs]);
-
-  // Chart data
-  const chartData=useMemo(()=>{
-    const pts=[...bals].reverse().slice(-20);
-    return pts.map(b=>({fecha:b.fecha.slice(5),util:b.util,phys:b.phys,caja:(b.util||0)+(b.phys||0)}));
-  },[bals]);
-  const top5=useMemo(()=>{
-    return [...maqData.byMaq].sort((a,b)=>b.total-a.total).slice(0,5);
-  },[maqData]);
+  const chartData=useMemo(()=>[...bals].reverse().slice(-20).map(b=>({fecha:b.fecha.slice(5),util:b.util,phys:b.phys})),[bals]);
+  const top5=useMemo(()=>[...maqData.byMaq].sort((a,b)=>b.total-a.total).slice(0,5),[maqData]);
 
   function exportExcel(){
-    const XLSX=window.XLSX;
-    if(!XLSX){const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=exportExcel;document.head.appendChild(s);return;}
+    const XLSX=window.XLSX;if(!XLSX){const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=exportExcel;document.head.appendChild(s);return;}
     const wb=XLSX.utils.book_new();
-    // Balance
     const balRows=[["Fecha","Utilidad","Premios","Premio Amor","Caja Física","Nota"],...bals.map(b=>[b.fecha,b.util||0,b.phys||0,b.pa||0,(b.util||0)+(b.phys||0)-(b.pa||0),b.nota||""])];
-    const totRow=["TOTAL",totUtil,totPhys,totPA,totCaja,""];balRows.push(totRow);
-    const wsB=XLSX.utils.aoa_to_sheet(balRows);wsB["!cols"]=[{wch:14},{wch:14},{wch:14},{wch:14},{wch:14},{wch:30}];
-    XLSX.utils.book_append_sheet(wb,wsB,"Balance");
-    // Per machine
+    balRows.push(["TOTAL",totUtil,totPhys,totPA,totCaja,""]);
+    const wsB=XLSX.utils.aoa_to_sheet(balRows);XLSX.utils.book_append_sheet(wb,wsB,"Balance");
     mqs.forEach(mq=>{
-      const rows=[["Fecha","TOTAL IN","TOTAL OUT","IN-OUT","Premios","Utilidad","Caja"]];
-      (cont[cid]||[]).filter(c=>c.i===mq.id).sort((a,b)=>a.f.localeCompare(b.f)).forEach(c=>{
-        rows.push([c.f,c.d,c.p,c.y||"",c.pp||0,c.u||0,(c.pp||0)+(c.u||0)]);
-      });
-      if(rows.length>1){const ws=XLSX.utils.aoa_to_sheet(rows);ws["!cols"]=[{wch:14},{wch:14},{wch:14},{wch:12},{wch:14},{wch:14},{wch:14}];XLSX.utils.book_append_sheet(wb,ws,mq.nombre.slice(0,31));}
+      const rows=[["Fecha","TOTAL IN","TOTAL OUT","IN-OUT","Premios","Utilidad"]];
+      (cont[cid]||[]).filter(c=>c.i===mq.id).sort((a,b)=>a.f.localeCompare(b.f)).forEach(c=>{rows.push([c.f,c.d,c.p,c.y||"",c.pp||0,c.u||0]);});
+      if(rows.length>1){const ws=XLSX.utils.aoa_to_sheet(rows);XLSX.utils.book_append_sheet(wb,ws,mq.nombre.slice(0,31));}
     });
-    XLSX.writeFile(wb,`${m.n}_${filtro==="mes"?mes:filtro}_${today()}.xlsx`);
+    XLSX.writeFile(wb,`${m.n}_${today()}.xlsx`);
   }
-
   async function exportPDF(){
-    // Load jsPDF
-    if(!window.jspdf){
-      const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
-      await new Promise(r=>{s.onload=r;document.head.appendChild(s);});
-    }
-    const{jsPDF}=window.jspdf;
-    const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
+    if(!window.jspdf){const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";await new Promise(r=>{s.onload=r;document.head.appendChild(s);});}
+    const{jsPDF}=window.jspdf;const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
     const W=210,M=15;let y=20;
-    // Header
-    doc.setFillColor(30,30,46);doc.rect(0,0,W,40,"F");
-    doc.setTextColor(255,255,255);doc.setFontSize(20);doc.setFont("helvetica","bold");
-    doc.text(m.n,M,18);
-    doc.setFontSize(11);doc.setFont("helvetica","normal");
-    doc.text(`Período: ${filtro==="todo"?"Todo":filtro==="mes"?mes:filtro==="semana"?"Últimos 7 días":`${desde} al ${hasta}`}`,M,28);
-    doc.text(`Generado: ${today()}`,M,35);
-    y=52;
-    // Summary cards
-    doc.setTextColor(0,0,0);doc.setFontSize(10);doc.setFont("helvetica","bold");
-    const cards=[[`Utilidad Total`,fmtE(totUtil)],[`Premios`,fmtE(totPhys)],[`Caja Física`,fmtE(totCaja)],[`Promedio/período`,fmtE(avg)]];
+    doc.setFillColor(30,30,46);doc.rect(0,0,W,40,"F");doc.setTextColor(255,255,255);doc.setFontSize(20);doc.setFont("helvetica","bold");
+    doc.text(m.n,M,18);doc.setFontSize(11);doc.setFont("helvetica","normal");doc.text(`Período: ${filtro}`,M,28);doc.text(`Generado: ${today()}`,M,35);y=52;
+    doc.setTextColor(0,0,0);
+    const cards=[[`Utilidad Total`,fmtE(totUtil)],[`Premios`,fmtE(totPhys)],[`Caja Física`,fmtE(totCaja)],[`Promedio`,fmtE(avg)]];
     const cw=(W-M*2-9)/4;
-    cards.forEach(([lbl,val],i)=>{
-      const x=M+i*(cw+3);
-      doc.setFillColor(245,245,250);doc.roundedRect(x,y,cw,18,2,2,"F");
-      doc.setFontSize(7);doc.setFont("helvetica","normal");doc.setTextColor(100,100,100);doc.text(lbl,x+3,y+6);
-      doc.setFontSize(9);doc.setFont("helvetica","bold");doc.setTextColor(0,0,0);doc.text(val,x+3,y+14);
-    });
-    y+=26;
-    // Per-machine table
-    doc.setFontSize(11);doc.setFont("helvetica","bold");doc.text("Detalle por Máquina",M,y);y+=6;
-    doc.setFontSize(8);doc.setFont("helvetica","normal");
-    const cols=["Máquina","Factor","Períodos","Prom Utilidad","Total Utilidad"];
-    const colW=[55,20,20,40,40];let x=M;
-    doc.setFillColor(50,50,80);doc.rect(M,y,W-M*2,6,"F");doc.setTextColor(255,255,255);
-    cols.forEach((c,i)=>{doc.text(c,x+2,y+4.5);x+=colW[i];});
-    y+=6;doc.setTextColor(0,0,0);
-    [...maqData.byMaq].sort((a,b)=>b.total-a.total).forEach((mq,row)=>{
-      if(y>270){doc.addPage();y=20;}
-      doc.setFillColor(row%2===0?250:242,row%2===0?250:242,row%2===0?250:255);
-      doc.rect(M,y,W-M*2,6,"F");x=M;
-      const avg2=mq.periods?Math.round(mq.total/mq.periods):0;
-      [mq.nombre.slice(0,22),`×${mq.factor}`,String(mq.periods),fmtE(avg2),fmtE(mq.total)].forEach((v,i)=>{doc.text(v,x+2,y+4.5);x+=colW[i];});
-      y+=6;
-    });
-    y+=8;
-    // Historial
-    if(y<240){
-      doc.setFontSize(11);doc.setFont("helvetica","bold");doc.text("Historial de Períodos",M,y);y+=6;
-      doc.setFontSize(8);doc.setFont("helvetica","normal");
-      bals.slice(0,15).forEach((b,row)=>{
-        if(y>270){doc.addPage();y=20;}
-        doc.setFillColor(row%2===0?250:242,row%2===0?250:242,row%2===0?250:255);doc.rect(M,y,W-M*2,6,"F");
-        doc.setTextColor(0,0,0);doc.text(fmtF(b.fecha),M+2,y+4.5);
-        doc.setTextColor(b.util>=0?0:200,b.util>=0?150:0,0);doc.text(fmtE(b.util),M+42,y+4.5);
-        doc.setTextColor(180,80,0);doc.text(`Premios: ${fmtE(b.phys||0)}`,M+82,y+4.5);
-        doc.setTextColor(0,0,0);doc.text(`Caja: ${fmtE((b.util||0)+(b.phys||0)-(b.pa||0))}`,M+130,y+4.5);
-        if(b.nota){doc.setTextColor(100,100,100);doc.text(b.nota.slice(0,30),M+170,y+4.5);}
-        y+=6;
-      });
-    }
+    cards.forEach(([lbl,val],i)=>{const x=M+i*(cw+3);doc.setFillColor(245,245,250);doc.roundedRect(x,y,cw,18,2,2,"F");doc.setFontSize(7);doc.setFont("helvetica","normal");doc.setTextColor(100,100,100);doc.text(lbl,x+3,y+6);doc.setFontSize(9);doc.setFont("helvetica","bold");doc.setTextColor(0,0,0);doc.text(val,x+3,y+14);});
+    y+=26;doc.setFontSize(11);doc.setFont("helvetica","bold");doc.text("Historial",M,y);y+=6;
+    bals.slice(0,20).forEach((b,row)=>{if(y>270){doc.addPage();y=20;}doc.setFillColor(row%2===0?250:242,row%2===0?250:242,row%2===0?250:255);doc.rect(M,y,W-M*2,6,"F");doc.setFontSize(8);doc.setFont("helvetica","normal");doc.setTextColor(0,0,0);doc.text(fmtF(b.fecha),M+2,y+4.5);doc.text(fmtE(b.util),M+42,y+4.5);doc.text(`Caja: ${fmtE((b.util||0)+(b.phys||0)-(b.pa||0))}`,M+90,y+4.5);y+=6;});
     doc.save(`${m.n}_reporte_${today()}.pdf`);
   }
 
-  // Simple inline chart using SVG
   function ChartTotal(){
-    const pts=chartData;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos suficientes</div>;
-    const maxV=Math.max(...pts.map(p=>Math.abs(p.util)),1);
-    const W2=360,H=120,pad=10;
-    const bw=Math.max(4,Math.floor((W2-pad*2)/pts.length)-2);
+    const pts=chartData;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
+    const maxV=Math.max(...pts.map(p=>Math.abs(p.util)),1);const W2=360,H=120,pad=10;const bw=Math.max(4,Math.floor((W2-pad*2)/pts.length)-2);
     return<svg width="100%"viewBox={`0 0 ${W2} ${H+20}`}style={{overflow:"visible"}}>
-      {pts.map((p,i)=>{
-        const x=pad+i*((W2-pad*2)/pts.length);
-        const h=Math.max(2,Math.abs(p.util)/maxV*(H-10));
-        const barY=p.util>=0?H-h:H;
-        const col=p.util>=0?C.green:C.red;
-        return<g key={i}>
-          <rect x={x}y={barY}width={bw}height={h}fill={col}opacity=".85"rx="2"/>
-          {i%(Math.ceil(pts.length/6))===0&&<text x={x+bw/2}y={H+14}fontSize="8"fill={C.label2}textAnchor="middle">{p.fecha}</text>}
-        </g>;
-      })}
+      {pts.map((p,i)=>{const x=pad+i*((W2-pad*2)/pts.length);const h=Math.max(2,Math.abs(p.util)/maxV*(H-10));const barY=p.util>=0?H-h:H;const col=p.util>=0?C.green:C.red;
+        return<g key={i}><rect x={x}y={barY}width={bw}height={h}fill={col}opacity=".85"rx="2"/>{i%(Math.ceil(pts.length/6))===0&&<text x={x+bw/2}y={H+14}fontSize="8"fill={C.label2}textAnchor="middle">{p.fecha}</text>}</g>;})}
       <line x1={pad}y1={H}x2={W2-pad}y2={H}stroke={C.sep}strokeWidth="1"/>
     </svg>;
   }
@@ -771,58 +628,39 @@ function Report({cid,cont}){
     if(!top5.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
     const max=Math.max(...top5.map(m=>Math.abs(m.total)),1);
     return<div style={{padding:"4px 0"}}>
-      {top5.map((mq,i)=>{
-        const pct=Math.abs(mq.total)/max*100;
-        const col=maqC(mq.factor,C);
+      {top5.map(mq=>{const pct=Math.abs(mq.total)/max*100;const col=maqC(mq.factor,C);
         return<div key={mq.id}style={{marginBottom:10}}>
-          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}>
-            <span style={{...T.fn,color:C.label}}>{mq.nombre}</span>
-            <span style={{...T.fn,color:col,fontWeight:600}}>{fmtE(mq.total)}</span>
-          </div>
-          <div style={{background:C.fill3,borderRadius:4,height:8,overflow:"hidden"}}>
-            <div style={{width:`${pct}%`,height:"100%",background:col,borderRadius:4,transition:"width .6s"}}/>
-          </div>
-        </div>;
-      })}
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><span style={{...T.fn,color:C.label}}>{mq.nombre}</span><span style={{...T.fn,color:col,fontWeight:600}}>{fmtE(mq.total)}</span></div>
+          <div style={{background:C.fill3,borderRadius:4,height:8,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:col,borderRadius:4}}/></div>
+        </div>;})}
     </div>;
   }
 
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
     <Nav title="Reporte"sub={m.n}sy={sy}right={[{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
-      {/* Vista selector */}
       <div style={{display:"flex",background:C.bg2,borderRadius:10,padding:3,marginBottom:12}}>
         {[["balance","Balance"],["tabla","Tabla"],["grafica","Gráfica"]].map(([v,l])=>
           <button key={v}onClick={()=>setVista(v)}style={{flex:1,background:vista===v?C.bg3:"transparent",border:"none",borderRadius:8,padding:"7px",color:vista===v?C.label:C.label2,cursor:"pointer",...T.s,fontWeight:vista===v?600:400}}>{l}</button>)}
       </div>
-
-      {/* Filters */}
       <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:2}}>
         {[["todo","Todo"],["semana","7 días"],["mes","Mes"],["custom","Rango"]].map(([v,l])=>
           <button key={v}onClick={()=>setFiltro(v)}style={{flexShrink:0,background:filtro===v?color:"transparent",border:`1px solid ${filtro===v?color:C.sep}`,borderRadius:20,padding:"5px 14px",color:filtro===v?"#000":C.label2,cursor:"pointer",...T.fn,fontWeight:filtro===v?600:400}}>{l}</button>)}
       </div>
-      {filtro==="mes"&&<div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",gap:8,alignItems:"center"}}><Ico n="report"c={C.label3}s={14}/><span style={{...T.s,color:C.label2}}>Mes:</span><input type="month"value={mes}onChange={e=>setMes(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer"}}/></div>}
+      {filtro==="mes"&&<div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",gap:8,alignItems:"center"}}><span style={{...T.s,color:C.label2}}>Mes:</span><input type="month"value={mes}onChange={e=>setMes(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer"}}/></div>}
       {filtro==="custom"&&<div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",gap:12,flexWrap:"wrap"}}>
         <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{...T.fn,color:C.label2}}>Desde</span><input type="date"value={desde}onChange={e=>setDesde(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.fn}}/></div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{...T.fn,color:C.label2}}>Hasta</span><input type="date"value={hasta}onChange={e=>setHasta(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.fn}}/></div>
       </div>}
-
-      {/* Summary card */}
       <div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:16,padding:18,marginBottom:12,border:`1px solid ${C.sep}`}}>
         <div style={{...T.fn,color:C.label2,marginBottom:4}}>UTILIDAD TOTAL</div>
         <div style={{...T.lg,color:C.label,marginBottom:12}}>{fmtE(totUtil)}</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
           {[["Premios",totPhys,C.orange],["Caja",totCaja,color],[bals.length+" per.",avg,C.label]].map(([lbl,val,col],i)=>
-            <div key={i}style={{background:C.fill4,borderRadius:10,padding:"8px 10px"}}>
-              <div style={{...T.cap,color:C.label2,marginBottom:2}}>{lbl}</div>
-              <div style={{...T.c,color:col,fontWeight:600}}>{i===2?fmtE(val):fmtE(val)}</div>
-            </div>)}
+            <div key={i}style={{background:C.fill4,borderRadius:10,padding:"8px 10px"}}><div style={{...T.cap,color:C.label2,marginBottom:2}}>{lbl}</div><div style={{...T.c,color:col,fontWeight:600}}>{fmtE(val)}</div></div>)}
         </div>
-        {totPA>0&&<div style={{...T.fn,color:C.yellow,marginTop:8,display:"flex",alignItems:"center",gap:4}}><Ico n="trophy"c={C.yellow}s={13}/>Premio Amor descontado: {fmtE(totPA)}</div>}
-        <div style={{...T.cap,color:C.label3,marginTop:6}}>Caja = Util + Premios − Premio Amor</div>
+        {totPA>0&&<div style={{...T.fn,color:C.yellow,marginTop:8,display:"flex",alignItems:"center",gap:4}}><Ico n="trophy"c={C.yellow}s={13}/>Premio Amor: {fmtE(totPA)}</div>}
       </div>
-
-      {/* BALANCE VIEW */}
       {vista==="balance"&&<Sec hdr={`Historial (${bals.length} períodos)`}>
         {bals.length===0&&<div style={{padding:"16px",...T.s,color:C.label2,textAlign:"center"}}>Sin períodos en este rango</div>}
         {bals.map((b,i)=><div key={b.fecha}style={{padding:"10px 14px",borderBottom:i<bals.length-1?`0.5px solid ${C.sep}`:"none"}}>
@@ -838,8 +676,6 @@ function Report({cid,cont}){
           {b.nota&&<div style={{...T.fn,color:C.label3,marginTop:3,fontStyle:"italic"}}>"{b.nota}"</div>}
         </div>)}
       </Sec>}
-
-      {/* TABLE VIEW */}
       {vista==="tabla"&&<>
         <div style={{display:"flex",gap:6,marginBottom:10}}>
           {[["byfecha","Por fecha"],["bymaq","Por máquina"]].map(([v,l])=>
@@ -847,48 +683,35 @@ function Report({cid,cont}){
         </div>
         {tableMode==="byfecha"&&<div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",...T.fn,color:C.label,minWidth:500}}>
-            <thead><tr style={{background:C.bg2}}>
-              {["Fecha","Máquina","TOTAL IN","TOTAL OUT","IN-OUT","Premios","Utilidad"].map(h=><th key={h}style={{padding:"8px 10px",textAlign:"right",color:C.label2,fontWeight:500,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Fecha"||h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {(cont[cid]||[]).filter(c=>bals.find(b=>b.fecha===c.f)).sort((a,b)=>b.f.localeCompare(a.f)||a.n.localeCompare(b.n)).map((c,i)=><tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
-                <td style={{padding:"7px 10px"}}>{fmtF(c.f)}</td>
-                <td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>{c.n}</td>
-                <td style={{padding:"7px 10px",textAlign:"right"}}>{c.d?.toLocaleString()}</td>
-                <td style={{padding:"7px 10px",textAlign:"right"}}>{c.p?.toLocaleString()}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{c.y?.toLocaleString()||"—"}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:C.orange}}>{fmtE(c.pp)}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:(c.u||0)>=0?C.green:C.red,fontWeight:600}}>{fmtE(c.u)}</td>
-              </tr>)}
-            </tbody>
+            <thead><tr style={{background:C.bg2}}>{["Fecha","Máquina","TOTAL IN","TOTAL OUT","IN-OUT","Premios","Utilidad"].map(h=><th key={h}style={{padding:"8px 10px",textAlign:"right",color:C.label2,fontWeight:500,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Fecha"||h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}</tr></thead>
+            <tbody>{(cont[cid]||[]).filter(c=>bals.find(b=>b.fecha===c.f)).sort((a,b)=>b.f.localeCompare(a.f)||a.n.localeCompare(b.n)).map((c,i)=><tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
+              <td style={{padding:"7px 10px"}}>{fmtF(c.f)}</td><td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>{c.n}</td>
+              <td style={{padding:"7px 10px",textAlign:"right"}}>{c.d?.toLocaleString()}</td><td style={{padding:"7px 10px",textAlign:"right"}}>{c.p?.toLocaleString()}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{c.y?.toLocaleString()||"—"}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:C.orange}}>{fmtE(c.pp)}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:(c.u||0)>=0?C.green:C.red,fontWeight:600}}>{fmtE(c.u)}</td>
+            </tr>)}</tbody>
           </table>
         </div>}
         {tableMode==="bymaq"&&<div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",...T.fn,color:C.label,minWidth:400}}>
-            <thead><tr style={{background:C.bg2}}>
-              {["Máquina","Factor","Períodos","Prom Util","Total"].map(h=><th key={h}style={{padding:"8px 10px",textAlign:"right",color:C.label2,fontWeight:500,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}
-            </tr></thead>
-            <tbody>
-              {[...maqData.byMaq].sort((a,b)=>b.total-a.total).map((mq,i)=><tr key={mq.id}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
-                <td style={{padding:"7px 10px"}}>{mq.nombre}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:maqC(mq.factor,C)}}>×{mq.factor}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{mq.periods}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:C.blue}}>{mq.periods?fmtE(Math.round(mq.total/mq.periods)):"—"}</td>
-                <td style={{padding:"7px 10px",textAlign:"right",color:mq.total>=0?C.green:C.red,fontWeight:600}}>{fmtE(mq.total)}</td>
-              </tr>)}
-            </tbody>
+            <thead><tr style={{background:C.bg2}}>{["Máquina","Factor","Períodos","Prom Util","Total"].map(h=><th key={h}style={{padding:"8px 10px",textAlign:"right",color:C.label2,fontWeight:500,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}</tr></thead>
+            <tbody>{[...maqData.byMaq].sort((a,b)=>b.total-a.total).map((mq,i)=><tr key={mq.id}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
+              <td style={{padding:"7px 10px"}}>{mq.nombre}</td><td style={{padding:"7px 10px",textAlign:"right",color:maqC(mq.factor,C)}}>×{mq.factor}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{mq.periods}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:C.blue}}>{mq.periods?fmtE(Math.round(mq.total/mq.periods)):"—"}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:mq.total>=0?C.green:C.red,fontWeight:600}}>{fmtE(mq.total)}</td>
+            </tr>)}</tbody>
           </table>
         </div>}
       </>}
-
-      {/* CHART VIEW */}
       {vista==="grafica"&&<>
         <div style={{display:"flex",background:C.bg2,borderRadius:10,padding:3,marginBottom:12}}>
           {[["total","Utilidad total"],["top5","Top 5 máquinas"]].map(([v,l])=>
             <button key={v}onClick={()=>setChartTab(v)}style={{flex:1,background:chartTab===v?C.bg3:"transparent",border:"none",borderRadius:8,padding:"7px",color:chartTab===v?C.label:C.label2,cursor:"pointer",...T.s,fontWeight:chartTab===v?600:400}}>{l}</button>)}
         </div>
         <div style={{background:C.bg2,borderRadius:14,padding:"14px 10px 8px"}}>
-          <div style={{...T.fn,color:C.label2,marginBottom:8,paddingLeft:4}}>{chartTab==="total"?"Utilidad por período (últimos 20)":"Top 5 máquinas — utilidad acumulada"}</div>
+          <div style={{...T.fn,color:C.label2,marginBottom:8,paddingLeft:4}}>{chartTab==="total"?"Utilidad por período":"Top 5 máquinas"}</div>
           {chartTab==="total"?<ChartTotal/>:<ChartTop5/>}
         </div>
       </>}
@@ -896,37 +719,24 @@ function Report({cid,cont}){
   </div>;
 }
 
-
-
+// ─── MACHINES ─────────────────────────────────────────────────────────────────
 function Machines({cid,cont}){
-  const C=getC();
-  const m=META[cid];const d=D[cid];const mqs=d?.m||[];const[sy,setSy]=useState(0);
-  const getUlt=id=>{
-    const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];
-    if(loc)return{drop:loc.d,phys:loc.p,fecha:loc.f};
-    const lr=d?.ul?.[id];
-    return lr?{drop:lr.d,phys:lr.p,fecha:"Excel"}:null;
-  };
+  const C=getC();const m=META[cid];const d=D[cid];const mqs=d?.m||[];const[sy,setSy]=useState(0);
+  const getUlt=id=>{const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];if(loc)return{drop:loc.d,phys:loc.p,fecha:loc.f};const lr=d?.ul?.[id];return lr?{drop:lr.d,phys:lr.p,fecha:"Excel"}:null;};
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch",background:C.bg}}>
-    <Nav title="Maquinas"sub={`${m.n} · ${mqs.length} maqs`}sy={sy}/>
+    <Nav title="Máquinas"sub={`${m.n} · ${mqs.length} máqs`}sy={sy}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
-      <Sec hdr={`${mqs.length} maquinas`}>
+      <Sec hdr={`${mqs.length} máquinas`}>
         {mqs.map((mq,i)=>{
-          const lr=getUlt(mq.id);
-          const col=maqC(mq.factor,C);
-          const histCount=(cont[cid]||[]).filter(c=>c.i===mq.id).length;
+          const lr=getUlt(mq.id);const col=maqC(mq.factor,C);const histCount=(cont[cid]||[]).filter(c=>c.i===mq.id).length;
           return<div key={mq.id}style={{display:"flex",alignItems:"center",padding:"10px 14px",background:C.bg2,borderBottom:i<mqs.length-1?`0.5px solid ${C.sep}`:"none"}}>
             <MaqIcon factor={mq.factor}nombre={mq.nombre}size={32}/>
             <div style={{flex:1,marginLeft:10,minWidth:0}}>
               <div style={{...T.b,color:C.label}}>{mq.nombre}</div>
-              <div style={{...T.fn,color:C.label2,marginTop:2}}>
-                {lr?`DROP: ${lr.drop?.toLocaleString()} · OUT: ${lr.phys?.toLocaleString()} · ${fmtF(lr.fecha)}`:"Sin lecturas"}
-              </div>
+              <div style={{...T.fn,color:C.label2,marginTop:2}}>{lr?`DROP: ${lr.drop?.toLocaleString()} · OUT: ${lr.phys?.toLocaleString()} · ${fmtF(lr.fecha)}`:"Sin lecturas"}</div>
               {histCount>0&&<div style={{...T.cap,color:C.label3,marginTop:1}}>{histCount} lecturas</div>}
             </div>
-            <div style={{background:`${col}22`,borderRadius:8,padding:"3px 8px",flexShrink:0}}>
-              <span style={{...T.fn,color:col,fontWeight:600}}>x{mq.factor}</span>
-            </div>
+            <div style={{background:`${col}22`,borderRadius:8,padding:"3px 8px",flexShrink:0}}><span style={{...T.fn,color:col,fontWeight:600}}>x{mq.factor}</span></div>
           </div>;
         })}
       </Sec>
@@ -934,10 +744,213 @@ function Machines({cid,cont}){
   </div>;
 }
 
+// ─── ADMIN PANEL ──────────────────────────────────────────────────────────────
+function AdminPanel({onBack,user}){
+  const C=getC();
+  const[tab,setTab]=useState("bio");
+  const[logs,setLogs]=useState(()=>loadLogs());
+  const[timeouts,setTimeoutsState]=useState(()=>loadTimeouts());
+  const[msg,setMsg]=useState(null);
+  const[expandUser,setExpandUser]=useState(null);
+  const[devicesMap,setDevicesMap]=useState(()=>{const m={};USERS.forEach(u=>{m[u]=getFaceDevices(u);});return m;});
+  const flash=(txt,isErr=false)=>{setMsg({txt,err:isErr});setTimeout(()=>setMsg(null),3000);};
 
-// Casino Shell + Home + Settings + Root
+  // ── BIOMETRÍA ────────────────────────────────────────────────────────────
+  function BiometricTab(){
+    const[registering,setRegistering]=useState(null);
+    async function doRegister(targetUser){
+      setRegistering(targetUser);
+      try{
+        const label=`${targetUser} — ${new Date().toLocaleDateString("es-CO")}`;
+        const devs=await registerFaceIdDevice(targetUser,label);
+        setDevicesMap(m=>({...m,[targetUser]:devs}));
+        saveLog({action:"face_register",target:targetUser,by:user,label});
+        flash(`Face ID registrado para ${targetUser}`);
+      }catch(e){flash(e.message,true);}
+      setRegistering(null);
+    }
+    function doRevoke(targetUser,credId,devLabel){
+      if(!confirm(`¿Revocar "${devLabel}" de ${targetUser}?`))return;
+      const devs=revokeFaceDevice(targetUser,credId);
+      setDevicesMap(m=>({...m,[targetUser]:devs}));
+      saveLog({action:"face_revoke",target:targetUser,by:user,label:devLabel});
+      flash("Dispositivo revocado");
+    }
+    return<div>
+      {USERS.map(u=>{
+        const devs=devicesMap[u]||[];const canAdd=devs.length<2;
+        return<div key={u}style={{background:C.bg2,borderRadius:14,marginBottom:10,overflow:"hidden"}}>
+          <div onClick={()=>setExpandUser(expandUser===u?null:u)}
+            style={{display:"flex",alignItems:"center",padding:"12px 14px",cursor:"pointer"}}>
+            <div style={{width:36,height:36,borderRadius:18,background:u==="Santiago"?C.indigo:u==="Eliza"?C.pink:C.teal,display:"flex",alignItems:"center",justifyContent:"center",marginRight:10,flexShrink:0}}><Ico n="user"c="#FFF"s={18}/></div>
+            <div style={{flex:1}}>
+              <div style={{...T.h,color:C.label}}>{u}</div>
+              <div style={{...T.fn,color:C.label2,marginTop:1}}>{devs.length===0?"Sin Face ID":`${devs.length}/2 dispositivo${devs.length>1?"s":""}`}</div>
+            </div>
+            <div style={{background:devs.length===0?`${C.red}22`:devs.length<2?`${C.orange}22`:`${C.green}22`,borderRadius:20,padding:"3px 10px",marginRight:6}}>
+              <span style={{...T.cap,color:devs.length===0?C.red:devs.length<2?C.orange:C.green,fontWeight:600}}>{devs.length}/2</span>
+            </div>
+            <Ico n="chevron"c={C.label3}s={16}/>
+          </div>
+          {expandUser===u&&<div style={{borderTop:`0.5px solid ${C.sep}`}}>
+            {devs.length===0&&<div style={{padding:"10px 14px",...T.s,color:C.label2}}>Sin dispositivos registrados</div>}
+            {devs.map(dev=><div key={dev.credId}style={{display:"flex",alignItems:"center",padding:"10px 14px",borderBottom:`0.5px solid ${C.sep}`}}>
+              <div style={{width:28,height:28,borderRadius:8,background:`${C.indigo}22`,display:"flex",alignItems:"center",justifyContent:"center",marginRight:10}}><Ico n="faceid"c={C.indigo}s={15}/></div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{...T.s,color:C.label,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{dev.label}</div>
+                <div style={{...T.cap,color:C.label2,marginTop:1}}>{dev.registeredAt?new Date(dev.registeredAt).toLocaleDateString("es-CO"):"—"}</div>
+              </div>
+              <button onClick={()=>doRevoke(u,dev.credId,dev.label)}style={{background:`${C.red}18`,border:"none",borderRadius:8,padding:"5px 10px",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+                <Ico n="trash"c={C.red}s={14}/><span style={{...T.cap,color:C.red}}>Revocar</span>
+              </button>
+            </div>)}
+            <div style={{padding:"10px 14px"}}>
+              <button onClick={()=>doRegister(u)}disabled={!canAdd||registering===u}
+                style={{width:"100%",background:canAdd?`${C.indigo}22`:C.fill3,border:`1px solid ${canAdd?C.indigo:C.sep}`,borderRadius:10,padding:"10px",cursor:canAdd?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+                <Ico n="faceid"c={canAdd?C.indigo:C.label3}s={18}/>
+                <span style={{...T.h,color:canAdd?C.indigo:C.label3}}>{registering===u?"Registrando...":canAdd?`Agregar dispositivo (${devs.length}/2)`:"Máximo alcanzado"}</span>
+              </button>
+              {!canAdd&&<div style={{...T.cap,color:C.label2,marginTop:6,textAlign:"center"}}>Revoca un dispositivo para agregar otro</div>}
+            </div>
+          </div>}
+        </div>;
+      })}
+    </div>;
+  }
+
+  // ── PINS ─────────────────────────────────────────────────────────────────
+  function PinsTab(){
+    const[newPins,setNewPins]=useState({});const[confirm2,setConfirm2]=useState({});
+    const[expanded,setExpanded]=useState(null);const[errs,setErrs]=useState({});
+    function resetPin(targetUser){
+      const np=newPins[targetUser]||"",cp=confirm2[targetUser]||"";
+      if(np.length<4){setErrs(e=>({...e,[targetUser]:"Mínimo 4 dígitos"}));return;}
+      if(np!==cp){setErrs(e=>({...e,[targetUser]:"PINs no coinciden"}));return;}
+      savePin(targetUser,np);saveLog({action:"pin_reset",target:targetUser,by:user});
+      setErrs(e=>({...e,[targetUser]:""}));setNewPins(p=>({...p,[targetUser]:""}));setConfirm2(p=>({...p,[targetUser]:""}));
+      setExpanded(null);flash(`PIN de ${targetUser} actualizado`);
+    }
+    const inpS={width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"10px",color:C.label,...T.lg,fontSize:24,textAlign:"center",boxSizing:"border-box",outline:"none",marginBottom:8,letterSpacing:8};
+    return<div>
+      {USERS.filter(u=>u!=="Santiago").map(u=>(
+        <div key={u}style={{background:C.bg2,borderRadius:14,marginBottom:10,overflow:"hidden"}}>
+          <div onClick={()=>setExpanded(expanded===u?null:u)}style={{display:"flex",alignItems:"center",padding:"12px 14px",cursor:"pointer"}}>
+            <div style={{width:36,height:36,borderRadius:18,background:u==="Eliza"?C.pink:C.teal,display:"flex",alignItems:"center",justifyContent:"center",marginRight:10,flexShrink:0}}><Ico n="user"c="#FFF"s={18}/></div>
+            <div style={{flex:1}}>
+              <div style={{...T.h,color:C.label}}>{u}</div>
+              <div style={{...T.fn,color:C.label2,marginTop:1}}>{localStorage.getItem("cp_"+u)?"PIN configurado":"Sin PIN"}</div>
+            </div>
+            <div style={{background:`${C.orange}22`,borderRadius:20,padding:"3px 10px",marginRight:6}}><span style={{...T.cap,color:C.orange,fontWeight:600}}>Reset</span></div>
+            <Ico n="chevron"c={C.label3}s={16}/>
+          </div>
+          {expanded===u&&<div style={{borderTop:`0.5px solid ${C.sep}`,padding:"12px 14px"}}>
+            <div style={{...T.cap,color:C.label2,marginBottom:6}}>Nuevo PIN para {u}</div>
+            <input type="password"inputMode="numeric"value={newPins[u]||""}onChange={e=>setNewPins(p=>({...p,[u]:e.target.value}))}placeholder="••••"autoFocus style={inpS}/>
+            <div style={{...T.cap,color:C.label2,marginBottom:6}}>Confirmar</div>
+            <input type="password"inputMode="numeric"value={confirm2[u]||""}onChange={e=>setConfirm2(p=>({...p,[u]:e.target.value}))}placeholder="••••"style={inpS}/>
+            {errs[u]&&<div style={{...T.fn,color:C.red,marginBottom:8,display:"flex",gap:4,alignItems:"center"}}><Ico n="warning"c={C.red}s={13}/>{errs[u]}</div>}
+            <button onClick={()=>resetPin(u)}style={{width:"100%",background:C.orange,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#000",cursor:"pointer"}}>Actualizar PIN de {u}</button>
+          </div>}
+        </div>
+      ))}
+      <Sec hdr="Tu PIN (Santiago)">
+        <Row ic="lock"icC={C.indigo}lbl="Cambiar mi PIN"sub="Ve a Ajustes → Cambiar PIN"arr={false}last/>
+      </Sec>
+    </div>;
+  }
+
+  // ── LOG ──────────────────────────────────────────────────────────────────
+  function LogTab(){
+    const[filter,setFilter]=useState("all");
+    const filtered=filter==="all"?logs:logs.filter(l=>l.target===filter||l.by===filter);
+    const aLabel=a=>({login_ok:"Inicio ✓",login_fail:"Fallo PIN ✗",face_register:"Face ID registro",face_revoke:"Face ID revocado",pin_reset:"PIN reseteado",session_timeout:"Sesión expirada",logout:"Cierre sesión",timeout_cfg:"Timeout config"}[a]||a);
+    const aColor=a=>({login_ok:C.green,login_fail:C.red,face_register:C.indigo,face_revoke:C.orange,pin_reset:C.yellow,session_timeout:C.orange,logout:C.label2,timeout_cfg:C.blue}[a]||C.label);
+    return<div>
+      <div style={{display:"flex",gap:6,marginBottom:10,flexWrap:"wrap"}}>
+        {[["all","Todo"],...USERS.map(u=>[u,u])].map(([v,l])=>
+          <button key={v}onClick={()=>setFilter(v)}style={{flexShrink:0,background:filter===v?C.indigo:"transparent",border:`1px solid ${filter===v?C.indigo:C.sep}`,borderRadius:20,padding:"5px 14px",color:filter===v?"#FFF":C.label2,cursor:"pointer",...T.fn}}>{l}</button>)}
+      </div>
+      <div style={{background:C.bg2,borderRadius:14,overflow:"hidden"}}>
+        {filtered.length===0&&<div style={{padding:20,...T.s,color:C.label2,textAlign:"center"}}>Sin registros</div>}
+        {filtered.slice(0,80).map((log,i)=><div key={i}style={{padding:"10px 14px",borderBottom:i<Math.min(filtered.length,80)-1?`0.5px solid ${C.sep}`:"none",display:"flex",alignItems:"flex-start",gap:10}}>
+          <div style={{width:8,height:8,borderRadius:4,background:aColor(log.action),marginTop:5,flexShrink:0}}/>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:1}}>
+              <span style={{...T.s,color:aColor(log.action),fontWeight:600}}>{aLabel(log.action)}</span>
+              <span style={{...T.cap,color:C.label3}}>{log.ts?new Date(log.ts).toLocaleString("es-CO",{dateStyle:"short",timeStyle:"short"}):""}</span>
+            </div>
+            <div style={{...T.fn,color:C.label2}}>
+              {log.target&&<span>👤 {log.target}</span>}
+              {log.by&&log.by!==log.target&&<span style={{marginLeft:8}}>por {log.by}</span>}
+              {log.label&&<span style={{marginLeft:8,color:C.label3}}>{log.label}</span>}
+            </div>
+          </div>
+        </div>)}
+      </div>
+      {filtered.length>80&&<div style={{...T.cap,color:C.label2,textAlign:"center",marginTop:8}}>Mostrando 80 de {filtered.length}</div>}
+    </div>;
+  }
+
+  // ── TIMEOUT ──────────────────────────────────────────────────────────────
+  function TimeoutTab(){
+    const options=[0,5,10,15,30,60,120];
+    const[local,setLocal]=useState(timeouts);const[saved,setSaved]=useState(false);
+    function save(){saveTimeouts(local);setTimeoutsState(local);saveLog({action:"timeout_cfg",by:user,config:JSON.stringify(local)});setSaved(true);setTimeout(()=>setSaved(false),2000);flash("Configuración guardada");}
+    return<div>
+      <div style={{background:`${C.orange}18`,border:`1px solid ${C.orange}`,borderRadius:12,padding:12,marginBottom:14}}>
+        <div style={{...T.s,color:C.orange}}>El timeout aplica a Eliza y Jessica. Al vencer, se solicita PIN o Face ID nuevamente. Santiago no tiene límite.</div>
+      </div>
+      {USERS.filter(u=>u!=="Santiago").map(u=>(
+        <div key={u}style={{background:C.bg2,borderRadius:14,marginBottom:10,padding:"14px"}}>
+          <div style={{display:"flex",alignItems:"center",marginBottom:12,gap:10}}>
+            <div style={{width:36,height:36,borderRadius:18,background:u==="Eliza"?C.pink:C.teal,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}><Ico n="user"c="#FFF"s={18}/></div>
+            <div>
+              <div style={{...T.h,color:C.label}}>{u}</div>
+              <div style={{...T.fn,color:C.label2}}>{local[u]?`Expira a los ${local[u]} min de inactividad`:"Sin timeout"}</div>
+            </div>
+          </div>
+          <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+            {options.map(opt=><button key={opt}onClick={()=>setLocal(l=>({...l,[u]:opt}))}
+              style={{background:local[u]===opt||(opt===0&&!local[u])?C.indigo:C.fill3,border:"none",borderRadius:20,padding:"6px 14px",color:local[u]===opt||(opt===0&&!local[u])?"#FFF":C.label2,cursor:"pointer",...T.fn,fontWeight:600}}>
+              {opt===0?"Sin límite":opt<60?`${opt} min`:`${opt/60}h`}
+            </button>)}
+          </div>
+        </div>
+      ))}
+      <button onClick={save}style={{width:"100%",background:saved?C.green:C.indigo,border:"none",borderRadius:14,padding:"15px",...T.h,color:"#FFF",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
+        {saved?<><Ico n="check"c="#FFF"s={18}/>Guardado</>:"Guardar configuración"}
+      </button>
+    </div>;
+  }
+
+  const tabs=[{id:"bio",lbl:"Biometría",icon:"faceid"},{id:"pins",lbl:"PINs",icon:"lock"},{id:"log",lbl:"Accesos",icon:"table"},{id:"timeout",lbl:"Timeout",icon:"settings"}];
+
+  return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg,overflowY:"auto"}}>
+    <Nav title="Admin Panel"large={false}back="Inicio"onBack={onBack}/>
+    <div style={{margin:"0 14px 12px",background:`linear-gradient(135deg,${C.indigo}22,${C.purple}22)`,border:`1px solid ${C.indigo}44`,borderRadius:12,padding:"10px 14px",display:"flex",alignItems:"center",gap:8}}>
+      <Ico n="shield"c={C.indigo}s={20}/>
+      <div><div style={{...T.s,color:C.indigo,fontWeight:700}}>Modo Administrador</div><div style={{...T.cap,color:C.label2}}>Solo visible para Santiago</div></div>
+    </div>
+    {msg&&<div style={{margin:"0 14px 10px",background:msg.err?`${C.red}22`:`${C.green}22`,border:`1px solid ${msg.err?C.red:C.green}`,borderRadius:10,padding:"10px 14px",...T.s,color:msg.err?C.red:C.green,display:"flex",alignItems:"center",gap:6}}>
+      <Ico n={msg.err?"warning":"check"}c={msg.err?C.red:C.green}s={14}/>{msg.txt}
+    </div>}
+    <div style={{display:"flex",background:C.bg2,margin:"0 14px 14px",borderRadius:12,padding:3}}>
+      {tabs.map(t=><button key={t.id}onClick={()=>setTab(t.id)}style={{flex:1,background:tab===t.id?C.bg3:"transparent",border:"none",borderRadius:10,padding:"7px 4px",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+        <Ico n={t.icon}c={tab===t.id?C.indigo:C.label2}s={18}/>
+        <span style={{...T.cap,color:tab===t.id?C.indigo:C.label2,fontWeight:tab===t.id?700:400,fontSize:10}}>{t.lbl}</span>
+      </button>)}
+    </div>
+    <div style={{flex:1,padding:"0 14px",paddingBottom:40,overflowY:"auto"}}>
+      {tab==="bio"&&<BiometricTab/>}
+      {tab==="pins"&&<PinsTab/>}
+      {tab==="log"&&<LogTab/>}
+      {tab==="timeout"&&<TimeoutTab/>}
+    </div>
+  </div>;
+}
+
 // ─── SETTINGS ─────────────────────────────────────────────────────────────────
-function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending}){
+function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}){
   const C=getC();
   const[nk,setNk]=useState("");const[sv,setSv]=useState(false);
   const[chPin,setChPin]=useState(false);const[p1,setP1]=useState("");const[p2,setP2]=useState("");const[pErr,setPErr]=useState("");
@@ -955,7 +968,6 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending}){
   return<div style={{height:"100dvh",overflowY:"auto",background:C.bg}}>
     <Nav title="Ajustes"large={false}back="Inicio"onBack={onBack}/>
     <div style={{padding:14,paddingBottom:80}}>
-
       <Sec hdr={`Usuario — ${user}`}>
         <Row ic="user"icC={C.blue}lbl="Cambiar PIN"arr fn={()=>setChPin(!chPin)}/>
         {chPin&&<div style={{padding:"10px 14px",borderTop:`0.5px solid ${C.sep}`}}>
@@ -964,9 +976,8 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending}){
           {pErr&&<div style={{...T.fn,color:C.red,marginBottom:8,display:"flex",gap:4,alignItems:"center"}}><Ico n="warning"c={C.red}s={13}/>{pErr}</div>}
           <button onClick={cambiarPin}style={{width:"100%",background:C.blue,border:"none",borderRadius:10,padding:"10px",...T.h,color:"#FFF",cursor:"pointer"}}>Guardar PIN</button>
         </div>}
-        <Row ic="faceid"icC={C.indigo}lbl={hasFaceId(user)?"Face ID registrado":"Registrar Face ID"}sub={hasFaceId(user)?"Toca para re-registrar":"iPhone con Face ID"}arr={false}fn={registerFace}last/>
+        <Row ic="faceid"icC={C.indigo}lbl={hasFaceId(user)?"Face ID registrado":"Registrar Face ID"}sub={hasFaceId(user)?`${getFaceDevices(user).length}/2 dispositivos`:"iPhone con Face ID"}arr={false}fn={registerFace}last/>
       </Sec>
-
       <Sec hdr="Apariencia">
         <div style={{padding:"10px 14px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -979,7 +990,6 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending}){
           </button>
         </div>
       </Sec>
-
       <Sec hdr="API Key Anthropic (OCR)">
         <div style={{padding:"10px 12px"}}>
           {apiKey&&<div style={{...T.fn,color:C.green,marginBottom:8,display:"flex",gap:4,alignItems:"center"}}><Ico n="check"c={C.green}s={13}/>Configurada: {apiKey.slice(0,20)}...</div>}
@@ -988,48 +998,41 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending}){
             style={{width:"100%",background:sv?C.green:C.blue,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
             {sv?<><Ico n="check"c="#FFF"s={16}/>Guardado</>:"Guardar API Key"}
           </button>
-          <div style={{...T.cap,color:C.label2,marginTop:6}}>console.anthropic.com → API Keys</div>
         </div>
       </Sec>
-
-      <Sec hdr="Supabase (datos en la nube)">
+      <Sec hdr="Supabase">
         <div style={{padding:"10px 12px"}}>
           {sbReady()&&<div style={{...T.fn,color:C.green,marginBottom:8,display:"flex",gap:4,alignItems:"center"}}><Ico n="check"c={C.green}s={13}/>Conectado</div>}
-          {pending>0&&<div style={{...T.fn,color:C.orange,marginBottom:8,display:"flex",gap:4,alignItems:"center"}}><Ico n="wifi"c={C.orange}s={13}/>{pending} lecturas pendientes de sincronizar</div>}
+          {pending>0&&<div style={{...T.fn,color:C.orange,marginBottom:8,display:"flex",gap:4,alignItems:"center"}}><Ico n="wifi"c={C.orange}s={13}/>{pending} pendientes</div>}
           <input value={sbUrl}onChange={e=>setSbUrl(e.target.value)}placeholder="https://xxx.supabase.co"style={{...inp,fontFamily:"monospace",fontSize:12}}/>
-          <input value={sbKey}onChange={e=>setSbKey(e.target.value)}placeholder="eyJhbGciOiJIUzI1NiIs..."style={{...inp,fontFamily:"monospace",fontSize:12}}/>
+          <input value={sbKey}onChange={e=>setSbKey(e.target.value)}placeholder="eyJ..."style={{...inp,fontFamily:"monospace",fontSize:12}}/>
           <div style={{display:"flex",gap:8}}>
             <button onClick={()=>{localStorage.setItem("sb_url",sbUrl);localStorage.setItem("sb_key",sbKey);sbLoad();setSbSv(true);setTimeout(()=>setSbSv(false),2000);}}
-              style={{flex:1,background:sbSv?C.green:C.indigo,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer"}}>
-              {sbSv?"✓ Guardado":"Guardar"}
-            </button>
-            <button onClick={doSync}disabled={syncing}
-              style={{flex:1,background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"11px",...T.h,color:C.label,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              style={{flex:1,background:sbSv?C.green:C.indigo,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer"}}>{sbSv?"✓ Guardado":"Guardar"}</button>
+            <button onClick={doSync}disabled={syncing}style={{flex:1,background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"11px",...T.h,color:C.label,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               <Ico n="sync"c={C.label}s={16}/>{syncing?"Sincronizando...":"Sincronizar"}
             </button>
           </div>
           {syncMsg&&<div style={{...T.fn,color:C.green,marginTop:6}}>{syncMsg}</div>}
-          <div style={{...T.cap,color:C.label2,marginTop:6}}>supabase.com → Settings → API</div>
         </div>
       </Sec>
-
       <Sec hdr="Google Drive (fotos)">
         <div style={{padding:"10px 12px"}}>
           {gdId&&<div style={{...T.fn,color:C.green,marginBottom:8,display:"flex",gap:4,alignItems:"center"}}><Ico n="check"c={C.green}s={13}/>Configurado</div>}
           <input value={gdId}onChange={e=>setGdId(e.target.value)}placeholder="xxx.apps.googleusercontent.com"style={inp}/>
           <input value={gdFolder}onChange={e=>setGdFolder(e.target.value)}placeholder="ID de carpeta raíz en Drive"style={inp}/>
           <button onClick={()=>{localStorage.setItem("gd_client_id",gdId);localStorage.setItem("gd_folder_id",gdFolder);setGdSv(true);setTimeout(()=>setGdSv(false),2000);}}
-            style={{width:"100%",background:gdSv?C.green:C.teal,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#000",cursor:"pointer"}}>
-            {gdSv?"✓ Guardado":"Guardar Drive"}
-          </button>
+            style={{width:"100%",background:gdSv?C.green:C.teal,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#000",cursor:"pointer"}}>{gdSv?"✓ Guardado":"Guardar Drive"}</button>
         </div>
       </Sec>
-
       <Sec hdr="Datos">
         <Row ic="download"icC={C.blue}lbl="Exportar backup"sub="JSON con todos los datos locales"arr={false}fn={()=>{const d={};Object.keys(localStorage).forEach(k=>{d[k]=localStorage.getItem(k);});const bl=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="casino_backup.json";a.click();}}last/>
       </Sec>
+      {user==="Santiago"&&<Sec hdr="Administrador">
+        <Row ic="shield"icC={C.indigo}lbl="Admin Panel"sub="Biometría · PINs · Logs de acceso · Timeout"fn={onAdmin}last/>
+      </Sec>}
       <Sec hdr="Sesión">
-        <Row ic="lock"icC={C.red}lbl={`Cerrar sesión (${user})`}del fn={onOut}arr={false}last/>
+        <Row ic="lock"icC={C.red}lbl={`Cerrar sesión (${user})`}del fn={()=>{saveLog({action:"logout",target:user});onOut();}}arr={false}last/>
       </Sec>
     </div>
   </div>;
@@ -1041,7 +1044,7 @@ function Home({onSelect,onCfg,user,pending}){
   const lastBal=cid=>{const d=D[cid];if(!d?.b?.length)return null;return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];};
   const total=Object.keys(META).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-    <Nav title="Mis Casinos"sub={`${user||""}`}sy={sy}right={[
+    <Nav title="Mis Casinos"sub={user||""}sy={sy}right={[
       ...(pending>0?[{icon:<div style={{position:"relative"}}><Ico n="sync"c={getC().orange}s={17}/><div style={{position:"absolute",top:-4,right:-4}}><Badge n={pending}c={getC().orange}/></div></div>,fn:()=>{}}]:[]),
       {icon:"settings",fn:onCfg}
     ]}/>
@@ -1058,9 +1061,7 @@ function Home({onSelect,onCfg,user,pending}){
       </div>
       <Sec hdr="Locales">
         {Object.entries(META).map(([cid,m],i,a)=>{const b=lastBal(cid);const dd=D[cid];const col=C[m.c];
-          return<Row key={cid}
-            ic={m.e}icC={col}
-            lbl={m.n}sub={`${dd?.m?.length||0} máqs · ${m.liq}${b?` · ${b.fecha.slice(5)}`:""}`}
+          return<Row key={cid}ic={m.e}icC={col}lbl={m.n}sub={`${dd?.m?.length||0} máqs · ${m.liq}${b?` · ${b.fecha.slice(5)}`:""}`}
             right={b?<span style={{...T.c,color:b.util_total>=0?C.green:C.red,fontWeight:600}}>{fmt(b.util_total)}</span>:null}
             fn={()=>onSelect(cid)}last={i===a.length-1}/>;
         })}
@@ -1109,17 +1110,34 @@ export default function App(){
     setSc("login");
   },[]);
 
-  // Auto-sync pending on load
   useEffect(()=>{
     if(sbReady()&&pending>0){sbSync().then(n=>{if(n>0)setPending(p=>Math.max(0,p-n));});}
   },[]);
 
-  function auth(u){setUser(u);setSc("home");}
-  function out(){setUser(null);setSc("login");}
+  // Session timeout for Eliza & Jessica
+  useEffect(()=>{
+    if(!user||user==="Santiago")return;
+    const tos=loadTimeouts();const mins=tos[user];if(!mins)return;
+    const ms=mins*60*1000;
+    const expire=()=>{saveLog({action:"session_timeout",target:user});setUser(null);setSc("login");};
+    let timer=setTimeout(expire,ms);
+    const reset=()=>{clearTimeout(timer);timer=setTimeout(expire,ms);};
+    window.addEventListener("pointerdown",reset);window.addEventListener("keydown",reset);
+    return()=>{clearTimeout(timer);window.removeEventListener("pointerdown",reset);window.removeEventListener("keydown",reset);};
+  },[user,sc]);
+
+  function auth(u){
+    setUser(u);
+    saveLog({action:"login_ok",target:u,device:navigator.userAgent.slice(0,60)});
+    setSc("home");
+  }
+  function out(){saveLog({action:"logout",target:user});setUser(null);setSc("login");}
+
   const W={width:"100%",maxWidth:430,margin:"0 auto",height:"100dvh",overflow:"hidden",background:C.bg,boxShadow:"0 0 80px rgba(0,0,0,.8)"};
   if(sc==="boot")return<div style={{...W,display:"flex",alignItems:"center",justifyContent:"center",background:C.bg}}><Ico n="slot"c={C.indigo}s={48}/></div>;
   if(sc==="login")return<div style={{...W,background:C.bg}}><Login onAuth={auth}/></div>;
-  if(sc==="cfg")return<div style={{...W,background:C.bg}}><Settings onBack={()=>setSc(cid?"casino":"home")}onOut={out}user={user}apiKey={apiKey}onAk={k=>{setAk(k);saveApiKey(k);}}theme={theme}setTheme={t=>{setTheme(t);_theme=THEMES[t];}}pending={pending}/></div>;
+  if(sc==="admin"&&user==="Santiago")return<div style={{...W,background:C.bg}}><AdminPanel onBack={()=>setSc("home")}user={user}/></div>;
+  if(sc==="cfg")return<div style={{...W,background:C.bg}}><Settings onBack={()=>setSc(cid?"casino":"home")}onOut={out}user={user}apiKey={apiKey}onAk={k=>{setAk(k);saveApiKey(k);}}theme={theme}setTheme={t=>{setTheme(t);_theme=THEMES[t];}}pending={pending}onAdmin={()=>setSc("admin")}/></div>;
   if(sc==="casino"&&cid)return<div style={{...W,background:C.bg}}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}user={user}/></div>;
   return<div style={{...W,background:C.bg}}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}pending={pending}/></div>;
 }
