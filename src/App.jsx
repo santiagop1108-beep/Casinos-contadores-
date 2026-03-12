@@ -15,6 +15,7 @@ const META={
 };
 const USERS=["Santiago","Eliza","Jessica"];
 const fmt=n=>{if(n==null||isNaN(n))return"—";const a=Math.abs(n),s=n<0?"-":"";if(a>=1e6)return s+"$"+(a/1e6).toFixed(1)+"M";if(a>=1000)return s+"$"+(a/1000).toFixed(0)+"K";return s+"$"+a.toLocaleString();};
+const fmtE=n=>{if(n==null||isNaN(n))return"—";const s=n<0?"-":"";return s+"$"+Math.abs(Math.round(n)).toLocaleString("es-CO");};
 const today=()=>new Date().toISOString().slice(0,10);
 const maqC=f=>f===50?C.indigo:f===10?C.blue:C.orange;
 const maqE=(f,n)=>{if(f===50)return"🃏";const l=n.toLowerCase();if(l.includes("jungle"))return"🌿";if(l.includes("dolphin"))return"🐬";if(l.includes("gamin"))return"🎮";if(l.includes("wms"))return"⚡";if(l.includes("duende"))return"🧝";if(l.includes("bailar"))return"💃";return"🎰";};
@@ -367,12 +368,12 @@ function Report({cid,cont}){
           {bals.length===0&&<div style={{padding:"16px 14px",...T.s,color:C.label2,textAlign:"center"}}>Sin períodos</div>}
           {bals.map((b,i)=><div key={b.fecha}style={{padding:"10px 14px",borderBottom:i<bals.length-1?`0.5px solid ${C.sep}`:"none"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-              <span style={{...T.c,color:C.label,fontWeight:500}}>{b.fecha}</span>
-              <span style={{...T.c,color:b.util>=0?C.green:C.red,fontWeight:700}}>{fmt(b.util)}</span>
+              <span style={{...T.c,color:C.label,fontWeight:500}}>{b.fecha.slice(8)}-{['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][parseInt(b.fecha.slice(5,7))-1]}-{b.fecha.slice(0,4)}</span>
+              <span style={{...T.c,color:b.util>=0?C.green:C.red,fontWeight:700}}>{fmtE(b.util)}</span>
             </div>
             <div style={{display:"flex",gap:12}}>
-              <span style={{...T.fn,color:C.orange}}>Premios {fmt(b.phys||0)}</span>
-              <span style={{...T.fn,color:m.c,fontWeight:600}}>💼 {fmt((b.phys||0)+b.util)}</span>
+              <span style={{...T.fn,color:C.orange}}>Premios {fmtE(b.phys||0)}</span>
+              <span style={{...T.fn,color:m.c,fontWeight:600}}>💼 {fmtE((b.phys||0)+b.util)}</span>
             </div>
           </div>)}
         </Sec>
@@ -498,4 +499,3 @@ export default function App(){
   if(sc==="casino"&&cid)return<div style={W}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}/></div>;
   return<div style={W}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}/></div>;
 }
-
