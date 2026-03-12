@@ -1,5 +1,6 @@
-import{useState,useEffect,useRef}from"react";
+import{useState,useEffect,useRef,useCallback}from"react";
 
+// ─── CONSTANTS ───────────────────────────────────────────────────────────────
 const C={bg:"#000",bg2:"#1C1C1E",bg3:"#2C2C2E",label:"#FFF",label2:"rgba(235,235,245,.6)",label3:"rgba(235,235,245,.3)",blue:"#0A84FF",green:"#30D158",red:"#FF453A",orange:"#FF9F0A",yellow:"#FFD60A",purple:"#BF5AF2",indigo:"#5E5CE6",pink:"#FF375F",teal:"#5AC8FA",fill3:"rgba(118,118,128,.24)",fill4:"rgba(116,116,128,.18)",sep:"rgba(84,84,88,.65)"};
 const SF=`-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif`;
 const T={lg:{fontFamily:SF,fontSize:34,fontWeight:700},h:{fontFamily:SF,fontSize:17,fontWeight:600},b:{fontFamily:SF,fontSize:17},c:{fontFamily:SF,fontSize:16},s:{fontFamily:SF,fontSize:15},fn:{fontFamily:SF,fontSize:13},cap:{fontFamily:SF,fontSize:12}};
@@ -14,6 +15,81 @@ const META={
   hugo:{n:"Hugo",e:"🃏",c:C.purple,liq:"3-4 días"},
 };
 const USERS=["Santiago","Eliza","Jessica"];
+
+// ─── SUPABASE CONFIG (set via Settings) ──────────────────────────────────────
+let SB_URL="",SB_KEY="";
+const sbLoad=()=>{SB_URL=localStorage.getItem("sb_url")||"";SB_KEY=localStorage.getItem("sb_key")||"";};
+const sbReady=()=>!!(SB_URL&&SB_KEY);
+const sbFetch=async(path,opts={})=>{
+  if(!sbReady())throw new Error("Supabase no configurado");
+  const r=await fetch(SB_URL+"/rest/v1/"+path,{...opts,headers:{"apikey":SB_KEY,"Authorization":"Bearer "+SB_KEY,"Content-Type":"application/json","Prefer":"return=minimal",...(opts.headers||{})}});
+  if(!r.ok){const t=await r.text();throw new Error(t);}
+  try{return await r.json();}catch{return null;}
+};
+
+// ─── GOOGLE DRIVE CONFIG ──────────────────────────────────────────────────────
+const GD_CLIENT_ID=()=>localStorage.getItem("gd_client_id")||"";
+const GD_FOLDER_ID=()=>localStorage.getItem("gd_folder_id")||"";
+let gdToken=null;
+
+async function gdAuth(){
+  return new Promise((resolve,reject)=>{
+    const clientId=GD_CLIENT_ID();
+    if(!clientId)return reject(new Error("Google Client ID no configurado"));
+    const w=window.open(`https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${encodeURIComponent(window.location.origin+"/oauth")}&response_type=token&scope=https://www.googleapis.com/auth/drive.file&prompt=consent`,"gdauth","width=500,height=600");
+    const timer=setInterval(()=>{
+      try{
+        if(w.location.href.includes(window.location.origin)){
+          const hash=w.location.hash;w.close();clearInterval(timer);
+          const token=new URLSearchParams(hash.slice(1)).get("access_token");
+          if(token){gdToken=token;resolve(token);}else reject(new Error("No token"));
+        }
+      }catch{}
+      if(w.closed){clearInterval(timer);if(!gdToken)reject(new Error("Ventana cerrada"));}
+    },500);
+  });
+}
+
+async function gdUpload(blob,filename,mimeType,parentId){
+  if(!gdToken)await gdAuth();
+  const meta=JSON.stringify({name:filename,parents:[parentId||GD_FOLDER_ID()]});
+  const form=new FormData();
+  form.append("metadata",new Blob([meta],{type:"application/json"}));
+  form.append("file",blob,filename);
+  const r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink",{method:"POST",headers:{Authorization:"Bearer "+gdToken},body:form});
+  if(!r.ok)throw new Error("Drive upload failed");
+  return r.json();
+}
+
+async function gdGetOrCreateFolder(name,parentId){
+  if(!gdToken)await gdAuth();
+  // Search for existing folder
+  const q=encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parentId||GD_FOLDER_ID()}' in parents and trashed=false`);
+  const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id,name)`,{headers:{Authorization:"Bearer "+gdToken}});
+  const d=await r.json();
+  if(d.files?.length)return d.files[0].id;
+  // Create folder
+  const cr=await fetch("https://www.googleapis.com/drive/v3/files",{method:"POST",headers:{Authorization:"Bearer "+gdToken,"Content-Type":"application/json"},body:JSON.stringify({name,mimeType:"application/vnd.google-apps.folder",parents:[parentId||GD_FOLDER_ID()]})});
+  const cd=await cr.json();
+  return cd.id;
+}
+
+// ─── IMAGE COMPRESSION ────────────────────────────────────────────────────────
+async function compressImage(file,maxW=1200,quality=0.72){
+  return new Promise(resolve=>{
+    const img=new Image();
+    img.onload=()=>{
+      const scale=Math.min(1,maxW/img.width);
+      const w=Math.round(img.width*scale),h=Math.round(img.height*scale);
+      const c=document.createElement("canvas");c.width=w;c.height=h;
+      c.getContext("2d").drawImage(img,0,0,w,h);
+      c.toBlob(b=>resolve(b),"image/jpeg",quality);
+    };
+    img.src=URL.createObjectURL(file);
+  });
+}
+
+// ─── UTILS ────────────────────────────────────────────────────────────────────
 const fmt=n=>{if(n==null||isNaN(n))return"—";const a=Math.abs(n),s=n<0?"-":"";if(a>=1e6)return s+"$"+(a/1e6).toFixed(1)+"M";if(a>=1000)return s+"$"+(a/1000).toFixed(0)+"K";return s+"$"+a.toLocaleString();};
 const fmtE=n=>{if(n==null||isNaN(n))return"—";const s=n<0?"-":"";return s+"$"+Math.abs(Math.round(n)).toLocaleString("es-CO");};
 const today=()=>new Date().toISOString().slice(0,10);
@@ -21,18 +97,42 @@ const maqC=f=>f===50?C.indigo:f===10?C.blue:C.orange;
 const maqE=(f,n)=>{if(f===50)return"🃏";const l=n.toLowerCase();if(l.includes("jungle"))return"🌿";if(l.includes("dolphin"))return"🐬";if(l.includes("gamin"))return"🎮";if(l.includes("wms"))return"⚡";if(l.includes("duende"))return"🧝";if(l.includes("bailar"))return"💃";return"🎰";};
 const lt=(hex,a)=>{try{const n=parseInt(hex.slice(1),16);return`rgb(${Math.min(255,((n>>16)&255)+Math.round(a*80))},${Math.min(255,((n>>8)&255)+Math.round(a*80))},${Math.min(255,(n&255)+Math.round(a*80))})`;} catch{return hex;}};
 
-// Simple PIN storage (XOR obfuscation)
+// ─── AUTH (Supabase-backed, PIN fallback) ────────────────────────────────────
 const enc=(s,k)=>{let o="";for(let i=0;i<s.length;i++)o+=String.fromCharCode(s.charCodeAt(i)^k.charCodeAt(i%k.length));return btoa(o);};
 const dec=(b,k)=>{try{const s=atob(b);let o="";for(let i=0;i<s.length;i++)o+=String.fromCharCode(s.charCodeAt(i)^k.charCodeAt(i%k.length));return JSON.parse(o);}catch{return null;}};
 const savePin=(u,pin)=>localStorage.setItem("cp_"+u,enc(JSON.stringify({ok:1,u}),u+":"+pin));
 const checkPin=(u,pin)=>{const s=localStorage.getItem("cp_"+u);if(!s)return false;const d=dec(s,u+":"+pin);return d?.ok===1;};
-const saveCont=(data)=>{try{localStorage.setItem("cc_v2",JSON.stringify(data));}catch{}};
+
+// ─── DATA PERSISTENCE (Supabase primary, localStorage fallback) ───────────────
+const saveCont=async(data)=>{
+  try{localStorage.setItem("cc_v2",JSON.stringify(data));}catch{}
+};
 const loadCont=()=>{try{const s=localStorage.getItem("cc_v2");return s?JSON.parse(s):{};}catch{return{};}};
+
+async function saveToSupabase(lectura){
+  if(!sbReady())return;
+  try{
+    await sbFetch("lecturas?on_conflict=casino_id,maq_id,fecha",{
+      method:"POST",
+      headers:{"Prefer":"resolution=merge-duplicates,return=minimal"},
+      body:JSON.stringify(lectura)
+    });
+  }catch(e){console.warn("Supabase save failed:",e.message);}
+}
+
+async function loadFromSupabase(cid){
+  if(!sbReady())return null;
+  try{
+    const data=await sbFetch(`lecturas?casino_id=eq.${cid}&order=fecha.desc&limit=500`,{method:"GET"});
+    return data;
+  }catch{return null;}
+}
+
 const saveApiKey=k=>localStorage.setItem("cc_ak",k);
 const loadApiKey=()=>localStorage.getItem("cc_ak")||"";
 
 
-// Primitives
+// ─── PRIMITIVES ───────────────────────────────────────────────────────────────
 function Ic({color,emoji,sz=30}){return<div style={{width:sz,height:sz,borderRadius:sz*.22,flexShrink:0,background:`linear-gradient(145deg,${lt(color,.3)},${color})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:sz*.56}}>{emoji}</div>;}
 function Sec({hdr,children}){return<div style={{marginBottom:16}}>{hdr&&<div style={{...T.fn,color:C.label2,paddingLeft:16,paddingBottom:6,textTransform:"uppercase",letterSpacing:.5}}>{hdr}</div>}<div style={{background:C.bg2,borderRadius:12,overflow:"hidden"}}>{children}</div></div>;}
 function Row({ic,icC=C.blue,lbl,sub,right,arr=true,fn,del,last,ind}){
@@ -84,7 +184,7 @@ function Tabs({tab,setTab,color}){
 }
 
 
-// Login
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
 function Login({onAuth}){
   const[user,setUser]=useState(null);const[pin,setPin]=useState("");const[pin2,setPin2]=useState("");
   const[paso,setPaso]=useState("sel");const[err,setErr]=useState("");
@@ -102,10 +202,7 @@ function Login({onAuth}){
         <div style={{textAlign:"center",marginBottom:32}}><div style={{fontSize:56,marginBottom:6}}>🎰</div><div style={{...T.lg,color:C.label}}>Casinos</div><div style={{...T.s,color:C.label2,marginTop:4}}>¿Quién eres?</div></div>
         {USERS.map(u=><button key={u}onClick={()=>selUser(u)}style={{width:"100%",background:C.bg2,border:`1px solid ${C.sep}`,borderRadius:14,padding:"14px",marginBottom:10,cursor:"pointer",display:"flex",alignItems:"center",gap:12}}>
           <div style={{width:42,height:42,borderRadius:21,background:uColor(u),display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0}}>👤</div>
-          <div style={{textAlign:"left"}}>
-            <div style={{...T.h,color:C.label}}>{u}</div>
-            <div style={{...T.fn,color:C.label2}}>{localStorage.getItem("cp_"+u)?"PIN configurado":"Primera vez"}</div>
-          </div>
+          <div style={{textAlign:"left"}}><div style={{...T.h,color:C.label}}>{u}</div><div style={{...T.fn,color:C.label2}}>{localStorage.getItem("cp_"+u)?"PIN configurado":"Primera vez"}</div></div>
           <svg width="8"height="13"viewBox="0 0 8 13"style={{marginLeft:"auto",opacity:.3}}><path d="M1.5 1.5L6.5 6.5L1.5 11.5"stroke="white"strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"/></svg>
         </button>)}
       </div>
@@ -127,19 +224,197 @@ function Login({onAuth}){
           onKeyDown={e=>e.key==="Enter"&&go()}placeholder="••••"autoFocus
           style={{width:"100%",background:C.bg2,border:`1px solid ${C.sep}`,borderRadius:12,padding:"13px",color:C.label,...T.lg,fontSize:28,textAlign:"center",boxSizing:"border-box",outline:"none",marginBottom:16,letterSpacing:8}}/>
         {err&&<div style={{...T.s,color:C.red,textAlign:"center",marginBottom:12}}>{err}</div>}
-        <button onClick={go}style={{width:"100%",background:C.blue,border:"none",borderRadius:14,padding:"14px",...T.h,color:"#FFF",cursor:"pointer"}}>
-          {paso==="in"?"Entrar":paso==="new"?"Siguiente":"Confirmar PIN"}
-        </button>
-        {paso==="in"&&<button onClick={()=>{if(confirm("¿Resetear PIN de "+user+"?"))localStorage.removeItem("cp_"+user),setPaso("new"),setPin("");}}
-          style={{width:"100%",background:"transparent",border:"none",color:C.label2,cursor:"pointer",marginTop:10,...T.s,padding:"8px"}}>Olvidé mi PIN</button>}
+        <button onClick={go}style={{width:"100%",background:C.blue,border:"none",borderRadius:14,padding:"14px",...T.h,color:"#FFF",cursor:"pointer"}}>{paso==="in"?"Entrar":paso==="new"?"Siguiente":"Confirmar PIN"}</button>
+        {paso==="in"&&<button onClick={()=>{if(confirm("¿Resetear PIN de "+user+"?"))localStorage.removeItem("cp_"+user),setPaso("new"),setPin("");}}style={{width:"100%",background:"transparent",border:"none",color:C.label2,cursor:"pointer",marginTop:10,...T.s,padding:"8px"}}>Olvidé mi PIN</button>}
       </div>
     </div>
   );
 }
 
 
-// Counters
-function Counters({cid,cont,setCont}){
+// ─── CAMERA (BATCH MODE) ──────────────────────────────────────────────────────
+function Camera({cid,cont,setCont,apiKey,user}){
+  const m=META[cid];const d=D[cid];const mqs=d?.m||[];
+  const[fecha,setFecha]=useState(today());
+  const[queue,setQueue]=useState([]); // [{file,blob,imgUrl,status,result,maqId,eDrop,ePhys,eYield,err}]
+  const[processing,setProcessing]=useState(false);
+  const[saved,setSaved]=useState(false);
+  const[driveStatus,setDriveStatus]=useState(""); // uploading to drive
+  const fRef=useRef(null);
+
+  const getUlt=useCallback(id=>{
+    const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];
+    if(loc)return{d:loc.d,p:loc.p};
+    return d?.ul?.[id]||null;
+  },[cont,cid,d]);
+
+  async function analyzeOne(item,idx){
+    setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"analyzing"}:x));
+    try{
+      const mq_list=mqs.map(q=>`${q.id}:${q.nombre}(×${q.factor})`).join(", ");
+      const prompt=`Eres experto en contadores de máquinas tragamonedas.\nMáquinas disponibles en este casino: ${mq_list}\n\nTu tarea:\n1. Lee el NÚMERO DE MÁQUINA visible en la etiqueta física (normalmente arriba a la derecha o en un cartel)\n2. Lee los contadores acumulados:\n   - DROP = TOTAL IN / COIN IN / ENTRADA (el más grande)\n   - PHYS = TOTAL OUT / COIN OUT / SALIDA\n   - YIELD = TOTAL IN-OUT / NET WIN (diferencia)\n3. Identifica cuál máquina de la lista corresponde al número que viste\n\nResponde SOLO JSON sin markdown:\n{"num_maquina":N,"maq_id":"ID","drop":N,"phys":N,"yield":N_o_null,"confianza":"alta|media|baja","nota":"breve"}`;
+      const b64=await new Promise((ok,rej)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(item.blob);});
+      const rsp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:300,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]}]})});
+      const data=await rsp.json();
+      if(data.error)throw new Error(data.error.message);
+      const parsed=JSON.parse((data.content?.[0]?.text||"").replace(/```json|```/g,"").trim());
+      const mq=mqs.find(q=>q.id===parsed.maq_id)||mqs.find(q=>q.nombre.includes(String(parsed.num_maquina)));
+      setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"done",result:parsed,maqId:mq?.id||"",eDrop:String(parsed.drop||""),ePhys:String(parsed.phys||""),eYield:String(parsed.yield||""),err:null}:x));
+    }catch(e){
+      setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"error",err:e.message}:x));
+    }
+  }
+
+  async function addPhotos(files){
+    const newItems=[];
+    for(const file of files){
+      const blob=await compressImage(file);
+      newItems.push({file,blob,imgUrl:URL.createObjectURL(blob),status:"pending",result:null,maqId:"",eDrop:"",ePhys:"",eYield:"",err:null});
+    }
+    setQueue(q=>[...q,...newItems]);
+    // Auto-analyze each
+    const startIdx=queue.length;
+    for(let i=0;i<newItems.length;i++){
+      await analyzeOne(newItems[i],startIdx+i);
+    }
+  }
+
+  function updateField(idx,field,val){setQueue(q=>q.map((x,i)=>i===idx?{...x,[field]:val}:x));}
+  function removeItem(idx){setQueue(q=>q.filter((_,i)=>i!==idx));}
+
+  async function confirmAll(){
+    setProcessing(true);setSaved(false);
+    const valid=queue.filter(x=>x.status==="done"&&x.maqId&&x.eDrop&&x.ePhys);
+    if(!valid.length){setProcessing(false);return;}
+
+    // 1. Save to local state + Supabase
+    const items=[];
+    for(const x of valid){
+      const mq=mqs.find(q=>q.id===x.maqId);if(!mq)continue;
+      const prev=getUlt(x.maqId);
+      const drop=parseInt(x.eDrop),phys=parseInt(x.ePhys),yld=x.eYield?parseInt(x.eYield):null;
+      const util=prev?((drop-prev.d)-(phys-prev.p))*mq.factor:null;
+      const pp=prev?(phys-prev.p)*mq.factor:null;
+      const item={i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:drop,p:phys,y:yld,u:util,pp,src:"ocr",usr:user};
+      items.push(item);
+      // Save to Supabase
+      await saveToSupabase({casino_id:cid,maq_id:mq.id,maq_nombre:mq.nombre,factor:mq.factor,fecha,drop_acum:drop,phys_acum:phys,yield_acum:yld,util,phys_periodo:pp,source:"ocr",user_nombre:user});
+    }
+    setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>!items.find(x=>x.i===c.i&&x.f===c.f)),...items]};saveCont(n);return n;});
+
+    // 2. Upload to Google Drive
+    if(GD_CLIENT_ID()&&GD_FOLDER_ID()){
+      setDriveStatus("Subiendo fotos a Drive...");
+      try{
+        const casinoFolder=await gdGetOrCreateFolder(m.n,GD_FOLDER_ID());
+        const fechaFolder=await gdGetOrCreateFolder(fecha,casinoFolder);
+        for(const x of valid){
+          const mq=mqs.find(q=>q.id===x.maqId);
+          const fname=`${mq?.nombre||x.maqId}_${fecha}.jpg`;
+          setDriveStatus(`Subiendo ${fname}...`);
+          try{await gdUpload(x.blob,fname,"image/jpeg",fechaFolder);}catch(e){console.warn("Drive upload failed:",e);}
+        }
+        setDriveStatus("✓ Fotos guardadas en Drive");
+      }catch(e){setDriveStatus("⚠️ Drive: "+e.message);}
+    }
+
+    setProcessing(false);setSaved(true);
+    setTimeout(()=>{setQueue([]);setSaved(false);setDriveStatus("");},3000);
+  }
+
+  const doneCount=queue.filter(x=>x.status==="done"&&x.maqId).length;
+  const cCol=c=>c==="alta"?C.green:c==="media"?C.orange:C.red;
+
+  return<div style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+    <Nav title="Cámara OCR"sub={`${m.e} ${m.n} · lote`}large={false}/>
+    <div style={{padding:"10px 14px",paddingBottom:120}}>
+      {/* Date */}
+      <div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+        <span style={{...T.s,color:C.label2}}>Fecha:</span>
+        <input type="date"value={fecha}onChange={e=>setFecha(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer"}}/>
+        <span style={{...T.fn,color:C.label3,marginLeft:"auto"}}>{queue.length} foto{queue.length!==1?"s":""}</span>
+      </div>
+
+      {/* Upload zone */}
+      <input ref={fRef}type="file"accept="image/*"multiple onChange={e=>{const files=Array.from(e.target.files||[]);if(files.length)addPhotos(files);e.target.value="";}}style={{display:"none"}}/>
+      <div onClick={()=>fRef.current?.click()}style={{background:C.bg2,borderRadius:16,padding:"24px 20px",textAlign:"center",cursor:"pointer",border:`2px dashed ${C.sep}`,marginBottom:12}}>
+        <div style={{fontSize:36,marginBottom:6}}>📷</div>
+        <div style={{...T.h,color:C.label,marginBottom:3}}>Agregar fotos</div>
+        <div style={{...T.fn,color:C.label2}}>Selecciona varias a la vez · Claude detecta el número de máquina</div>
+      </div>
+
+      {/* Queue */}
+      {queue.map((x,idx)=>{
+        const mq=mqs.find(q=>q.id===x.maqId);
+        const prev=x.maqId?getUlt(x.maqId):null;
+        const drop=parseInt(x.eDrop),phys=parseInt(x.ePhys);
+        const util=mq&&prev&&!isNaN(drop)&&!isNaN(phys)?((drop-prev.d)-(phys-prev.p))*mq.factor:null;
+        return<div key={idx}style={{background:C.bg2,borderRadius:14,marginBottom:10,overflow:"hidden"}}>
+          {/* Photo + status bar */}
+          <div style={{position:"relative"}}>
+            <img src={x.imgUrl}alt=""style={{width:"100%",maxHeight:180,objectFit:"cover"}}/>
+            <div style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,.7)",borderRadius:20,padding:"4px 10px",...T.fn,color:C.label}}>
+              {x.status==="pending"?"⏳ Pendiente":x.status==="analyzing"?"🤖 Analizando...":x.status==="error"?"❌ Error":"✓ Listo"}
+            </div>
+            {x.result?.confianza&&<div style={{position:"absolute",top:8,right:8,background:`${cCol(x.result.confianza)}30`,border:`1px solid ${cCol(x.result.confianza)}`,borderRadius:20,padding:"4px 10px",...T.cap,color:cCol(x.result.confianza)}}>
+              {x.result.confianza==="alta"?"Alta":x.result.confianza==="media"?"Media":"Baja"}
+            </div>}
+            <button onClick={()=>removeItem(idx)}style={{position:"absolute",bottom:8,right:8,background:"rgba(0,0,0,.7)",border:"none",borderRadius:16,padding:"4px 10px",...T.cap,color:C.red,cursor:"pointer"}}>✕ Quitar</button>
+          </div>
+
+          {x.status==="error"&&<div style={{padding:"10px 14px",...T.s,color:C.red}}>❌ {x.err}</div>}
+
+          {(x.status==="done"||x.status==="analyzing")&&<div style={{padding:"10px 14px"}}>
+            {/* Machine selector */}
+            <div style={{marginBottom:10}}>
+              <div style={{...T.cap,color:C.label2,marginBottom:4}}>Máquina detectada{x.result?.num_maquina?` (etiqueta: #${x.result.num_maquina})`:""}</div>
+              <select value={x.maqId}onChange={e=>updateField(idx,"maqId",e.target.value)}style={{width:"100%",background:C.fill3,border:`1px solid ${x.maqId?C.sep:C.orange}`,borderRadius:8,padding:"8px 10px",color:x.maqId?C.label:C.orange,...T.c}}>
+                <option value="">— Seleccionar si es incorrecto —</option>
+                {mqs.map(q=><option key={q.id}value={q.id}style={{background:C.bg2}}>{q.nombre} ×{q.factor}</option>)}
+              </select>
+            </div>
+            {/* Values */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
+              {[["eDrop","TOTAL IN",prev?.d],["ePhys","TOTAL OUT",prev?.p],["eYield","IN-OUT",null]].map(([f,lbl,pv])=>{
+                const nv=parseInt(x[f]);const bad=pv&&!isNaN(nv)&&nv<pv;
+                return<div key={f}>
+                  <div style={{...T.cap,color:C.label2,marginBottom:3}}>{lbl}</div>
+                  <input type="number"inputMode="numeric"value={x[f]}onChange={e=>updateField(idx,f,e.target.value)}
+                    style={{width:"100%",background:bad?"rgba(255,69,58,.15)":C.fill3,border:`1px solid ${bad?C.red:"transparent"}`,borderRadius:7,padding:"7px 8px",color:bad?C.red:C.label,...T.s,boxSizing:"border-box",outline:"none",WebkitAppearance:"none"}}/>
+                  {bad&&<div style={{...T.cap,color:C.red,marginTop:1}}>⚠️ &lt; anterior</div>}
+                </div>;
+              })}
+            </div>
+            {/* Preview util */}
+            {util!=null&&<div style={{background:C.fill4,borderRadius:8,padding:"8px 10px",display:"flex",justifyContent:"space-between"}}>
+              <div><div style={{...T.cap,color:C.label2}}>Premios</div><div style={{...T.c,color:C.orange,fontWeight:600}}>{fmt(!isNaN(phys)&&prev?(phys-prev.p)*mq.factor:0)}</div></div>
+              <div style={{textAlign:"right"}}><div style={{...T.cap,color:C.label2}}>Utilidad</div><div style={{...T.c,color:util>=0?C.green:C.red,fontWeight:600}}>{fmt(util)}</div></div>
+            </div>}
+            {x.result?.nota&&<div style={{...T.cap,color:C.label3,marginTop:6}}>📝 {x.result.nota}</div>}
+          </div>}
+        </div>;
+      })}
+
+      {/* Drive status */}
+      {driveStatus&&<div style={{background:C.bg2,borderRadius:10,padding:"10px 14px",marginBottom:10,...T.s,color:C.label2}}>{driveStatus}</div>}
+
+      {/* Confirm button */}
+      {queue.length>0&&<button onClick={confirmAll}disabled={processing||doneCount===0||saved}
+        style={{width:"100%",background:saved?C.green:doneCount===0?"#333":m.c,border:"none",borderRadius:14,padding:"15px",color:"#000",...T.h,cursor:doneCount===0?"default":"pointer",marginTop:4}}>
+        {processing?"Guardando...":saved?"✓ Guardado":`Confirmar ${doneCount} máquina${doneCount!==1?"s":""}`}
+      </button>}
+
+      {!apiKey&&<div style={{background:"rgba(255,159,10,.1)",border:`1px solid ${C.orange}`,borderRadius:12,padding:12,marginTop:10}}>
+        <div style={{...T.h,color:C.orange,marginBottom:4}}>Sin API Key</div>
+        <div style={{...T.s,color:C.label2}}>Ve a Ajustes ⚙️ para configurarla.</div>
+      </div>}
+    </div>
+  </div>;
+}
+
+
+// ─── COUNTERS ─────────────────────────────────────────────────────────────────
+function Counters({cid,cont,setCont,user}){
   const m=META[cid];const d=D[cid];const mqs=d?.m||[];
   const[fecha,setFecha]=useState(today());const[inp,setInp]=useState({});
   const[sy,setSy]=useState(0);const[st,setSt]=useState(null);const[wrns,setWrns]=useState([]);
@@ -148,14 +423,17 @@ function Counters({cid,cont,setCont}){
   const getUlt=id=>{const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];if(loc)return{drop:loc.d,phys:loc.p,fecha:loc.f};const lr=d?.ul?.[id];return lr?{drop:lr.d,phys:lr.p,fecha:"Excel"}:null;};
   const prevU=mq=>{const dr=parseFloat(gi(mq.id,"d")),ph=parseFloat(gi(mq.id,"p"));if(isNaN(dr)||isNaN(ph))return null;const u=getUlt(mq.id);if(!u)return null;return((dr-u.drop)-(ph-u.phys))*mq.factor;};
   const nOk=mqs.filter(mq=>!isNaN(parseFloat(gi(mq.id,"d")))&&!isNaN(parseFloat(gi(mq.id,"p")))).length;
-  function submit(){
+  async function submit(){
     const w=[],items=[];
     for(const mq of mqs){
       const dr=parseFloat(gi(mq.id,"d")),ph=parseFloat(gi(mq.id,"p"));
       if(isNaN(dr)||isNaN(ph))continue;
       const u=getUlt(mq.id);
       if(u){if(dr<u.drop)w.push(`${mq.nombre}: DROP bajó`);if(ph<u.phys)w.push(`${mq.nombre}: Phys bajó`);}
-      items.push({i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:dr,p:ph,u:u?((dr-u.drop)-(ph-u.phys))*mq.factor:null,pp:u?(ph-u.phys)*mq.factor:null});
+      const util=u?((dr-u.drop)-(ph-u.phys))*mq.factor:null;
+      const pp=u?(ph-u.phys)*mq.factor:null;
+      items.push({i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:dr,p:ph,u:util,pp,src:"manual",usr:user});
+      await saveToSupabase({casino_id:cid,maq_id:mq.id,maq_nombre:mq.nombre,factor:mq.factor,fecha,drop_acum:dr,phys_acum:ph,util,phys_periodo:pp,source:"manual",user_nombre:user});
     }
     if(w.length){setWrns(w);setSt("warn");return;}
     setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>c.f!==fecha),...items]};saveCont(n);return n;});
@@ -168,7 +446,7 @@ function Counters({cid,cont,setCont}){
         <div style={{...T.h,color:C.orange,marginBottom:8}}>⚠️ Inconsistencias</div>
         {wrns.map((w,i)=><div key={i}style={{...T.s,color:C.label2,marginBottom:4}}>• {w}</div>)}
         <div style={{display:"flex",gap:10,marginTop:10}}>
-          <button onClick={()=>{const items=[];for(const mq of mqs){const dr=parseFloat(gi(mq.id,"d")),ph=parseFloat(gi(mq.id,"p"));if(isNaN(dr)||isNaN(ph))continue;const u=getUlt(mq.id);items.push({i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:dr,p:ph,u:u?((dr-u.drop)-(ph-u.phys))*mq.factor:null,pp:u?(ph-u.phys)*mq.factor:null});}setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>c.f!==fecha),...items]};saveCont(n);return n;});setSt("ok");setInp({});setTimeout(()=>setSt(null),2500);}}style={{flex:1,background:C.orange,border:"none",borderRadius:10,padding:"10px",...T.h,color:"#000",cursor:"pointer"}}>Guardar igual</button>
+          <button onClick={async()=>{const items=[];for(const mq of mqs){const dr=parseFloat(gi(mq.id,"d")),ph=parseFloat(gi(mq.id,"p"));if(isNaN(dr)||isNaN(ph))continue;const u=getUlt(mq.id);const util=u?((dr-u.drop)-(ph-u.phys))*mq.factor:null;const pp=u?(ph-u.phys)*mq.factor:null;items.push({i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:dr,p:ph,u:util,pp,src:"manual",usr:user});await saveToSupabase({casino_id:cid,maq_id:mq.id,maq_nombre:mq.nombre,factor:mq.factor,fecha,drop_acum:dr,phys_acum:ph,util,phys_periodo:pp,source:"manual",user_nombre:user});}setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>c.f!==fecha),...items]};saveCont(n);return n;});setSt("ok");setInp({});setTimeout(()=>setSt(null),2500);}}style={{flex:1,background:C.orange,border:"none",borderRadius:10,padding:"10px",...T.h,color:"#000",cursor:"pointer"}}>Guardar igual</button>
           <button onClick={()=>setSt(null)}style={{flex:1,background:C.fill3,border:"none",borderRadius:10,padding:"10px",...T.h,color:C.label,cursor:"pointer"}}>Corregir</button>
         </div>
       </div>}
@@ -181,14 +459,11 @@ function Counters({cid,cont,setCont}){
         return<div key={mq.id}style={{background:C.bg2,borderRadius:12,marginBottom:8,overflow:"hidden"}}>
           <div style={{display:"flex",alignItems:"center",padding:"10px 12px",borderBottom:`0.5px solid ${C.sep}`}}>
             <Ic color={col}emoji={maqE(mq.factor,mq.nombre)}sz={30}/>
-            <div style={{flex:1,marginLeft:10}}>
-              <div style={{...T.h,color:C.label}}>{mq.nombre}</div>
-              <div style={{...T.cap,color:C.label2}}>×{mq.factor}{prev?` · ${prev.fecha}`:""}</div>
-            </div>
+            <div style={{flex:1,marginLeft:10}}><div style={{...T.h,color:C.label}}>{mq.nombre}</div><div style={{...T.cap,color:C.label2}}>×{mq.factor}{prev?` · ${prev.fecha}`:""}</div></div>
             {u!=null&&<div style={{...T.c,color:u>=0?C.green:C.red,fontWeight:600}}>{fmt(u)}</div>}
           </div>
           <div style={{padding:"10px 12px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-            {[["d","DROP",prev?.drop],["p","Phys OUT",prev?.phys],["y","YIELD ✓",null]].map(([f,lbl,ph])=>
+            {[["d","TOTAL IN",prev?.drop],["p","TOTAL OUT",prev?.phys],["y","IN-OUT",null]].map(([f,lbl,ph])=>
               <div key={f}>
                 <div style={{...T.cap,color:C.label2,marginBottom:3}}>{lbl}</div>
                 <input type="number"inputMode="numeric"value={gi(mq.id,f)}onChange={e=>si(mq.id,f,e.target.value)}
@@ -208,108 +483,7 @@ function Counters({cid,cont,setCont}){
 }
 
 
-// Camera OCR
-function Camera({cid,cont,setCont,apiKey}){
-  const m=META[cid];const d=D[cid];const mqs=d?.m||[];
-  const[img,setImg]=useState(null);const[proc,setProc]=useState(false);
-  const[res,setRes]=useState(null);const[err,setErr]=useState(null);
-  const[maqId,setMaqId]=useState(mqs[0]?.id||"");const[fecha,setFecha]=useState(today());
-  const[eDrop,setEDrop]=useState("");const[ePhys,setEPhys]=useState("");
-  const fRef=useRef(null);
-  const prev=d?.ul?.[maqId];
-
-  async function process(file){
-    if(!apiKey)return setErr("Configura API key en Ajustes ⚙️");
-    setProc(true);setErr(null);setRes(null);setEDrop("");setEPhys("");
-    try{
-      const b64=await new Promise((ok,rej)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(file);});
-      const mq=mqs.find(q=>q.id===maqId);
-      const prevTxt=prev?`Lectura anterior: DROP=${prev.d.toLocaleString()} Phys=${prev.p.toLocaleString()}. Los nuevos valores deben ser mayores.`:"";
-      const prompt=`Lee los contadores de esta máquina de casino (${mq?.nombre}, ×${mq?.factor}).\n${prevTxt}\nBusca DROP (=COIN IN/TOTAL IN/ENTRADA) y Physical Coins Out (=COIN OUT/TOTAL OUT/SALIDA/PAID).\nSon contadores ACUMULADOS (números grandes). NUNCA inventes — usa null si no estás seguro.\nResponde SOLO JSON: {"drop":N,"phys":N,"yield":N_O_NULL,"confianza":"alta|media|baja","nota":"breve"}`;
-      const rsp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:200,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:file.type,data:b64}},{type:"text",text:prompt}]}]})});
-      const data=await rsp.json();
-      if(data.error)throw new Error(data.error.message);
-      const parsed=JSON.parse((data.content?.[0]?.text||"").replace(/```json|```/g,"").trim());
-      setRes({...parsed,maqId,fecha});setEDrop(parsed.drop?.toString()||"");setEPhys(parsed.phys?.toString()||"");
-    }catch(e){setErr("Error: "+e.message);}
-    setProc(false);
-  }
-
-  function confirm(){
-    const drop=parseInt(eDrop),phys=parseInt(ePhys);
-    if(isNaN(drop)||isNaN(phys))return setErr("Corrige los valores");
-    const mq=mqs.find(q=>q.id===maqId);
-    const prevC=(cont[cid]||[]).filter(c=>c.i===maqId).sort((a,b)=>b.f.localeCompare(a.f))[0]||(prev?{d:prev.d,p:prev.p}:null);
-    const u=mq&&prevC?((drop-prevC.d)-(phys-prevC.p))*mq.factor:null;
-    const pp=mq&&prevC?(phys-prevC.p)*mq.factor:null;
-    setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>!(c.i===maqId&&c.f===fecha)),{i:maqId,n:mq?.nombre||"",fc:mq?.factor||1,f:fecha,d:drop,p:phys,u,pp,src:"ocr"}]};saveCont(n);return n;});
-    setRes(null);setImg(null);setEDrop("");setEPhys("");
-  }
-
-  const cCol=res?.confianza==="alta"?C.green:res?.confianza==="media"?C.orange:C.red;
-  const mq=mqs.find(q=>q.id===maqId);
-
-  return<div style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-    <Nav title="Cámara OCR"sub={`${m.e} ${m.n}`}large={false}/>
-    <div style={{padding:"10px 14px",paddingBottom:100}}>
-      <Sec hdr="Máquina">
-        <div style={{padding:"10px 12px"}}>
-          <select value={maqId}onChange={e=>{setMaqId(e.target.value);setRes(null);setImg(null);setErr(null);}}style={{width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"9px 12px",color:C.label,...T.c}}>
-            {mqs.map(q=><option key={q.id}value={q.id}style={{background:C.bg2}}>{q.nombre} ×{q.factor}</option>)}
-          </select>
-        </div>
-        <div style={{padding:"0 12px 10px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{...T.s,color:C.label2}}>Fecha:</span><input type="date"value={fecha}onChange={e=>setFecha(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer"}}/></div>
-          {prev&&<div style={{...T.cap,color:C.label3,textAlign:"right"}}>Ant: DROP {prev.d.toLocaleString()}<br/>Phys {prev.p.toLocaleString()}</div>}
-        </div>
-      </Sec>
-      <input ref={fRef}type="file"accept="image/*"capture="environment"onChange={e=>{const f=e.target.files?.[0];if(!f)return;setImg(URL.createObjectURL(f));process(f);}}style={{display:"none"}}/>
-      {!img
-        ?<div onClick={()=>fRef.current?.click()}style={{background:C.bg2,borderRadius:16,padding:"36px 20px",textAlign:"center",cursor:"pointer",border:`2px dashed ${C.sep}`,marginBottom:12}}>
-          <div style={{fontSize:44,marginBottom:8}}>📷</div>
-          <div style={{...T.h,color:C.label,marginBottom:4}}>Fotografiar contador</div>
-          <div style={{...T.s,color:C.label2}}>Claude leerá DROP y Physical Coins Out</div>
-        </div>
-        :<div style={{position:"relative",marginBottom:10}}>
-          <img src={img}alt="contador"style={{width:"100%",borderRadius:12}}/>
-          <button onClick={()=>{setImg(null);setRes(null);setErr(null);fRef.current?.click();}}style={{position:"absolute",top:8,right:8,background:"rgba(0,0,0,.7)",border:"none",borderRadius:20,padding:"6px 12px",color:C.label,...T.fn,cursor:"pointer"}}>📷 Repetir</button>
-        </div>}
-      {proc&&<div style={{background:C.bg2,borderRadius:12,padding:"16px",textAlign:"center",marginBottom:10}}><div style={{...T.h,color:m.c}}>🤖 Analizando...</div></div>}
-      {err&&<div style={{background:"rgba(255,69,58,.15)",border:`1px solid ${C.red}`,borderRadius:12,padding:12,marginBottom:10}}><div style={{...T.s,color:C.red}}>{err}</div></div>}
-      {res&&<div style={{background:C.bg2,borderRadius:12,marginBottom:10,overflow:"hidden"}}>
-        <div style={{padding:"10px 14px",borderBottom:`0.5px solid ${C.sep}`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-          <div style={{...T.h,color:C.green}}>✓ Lectura detectada</div>
-          <div style={{...T.fn,color:cCol,background:`${cCol}20`,padding:"3px 10px",borderRadius:20}}>{res.confianza==="alta"?"✓ Alta":"⚠️ "+(res.confianza==="media"?"Media":"Baja")} confianza</div>
-        </div>
-        <div style={{padding:"12px 14px"}}>
-          <div style={{...T.fn,color:C.label2,marginBottom:8}}>Verifica y corrige si es necesario:</div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
-            {[["DROP (Entrada acum.)",eDrop,setEDrop,"drop"],["Phys OUT (Salida acum.)",ePhys,setEPhys,"phys"]].map(([lbl,val,setVal,key])=>{
-              const pv=prev?.[key==="drop"?"d":"p"];const nv=parseInt(val);const bad=pv&&!isNaN(nv)&&nv<pv;
-              return<div key={key}>
-                <div style={{...T.cap,color:C.label2,marginBottom:4}}>{lbl}</div>
-                <input type="number"inputMode="numeric"value={val}onChange={e=>setVal(e.target.value)}
-                  style={{width:"100%",background:bad?"rgba(255,69,58,.15)":C.fill3,border:`1px solid ${bad?C.red:"transparent"}`,borderRadius:8,padding:"9px 10px",color:bad?C.red:C.label,...T.c,boxSizing:"border-box",outline:"none",WebkitAppearance:"none"}}/>
-                {bad&&<div style={{...T.cap,color:C.red,marginTop:2}}>⚠️ Menor al anterior ({pv?.toLocaleString()})</div>}
-                {pv&&!isNaN(nv)&&nv>=pv&&<div style={{...T.cap,color:C.label3,marginTop:2}}>Δ +{(nv-pv).toLocaleString()}</div>}
-              </div>;
-            })}
-          </div>
-          {eDrop&&ePhys&&prev&&(()=>{const dr=parseInt(eDrop),ph=parseInt(ePhys);if(isNaN(dr)||isNaN(ph))return null;const util=((dr-prev.d)-(ph-prev.p))*mq.factor,premios=(ph-prev.p)*mq.factor;return<div style={{background:C.fill4,borderRadius:10,padding:"10px 12px",marginBottom:10}}><div style={{display:"flex",justifyContent:"space-between"}}><div><div style={{...T.cap,color:C.label2}}>Premios pagados</div><div style={{...T.c,fontWeight:600,color:C.orange}}>{fmt(premios)}</div></div><div style={{textAlign:"right"}}><div style={{...T.cap,color:C.label2}}>Utilidad neta</div><div style={{...T.c,fontWeight:600,color:util>=0?C.green:C.red}}>{fmt(util)}</div></div></div></div>;})()}
-          {res.nota&&<div style={{...T.fn,color:C.label3,marginBottom:10}}>📝 {res.nota}</div>}
-          <div style={{display:"flex",gap:10}}>
-            <button onClick={confirm}style={{flex:1,background:C.green,border:"none",borderRadius:10,padding:"12px",color:"#000",...T.h,cursor:"pointer"}}>Confirmar</button>
-            <button onClick={()=>{setRes(null);setImg(null);setEDrop("");setEPhys("");}}style={{flex:1,background:C.fill3,border:"none",borderRadius:10,padding:"12px",color:C.label,...T.h,cursor:"pointer"}}>Cancelar</button>
-          </div>
-        </div>
-      </div>}
-      {!apiKey&&<div style={{background:"rgba(255,159,10,.1)",border:`1px solid ${C.orange}`,borderRadius:12,padding:12}}><div style={{...T.h,color:C.orange,marginBottom:4}}>Sin API Key</div><div style={{...T.s,color:C.label2}}>Ve a Ajustes ⚙️ para configurarla.</div></div>}
-    </div>
-  </div>;
-}
-
-
-// Report
+// ─── REPORT ───────────────────────────────────────────────────────────────────
 function Report({cid,cont}){
   const m=META[cid];const d=D[cid];
   const[sy,setSy]=useState(0);const[vista,setVista]=useState("bal");
@@ -333,10 +507,12 @@ function Report({cid,cont}){
   const totUtil=bals.reduce((s,b)=>s+(b.util||0),0);
   const totPhys=bals.reduce((s,b)=>s+(b.phys||0),0);
   const totCaja=totUtil+totPhys;
-  const avg=bals.length?totUtil/bals.length:0;
+  const avg=bals.length?Math.round(totUtil/bals.length):0;
   const mqs=d?.m||[];
-  const mStat=mqs.map(mq=>{const avg2=d?.a?.[mq.id]||0;return{...mq,avg:avg2};}).sort((a,b)=>b.avg-a.avg);
-  function exportCSV(){const rows=["Fecha,Premios,Utilidad,Caja Fisica",...bals.map(b=>`${b.fecha},${b.phys||0},${b.util},${(b.phys||0)+b.util}`)];const bl=new Blob([rows.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=`${cid}.csv`;a.click();}
+  const mStat=mqs.map(mq=>({...mq,avg:d?.a?.[mq.id]||0})).sort((a,b)=>b.avg-a.avg);
+  const MESES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+  const fmtFecha=f=>`${f.slice(8)}-${MESES[parseInt(f.slice(5,7))-1]}-${f.slice(0,4)}`;
+  function exportCSV(){const rows=["Fecha,Premios,Utilidad,Caja Fisica",...bals.map(b=>`${b.fecha},${b.phys||0},${b.util},${(b.phys||0)+b.util}`)];const bl=new Blob([rows.join("\n")],{type:"text/csv"});const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=`${cid}_${filtro}.csv`;a.click();}
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
     <Nav title="Reporte"sub={`${m.e} ${m.n}`}sy={sy}right={[{icon:"📤",fn:exportCSV}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
@@ -353,22 +529,22 @@ function Report({cid,cont}){
           <div style={{display:"flex",alignItems:"center",gap:6}}><span style={{...T.fn,color:C.label2}}>Hasta</span><input type="date"value={hasta}onChange={e=>setHasta(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.fn,cursor:"pointer"}}/></div>
         </div>}
         <div style={{background:"linear-gradient(135deg,#1C1C2E,#0A1628)",borderRadius:16,padding:18,marginBottom:12}}>
-          <div style={{...T.fn,color:C.label2,marginBottom:2}}>{filtro==="todo"?"TOTAL ACUMULADO":filtro==="semana"?"ÚLTIMOS 7 DÍAS":filtro==="mes"?`MES ${mes}`:"RANGO"}</div>
-          <div style={{...T.lg,color:C.label,marginBottom:12}}>{fmt(totUtil)}</div>
+          <div style={{...T.fn,color:C.label2,marginBottom:2}}>{filtro==="todo"?"TOTAL ACUMULADO":filtro==="semana"?"ÚLTIMOS 7 DÍAS":filtro==="mes"?`MES ${mes}`:"RANGO PERSONALIZADO"}</div>
+          <div style={{...T.lg,color:C.label,marginBottom:12}}>{fmtE(totUtil)}</div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
             {[["Premios",totPhys,C.orange],["💼 Caja",totCaja,m.c],[filtro==="todo"?"Prom":bals.length+" per.",filtro==="todo"?avg:null,C.label]].map(([lbl,val,col],i)=>
               <div key={i}style={{background:"rgba(255,255,255,.06)",borderRadius:10,padding:"8px 10px"}}>
                 <div style={{...T.cap,color:C.label2,marginBottom:2}}>{lbl}</div>
-                <div style={{...T.c,color:col,fontWeight:600}}>{val!=null?fmt(val):bals.length+" per."}</div>
+                <div style={{...T.c,color:col,fontWeight:600}}>{val!=null?fmtE(val):bals.length+" per."}</div>
               </div>)}
           </div>
-          <div style={{...T.cap,color:C.label3,marginTop:8}}>💼 Caja = Util {fmt(totUtil)} + Premios {fmt(totPhys)}</div>
+          <div style={{...T.cap,color:C.label3,marginTop:8}}>💼 Caja = Util + Premios</div>
         </div>
         <Sec hdr={`Historial (${bals.length})`}>
           {bals.length===0&&<div style={{padding:"16px 14px",...T.s,color:C.label2,textAlign:"center"}}>Sin períodos</div>}
           {bals.map((b,i)=><div key={b.fecha}style={{padding:"10px 14px",borderBottom:i<bals.length-1?`0.5px solid ${C.sep}`:"none"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-              <span style={{...T.c,color:C.label,fontWeight:500}}>{b.fecha.slice(8)}-{['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'][parseInt(b.fecha.slice(5,7))-1]}-{b.fecha.slice(0,4)}</span>
+              <span style={{...T.c,color:C.label,fontWeight:500}}>{fmtFecha(b.fecha)}</span>
               <span style={{...T.c,color:b.util>=0?C.green:C.red,fontWeight:700}}>{fmtE(b.util)}</span>
             </div>
             <div style={{display:"flex",gap:12}}>
@@ -380,14 +556,14 @@ function Report({cid,cont}){
       </>}
       {vista==="mqs"&&<Sec hdr="Ranking promedio utilidad">
         {mStat.map((mq,i)=><Row key={mq.id}ic={maqE(mq.factor,mq.nombre)}icC={maqC(mq.factor)}lbl={mq.nombre}sub={`×${mq.factor}`}
-          right={<div style={{textAlign:"right"}}><div style={{...T.c,color:mq.avg>=0?C.green:C.red,fontWeight:600}}>{fmt(Math.round(mq.avg))}</div><div style={{...T.cap,color:C.label2}}>prom</div></div>}
+          right={<div style={{textAlign:"right"}}><div style={{...T.c,color:mq.avg>=0?C.green:C.red,fontWeight:600}}>{fmtE(Math.round(mq.avg))}</div><div style={{...T.cap,color:C.label2}}>prom/período</div></div>}
           arr={false}last={i===mStat.length-1}/>)}
       </Sec>}
     </div>
   </div>;
 }
 
-// Machines
+// ─── MACHINES ─────────────────────────────────────────────────────────────────
 function Machines({cid,cont}){
   const m=META[cid];const d=D[cid];const mqs=d?.m||[];const[sy,setSy]=useState(0);
   const getUlt=id=>{const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];if(loc)return{drop:loc.d,phys:loc.p,fecha:loc.f};const lr=d?.ul?.[id];return lr?{drop:lr.d,phys:lr.p,fecha:"Excel"}:null;};
@@ -396,7 +572,7 @@ function Machines({cid,cont}){
     <div style={{padding:"0 14px",paddingBottom:100}}>
       <Sec hdr={`${mqs.length} máquinas`}>
         {mqs.map((mq,i)=>{const lr=getUlt(mq.id);return<Row key={mq.id}ic={maqE(mq.factor,mq.nombre)}icC={maqC(mq.factor)}
-          lbl={mq.nombre}sub={lr?`DROP: ${lr.drop.toLocaleString()} · Phys: ${lr.phys.toLocaleString()} · ${lr.fecha}`:"Sin lecturas"}
+          lbl={mq.nombre}sub={lr?`IN: ${lr.drop.toLocaleString()} · OUT: ${lr.phys.toLocaleString()} · ${lr.fecha}`:"Sin lecturas"}
           right={`×${mq.factor}`}arr={false}last={i===mqs.length-1}/>;
         })}
       </Sec>
@@ -405,8 +581,76 @@ function Machines({cid,cont}){
 }
 
 
-// Casino Shell + Home + Settings + Root
-function Casino({cid,cont,setCont,apiKey,onBack}){
+// ─── SETTINGS ─────────────────────────────────────────────────────────────────
+function Settings({onBack,onOut,user,apiKey,onAk}){
+  const[nk,setNk]=useState("");const[sv,setSv]=useState(false);
+  const[chPin,setChPin]=useState(false);const[p1,setP1]=useState("");const[p2,setP2]=useState("");const[pErr,setPErr]=useState("");
+  const[sbUrl,setSbUrl]=useState(localStorage.getItem("sb_url")||"");
+  const[sbKey,setSbKey]=useState(localStorage.getItem("sb_key")||"");
+  const[sbSv,setSbSv]=useState(false);
+  const[gdId,setGdId]=useState(localStorage.getItem("gd_client_id")||"");
+  const[gdFolder,setGdFolder]=useState(localStorage.getItem("gd_folder_id")||"");
+  const[gdSv,setGdSv]=useState(false);
+  function cambiarPin(){if(p1.length<4)return setPErr("Mínimo 4 dígitos");if(p1!==p2)return setPErr("No coinciden");savePin(user,p1);setChPin(false);setP1("");setP2("");setPErr("");alert("PIN actualizado ✓");}
+  function saveSb(){localStorage.setItem("sb_url",sbUrl);localStorage.setItem("sb_key",sbKey);sbLoad();setSbSv(true);setTimeout(()=>setSbSv(false),2000);}
+  function saveGd(){localStorage.setItem("gd_client_id",gdId);localStorage.setItem("gd_folder_id",gdFolder);setGdSv(true);setTimeout(()=>setGdSv(false),2000);}
+  const inp={width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"9px 11px",color:C.label,...T.s,boxSizing:"border-box",outline:"none",marginBottom:8};
+  return<div style={{height:"100dvh",overflowY:"auto",background:C.bg}}>
+    <Nav title="Ajustes"large={false}back="Casinos"onBack={onBack}/>
+    <div style={{padding:14,paddingBottom:80}}>
+      <Sec hdr={`Usuario: ${user}`}>
+        <Row ind lbl="Cambiar mi PIN"arr fn={()=>setChPin(!chPin)}last/>
+        {chPin&&<div style={{padding:"10px 14px",borderTop:`0.5px solid ${C.sep}`}}>
+          <input type="password"inputMode="numeric"value={p1}onChange={e=>setP1(e.target.value)}placeholder="Nuevo PIN"style={{...inp,textAlign:"center",letterSpacing:6}}/>
+          <input type="password"inputMode="numeric"value={p2}onChange={e=>setP2(e.target.value)}placeholder="Confirmar PIN"style={{...inp,textAlign:"center",letterSpacing:6}}/>
+          {pErr&&<div style={{...T.fn,color:C.red,marginBottom:8}}>{pErr}</div>}
+          <button onClick={cambiarPin}style={{width:"100%",background:C.blue,border:"none",borderRadius:10,padding:"10px",...T.h,color:"#FFF",cursor:"pointer"}}>Guardar PIN</button>
+        </div>}
+      </Sec>
+
+      <Sec hdr="API Key Anthropic (OCR)">
+        <div style={{padding:"10px 12px"}}>
+          {apiKey&&<div style={{...T.fn,color:C.green,marginBottom:8}}>✓ Configurada: {apiKey.slice(0,20)}...</div>}
+          <input value={nk}onChange={e=>setNk(e.target.value)}placeholder="sk-ant-..."style={inp}/>
+          <button onClick={()=>{onAk(nk);setSv(true);setTimeout(()=>setSv(false),2000);}}disabled={!nk}style={{width:"100%",background:sv?C.green:C.blue,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer"}}>{sv?"✓ Guardado":"Guardar API Key"}</button>
+          <div style={{...T.cap,color:C.label2,marginTop:6}}>console.anthropic.com → API Keys</div>
+        </div>
+      </Sec>
+
+      <Sec hdr="Supabase (base de datos)">
+        <div style={{padding:"10px 12px"}}>
+          <div style={{...T.cap,color:C.label2,marginBottom:6}}>Project URL</div>
+          <input value={sbUrl}onChange={e=>setSbUrl(e.target.value)}placeholder="https://xxx.supabase.co"style={inp}/>
+          <div style={{...T.cap,color:C.label2,marginBottom:6}}>anon/public key</div>
+          <input value={sbKey}onChange={e=>setSbKey(e.target.value)}placeholder="eyJhbGciOiJIUzI1NiIs..."style={inp}/>
+          <button onClick={saveSb}style={{width:"100%",background:sbSv?C.green:C.indigo,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer"}}>{sbSv?"✓ Guardado":"Guardar Supabase"}</button>
+          <div style={{...T.cap,color:C.label2,marginTop:6}}>supabase.com → Project → Settings → API</div>
+        </div>
+      </Sec>
+
+      <Sec hdr="Google Drive (fotos)">
+        <div style={{padding:"10px 12px"}}>
+          <div style={{...T.cap,color:C.label2,marginBottom:6}}>OAuth Client ID</div>
+          <input value={gdId}onChange={e=>setGdId(e.target.value)}placeholder="xxx.apps.googleusercontent.com"style={inp}/>
+          <div style={{...T.cap,color:C.label2,marginBottom:6}}>ID carpeta raíz en Drive</div>
+          <input value={gdFolder}onChange={e=>setGdFolder(e.target.value)}placeholder="1BxiM..."style={inp}/>
+          <button onClick={saveGd}style={{width:"100%",background:gdSv?C.green:C.teal,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#000",cursor:"pointer"}}>{gdSv?"✓ Guardado":"Guardar Drive"}</button>
+          <div style={{...T.cap,color:C.label2,marginTop:6}}>console.cloud.google.com → APIs → Credentials</div>
+        </div>
+      </Sec>
+
+      <Sec hdr="Datos">
+        <Row ind lbl="Exportar backup local"arr={false}fn={()=>{const d={};Object.keys(localStorage).forEach(k=>{d[k]=localStorage.getItem(k);});const bl=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download="backup.json";a.click();}}last/>
+      </Sec>
+      <Sec hdr="Sesión">
+        <Row ind lbl={`Cerrar sesión (${user})`}del fn={onOut}arr={false}last/>
+      </Sec>
+    </div>
+  </div>;
+}
+
+// ─── CASINO SHELL + HOME + ROOT ───────────────────────────────────────────────
+function Casino({cid,cont,setCont,apiKey,onBack,user}){
   const[tab,setTab]=useState("lectura");const m=META[cid];
   return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg}}>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
@@ -416,8 +660,8 @@ function Casino({cid,cont,setCont,apiKey,onBack}){
       </button>
     </div>
     <div style={{flex:1,overflow:"hidden",paddingTop:44}}>
-      {tab==="lectura"&&<Counters cid={cid}cont={cont}setCont={setCont}/>}
-      {tab==="camara"&&<Camera cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}/>}
+      {tab==="lectura"&&<Counters cid={cid}cont={cont}setCont={setCont}user={user}/>}
+      {tab==="camara"&&<Camera cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}user={user}/>}
       {tab==="reporte"&&<Report cid={cid}cont={cont}/>}
       {tab==="maquinas"&&<Machines cid={cid}cont={cont}/>}
     </div>
@@ -440,7 +684,7 @@ function Home({onSelect,onCfg,user}){
         </div>
       </div>
       <Sec hdr="Locales">
-        {Object.entries(META).map(([cid,m],i,a)=>{const b=lastBal(cid);const d=D[cid];return<Row key={cid}ic={m.e}icC={m.c}lbl={m.n}sub={`${d?.m?.length||0} máqs · ${m.liq}${b?` · ${b.fecha.slice(5)}`:""}`}right={b?<span style={{...T.c,color:b.util_total>=0?C.green:C.red,fontWeight:600}}>{fmt(b.util_total)}</span>:null}fn={()=>onSelect(cid)}last={i===a.length-1}/>;
+        {Object.entries(META).map(([cid,m],i,a)=>{const b=lastBal(cid);const dd=D[cid];return<Row key={cid}ic={m.e}icC={m.c}lbl={m.n}sub={`${dd?.m?.length||0} máqs · ${m.liq}${b?` · ${b.fecha.slice(5)}`:""}`}right={b?<span style={{...T.c,color:b.util_total>=0?C.green:C.red,fontWeight:600}}>{fmt(b.util_total)}</span>:null}fn={()=>onSelect(cid)}last={i===a.length-1}/>;
         })}
       </Sec>
       <Sec hdr="Liquidación diaria">
@@ -451,51 +695,17 @@ function Home({onSelect,onCfg,user}){
   </div>;
 }
 
-function Settings({onBack,onOut,user,apiKey,onAk}){
-  const[nk,setNk]=useState("");const[sv,setSv]=useState(false);
-  const[chPin,setChPin]=useState(false);const[p1,setP1]=useState("");const[p2,setP2]=useState("");const[pErr,setPErr]=useState("");
-  function cambiarPin(){if(p1.length<4)return setPErr("Mínimo 4 dígitos");if(p1!==p2)return setPErr("No coinciden");savePin(user,p1);setChPin(false);setP1("");setP2("");setPErr("");alert("PIN actualizado ✓");}
-  return<div style={{height:"100dvh",overflowY:"auto",background:C.bg}}>
-    <Nav title="Ajustes"large={false}back="Casinos"onBack={onBack}/>
-    <div style={{padding:14,paddingBottom:60}}>
-      <Sec hdr={`Usuario: ${user}`}>
-        <Row ind lbl="Cambiar mi PIN"arr={true}fn={()=>setChPin(!chPin)}last/>
-        {chPin&&<div style={{padding:"10px 14px",borderTop:`0.5px solid ${C.sep}`}}>
-          <input type="password"inputMode="numeric"value={p1}onChange={e=>setP1(e.target.value)}placeholder="Nuevo PIN"style={{width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"9px 11px",color:C.label,...T.c,boxSizing:"border-box",outline:"none",marginBottom:8,textAlign:"center",letterSpacing:6}}/>
-          <input type="password"inputMode="numeric"value={p2}onChange={e=>setP2(e.target.value)}placeholder="Confirmar PIN"style={{width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"9px 11px",color:C.label,...T.c,boxSizing:"border-box",outline:"none",marginBottom:8,textAlign:"center",letterSpacing:6}}/>
-          {pErr&&<div style={{...T.fn,color:C.red,marginBottom:8}}>{pErr}</div>}
-          <button onClick={cambiarPin}style={{width:"100%",background:C.blue,border:"none",borderRadius:10,padding:"10px",...T.h,color:"#FFF",cursor:"pointer"}}>Guardar</button>
-        </div>}
-      </Sec>
-      <Sec hdr="API Key Anthropic (OCR)">
-        <Row ind lbl={apiKey?"✓ API Key configurada":"Sin API Key"}sub={apiKey?apiKey.slice(0,16)+"...":"Necesaria para OCR con cámara"}arr={false}last/>
-        <div style={{padding:"8px 12px"}}>
-          <input value={nk}onChange={e=>setNk(e.target.value)}placeholder="sk-ant-..."style={{width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"9px 11px",color:C.label,...T.c,boxSizing:"border-box",outline:"none",marginBottom:8}}/>
-          <button onClick={()=>{onAk(nk);setSv(true);setTimeout(()=>setSv(false),2000);}}disabled={!nk}style={{width:"100%",background:sv?C.green:C.blue,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer"}}>{sv?"✓ Guardado":"Guardar API Key"}</button>
-          <div style={{...T.fn,color:C.label2,marginTop:6}}>console.anthropic.com → API Keys</div>
-        </div>
-      </Sec>
-      <Sec hdr="Datos">
-        <Row ind lbl="Exportar backup"arr={false}fn={()=>{const d={};Object.keys(localStorage).forEach(k=>{d[k]=localStorage.getItem(k);});const bl=new Blob([JSON.stringify(d,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(bl);a.download=`backup.json`;a.click();}}last/>
-      </Sec>
-      <Sec hdr="Sesión">
-        <Row ind lbl={`Cerrar sesión (${user})`}del fn={onOut}arr={false}last/>
-      </Sec>
-    </div>
-  </div>;
-}
-
 export default function App(){
   const[sc,setSc]=useState("boot");const[cid,setCid]=useState(null);
   const[user,setUser]=useState(null);const[apiKey,setAk]=useState("");
   const[cont,setCont]=useState({});
-  useEffect(()=>{setAk(loadApiKey());setCont(loadCont());setSc("login");},[]);
+  useEffect(()=>{sbLoad();setAk(loadApiKey());setCont(loadCont());setSc("login");},[]);
   function auth(u){setUser(u);setSc("home");}
   function out(){setUser(null);setSc("login");}
   const W={width:"100%",maxWidth:430,margin:"0 auto",height:"100dvh",overflow:"hidden",background:C.bg,boxShadow:"0 0 60px rgba(0,0,0,.9)"};
   if(sc==="boot")return<div style={{...W,display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:48}}>🎰</span></div>;
   if(sc==="login")return<div style={W}><Login onAuth={auth}/></div>;
   if(sc==="cfg")return<div style={W}><Settings onBack={()=>setSc(cid?"casino":"home")}onOut={out}user={user}apiKey={apiKey}onAk={k=>{setAk(k);saveApiKey(k);}}/></div>;
-  if(sc==="casino"&&cid)return<div style={W}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}/></div>;
+  if(sc==="casino"&&cid)return<div style={W}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}user={user}/></div>;
   return<div style={W}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}/></div>;
 }
