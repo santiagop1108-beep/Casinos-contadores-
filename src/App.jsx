@@ -684,7 +684,7 @@ function Report({cid,cont}){
         {tableMode==="byfecha"&&<div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",...T.fn,color:C.label,minWidth:500}}>
             <thead><tr style={{background:C.bg2}}>{["Fecha","Máquina","TOTAL IN","TOTAL OUT","IN-OUT","Premios","Utilidad"].map(h=><th key={h}style={{padding:"8px 10px",textAlign:"right",color:C.label2,fontWeight:500,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Fecha"||h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}</tr></thead>
-            <tbody>{(cont[cid]||[]).filter(c=>c.f&&c.i).sort((a,b)=>b.f.localeCompare(a.f)||a.n.localeCompare(b.n)).map((c,i)=><tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
+            <tbody>{[...(cont[cid]||[]),...(D[cid]?.b||[]).map(b=>({f:b.fecha,n:"Balance",i:"bal",d:null,p:null,y:null,pp:b.phys_total,u:b.util_total}))].filter(c=>c.f&&c.i).sort((a,b)=>b.f.localeCompare(a.f)||((a.n||"").localeCompare(b.n||""))).map((c,i)=><tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
               <td style={{padding:"7px 10px"}}>{fmtF(c.f)}</td><td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>{c.n}</td>
               <td style={{padding:"7px 10px",textAlign:"right"}}>{c.d?.toLocaleString()}</td><td style={{padding:"7px 10px",textAlign:"right"}}>{c.p?.toLocaleString()}</td>
               <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{c.y?.toLocaleString()||"—"}</td>
