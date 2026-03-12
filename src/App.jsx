@@ -901,14 +901,33 @@ function Report({cid,cont}){
 function Machines({cid,cont}){
   const C=getC();
   const m=META[cid];const d=D[cid];const mqs=d?.m||[];const[sy,setSy]=useState(0);
-  const getUlt=id=>{const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];if(loc)return{drop:loc.d,phys:loc.p,fecha:loc.f};const lr=d?.ul?.[id];return lr?{drop:lr.d,phys:lr.p,fecha:"Excel"}:null;};
-  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-    <Nav title="Máquinas"sub={`${m.e} ${m.n} · ${mqs.length} máqs`}sy={sy}/>
+  const getUlt=id=>{
+    const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];
+    if(loc)return{drop:loc.d,phys:loc.p,fecha:loc.f};
+    const lr=d?.ul?.[id];
+    return lr?{drop:lr.d,phys:lr.p,fecha:"Excel"}:null;
+  };
+  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch",background:C.bg}}>
+    <Nav title="Maquinas"sub={`${m.n} · ${mqs.length} maqs`}sy={sy}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
-      <Sec hdr={`${mqs.length} máquinas`}>
-        {mqs.map((mq,i)=>{const lr=getUlt(mq.id);return<Row key={mq.id}ic={maqE(mq.factor,mq.nombre)}icC={maqC(mq.factor)}
-          lbl={mq.nombre}sub={lr?`DROP: ${lr.drop.toLocaleString()} · Phys: ${lr.phys.toLocaleString()} · ${lr.fecha}`:"Sin lecturas"}
-          right={`×${mq.factor}`}arr={false}last={i===mqs.length-1}/>;
+      <Sec hdr={`${mqs.length} maquinas`}>
+        {mqs.map((mq,i)=>{
+          const lr=getUlt(mq.id);
+          const col=maqC(mq.factor,C);
+          const histCount=(cont[cid]||[]).filter(c=>c.i===mq.id).length;
+          return<div key={mq.id}style={{display:"flex",alignItems:"center",padding:"10px 14px",background:C.bg2,borderBottom:i<mqs.length-1?`0.5px solid ${C.sep}`:"none"}}>
+            <MaqIcon factor={mq.factor}nombre={mq.nombre}size={32}/>
+            <div style={{flex:1,marginLeft:10,minWidth:0}}>
+              <div style={{...T.b,color:C.label}}>{mq.nombre}</div>
+              <div style={{...T.fn,color:C.label2,marginTop:2}}>
+                {lr?`DROP: ${lr.drop?.toLocaleString()} · OUT: ${lr.phys?.toLocaleString()} · ${fmtF(lr.fecha)}`:"Sin lecturas"}
+              </div>
+              {histCount>0&&<div style={{...T.cap,color:C.label3,marginTop:1}}>{histCount} lecturas</div>}
+            </div>
+            <div style={{background:`${col}22`,borderRadius:8,padding:"3px 8px",flexShrink:0}}>
+              <span style={{...T.fn,color:col,fontWeight:600}}>x{mq.factor}</span>
+            </div>
+          </div>;
         })}
       </Sec>
     </div>
