@@ -440,7 +440,6 @@ function Counters({cid,cont,setCont,user}){
 
 function Camera({cid,cont,setCont,apiKey,user}){
   const C=getC();
-cid,cont,setCont,apiKey,user}){
   const m=META[cid];const d=D[cid];const mqs=d?.m||[];
   const[fecha,setFecha]=useState(today());
   const[queue,setQueue]=useState([]);
