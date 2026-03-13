@@ -557,7 +557,7 @@ function Report({cid,cont}){
   const[sy,setSy]=useState(0);const[vista,setVista]=useState("balance");
   const[filtro,setFiltro]=useState("todo");const[mes,setMes]=useState(today().slice(0,7));
   const[desde,setDesde]=useState("");const[hasta,setHasta]=useState("");
-  const[chartTab,setChartTab]=useState("total");const[tableMode,setTableMode]=useState("byfecha");
+  const[chartTab,setChartTab]=useState("total");const[tableMode,setTableMode]=useState("byfecha");const[sheetsData,setSheetsData]=useState([]);const[loadingSheets,setLoadingSheets]=useState(false);useEffect(()=>{setLoadingSheets(true);loadSheetCont(cid).then(data=>{setSheetsData(data);setLoadingSheets(false);});},[cid]);const allCont=[...(cont[cid]||[]),...sheetsData.filter(s=>!(cont[cid]||[]).find(c=>c.f===s.f&&c.i===s.i))];
   function getBals(){
     const b={};
     (d?.b||[]).forEach(bl=>{b[bl.fecha]={fecha:bl.fecha,util:bl.util_total,phys:bl.phys_total,nota:null};});
@@ -684,7 +684,7 @@ function Report({cid,cont}){
         {tableMode==="byfecha"&&<div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",...T.fn,color:C.label,minWidth:500}}>
             <thead><tr style={{background:C.bg2}}>{["Fecha","Máquina","TOTAL IN","TOTAL OUT","IN-OUT","Premios","Utilidad"].map(h=><th key={h}style={{padding:"8px 10px",textAlign:"right",color:C.label2,fontWeight:500,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Fecha"||h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}</tr></thead>
-            <tbody>{[...(cont[cid]||[]),...(D[cid]?.b||[]).map(b=>({f:b.fecha,n:"Balance",i:"bal",d:null,p:null,y:null,pp:b.phys_total,u:b.util_total}))].filter(c=>c.f&&c.i).sort((a,b)=>b.f.localeCompare(a.f)||((a.n||"").localeCompare(b.n||""))).map((c,i)=><tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
+            <tbody>{allCont.filter(c=>c.f&&c.i).sort((a,b)=>b.f.localeCompare(a.f)||((a.n||"").localeCompare(b.n||""))).map((c,i)=><tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
               <td style={{padding:"7px 10px"}}>{fmtF(c.f)}</td><td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>{c.n}</td>
               <td style={{padding:"7px 10px",textAlign:"right"}}>{c.d?.toLocaleString()}</td><td style={{padding:"7px 10px",textAlign:"right"}}>{c.p?.toLocaleString()}</td>
               <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{c.y?.toLocaleString()||"—"}</td>
