@@ -552,7 +552,8 @@ function Camera({cid,cont,setCont,apiKey,user}){
 }
 
 // ─── REPORT ───────────────────────────────────────────────────────────────────
-function Report({cid,cont}){
+function Report({cid,cont,sheetsCont={}}){
+  const allCont={...cont,[cid]:[...(cont[cid]||[]),...((sheetsCont[cid]||[]).filter(s=>!(cont[cid]||[]).find(c=>c.f===s.f&&c.i===s.i)))]};
   const C=getC();const m=META[cid];const d=D[cid];const color=C[m.c];
   const[sy,setSy]=useState(0);const[vista,setVista]=useState("balance");
   const[filtro,setFiltro]=useState("todo");const[mes,setMes]=useState(today().slice(0,7));
@@ -684,7 +685,7 @@ function Report({cid,cont}){
         {tableMode==="byfecha"&&<div style={{overflowX:"auto"}}>
           <table style={{width:"100%",borderCollapse:"collapse",...T.fn,color:C.label,minWidth:500}}>
             <thead><tr style={{background:C.bg2}}>{["Fecha","Máquina","TOTAL IN","TOTAL OUT","IN-OUT","Premios","Utilidad"].map(h=><th key={h}style={{padding:"8px 10px",textAlign:"right",color:C.label2,fontWeight:500,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Fecha"||h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}</tr></thead>
-            <tbody>{[...(cont[cid]||[]),...(D[cid]?.b||[]).map(b=>({f:b.fecha,n:"Balance",i:"bal",d:null,p:null,y:null,pp:b.phys_total,u:b.util_total}))].filter(c=>c.f&&c.i).sort((a,b)=>b.f.localeCompare(a.f)||((a.n||"").localeCompare(b.n||""))).map((c,i)=><tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
+            <tbody>{(allCont[cid]||[]).filter(c=>c.f&&c.i).sort((a,b)=>b.f.localeCompare(a.f)||((a.n||"").localeCompare(b.n||""))).map((c,i)=><tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
               <td style={{padding:"7px 10px"}}>{fmtF(c.f)}</td><td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>{c.n}</td>
               <td style={{padding:"7px 10px",textAlign:"right"}}>{c.d?.toLocaleString()}</td><td style={{padding:"7px 10px",textAlign:"right"}}>{c.p?.toLocaleString()}</td>
               <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{c.y?.toLocaleString()||"—"}</td>
@@ -1078,6 +1079,9 @@ function Home({onSelect,onCfg,user,pending}){
 // ─── CASINO SHELL ─────────────────────────────────────────────────────────────
 function Casino({cid,cont,setCont,apiKey,onBack,user}){
   const C=getC();const[tab,setTab]=useState("lectura");const m=META[cid];const color=C[m.c];
+  const[sheetsData,setSheetsData]=useState([]);
+  useEffect(()=>{loadSheetCont(cid).then(data=>setSheetsData(data));},[cid]);
+  const sheetsCont={[cid]:sheetsData};
   return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg}}>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
       <button onClick={onBack}style={{pointerEvents:"auto",background:"transparent",border:"none",color:C.blue,cursor:"pointer",padding:"10px 14px",display:"flex",alignItems:"center",gap:4}}>
@@ -1087,7 +1091,7 @@ function Casino({cid,cont,setCont,apiKey,onBack,user}){
     <div style={{flex:1,overflow:"hidden",paddingTop:44}}>
       {tab==="lectura"&&<Counters cid={cid}cont={cont}setCont={setCont}user={user}/>}
       {tab==="camara"&&<Camera cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}user={user}/>}
-      {tab==="reporte"&&<Report cid={cid}cont={cont}/>}
+      {tab==="reporte"&&<Report cid={cid}cont={cont}sheetsCont={sheetsCont}/>}
       {tab==="maquinas"&&<Machines cid={cid}cont={cont}/>}
     </div>
     <Tabs tab={tab}setTab={setTab}color={color}/>
