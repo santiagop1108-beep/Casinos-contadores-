@@ -1141,3 +1141,4 @@ export default function App(){
   if(sc==="casino"&&cid)return<div style={{...W,background:C.bg}}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}user={user}/></div>;
   return<div style={{...W,background:C.bg}}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}pending={pending}/></div>;
 }
+// Fri Mar 13 17:44:08 -05 2026
