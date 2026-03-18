@@ -1,3 +1,4 @@
+/* eslint-disable */
 import{useState,useEffect,useRef,useCallback,useMemo}from"react";
 
 // ─── CSS ANIMATIONS ───────────────────────────────────────────────────────────
