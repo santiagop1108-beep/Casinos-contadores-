@@ -270,43 +270,57 @@ async function fetchBalanceFromSheets(cid){
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return null;
 
-  // Balance sheet names per casino
-  const balNames={
-    faraon:"Balance",hugo:"Balance",obrero:"Balance",
-    playarica:" Balance",vikingos:"balance"
+  // Try multiple possible sheet name formats
+  const balNameOptions={
+    faraon:["Balance"],
+    hugo:["Balance"],
+    obrero:["Balance"],
+    playarica:[" Balance","Balance","balance"],
+    vikingos:["balance","Balance"],
   };
-  const sheetName=encodeURIComponent(balNames[cid]||"Balance");
-  const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:C?key=${GAPI_KEY}`;
+  const namesToTry=balNameOptions[cid]||["Balance"];
+  const TODAY=new Date().toISOString().slice(0,10);
 
-  try{
-    const r=await fetch(url);
-    if(!r.ok)return null;
-    const data=await r.json();
-    const rows=data.values||[];
-    const TODAY=new Date().toISOString().slice(0,10);
-    const result=[];
-
-    for(const row of rows){
-      // Col A = fecha, B = phys_total (premios), C = util_total
-      const fecha=parseSheetDate(row[0]);
-      if(!fecha||fecha>TODAY)continue;
-      const phys=parseNum(row[1]);
-      const util=parseNum(row[2]);
-      // Skip rows with clearly bad data (formula errors giving huge negatives)
-      if(phys==null||util==null)continue;
-      if(Math.abs(phys)>500000000||Math.abs(util)>500000000)continue;
-      result.push({fecha,phys_total:phys,util_total:util});
+  for(const rawName of namesToTry){
+    const sheetName=encodeURIComponent(rawName);
+    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:C?key=${GAPI_KEY}`;
+    try{
+      const r=await fetch(url);
+      if(!r.ok){console.warn(`Balance ${cid}/${rawName}: HTTP ${r.status}`);continue;}
+      const data=await r.json();
+      if(data.error){console.warn(`Balance ${cid}/${rawName}:`,data.error.message);continue;}
+      const rows=data.values||[];
+      if(!rows.length){console.warn(`Balance ${cid}/${rawName}: empty`);continue;}
+      const result=[];
+      for(const row of rows){
+        // Try both date formats: "3-ene" and datetime string and ISO
+        let fecha=parseSheetDate(row[0]);
+        // Also handle raw date serial or ISO string from Sheets
+        if(!fecha&&row[0]){
+          const s=String(row[0]).trim();
+          if(/^\d{4}-\d{2}-\d{2}/.test(s))fecha=s.slice(0,10);
+        }
+        if(!fecha||fecha>TODAY)continue;
+        const phys=parseNum(row[1]);
+        const util=parseNum(row[2]);
+        if(phys==null||util==null)continue;
+        if(Math.abs(phys)>500000000||Math.abs(util)>500000000)continue;
+        result.push({fecha,phys_total:phys,util_total:util});
+      }
+      result.sort((a,b)=>a.fecha.localeCompare(b.fecha));
+      if(result.length>0){
+        console.log(`Balance ${cid}/${rawName}: ${result.length} rows OK`);
+        _balanceCache[cid]=result;
+        return result;
+      }
+    }catch(e){
+      console.warn(`Balance ${cid}/${rawName} error:`,e.message);
     }
-
-    // Sort by date
-    result.sort((a,b)=>a.fecha.localeCompare(b.fecha));
-    _balanceCache[cid]=result;
-    return result;
-  }catch(e){
-    console.warn(`Balance Sheets ${cid}:`,e.message);
-    return null;
   }
+  console.warn(`Balance ${cid}: all attempts failed`);
+  return null;
 }
+
 
 // Invalidate caches when needed
 function invalidateSheetsCaches(cid){
@@ -2041,9 +2055,9 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
 function CompararLineChart({allDates,data,selected,metric,C}){
   const[hov,setHov]=useState(null);
   const H=200,W=380,PAD=48;
-  const metricColor={util:C.green,phys:C.orange,caja:C.blue};
-  const allVals=Object.keys(META).filter(cid=>selected.includes(cid)).flatMap(cid=>(data[cid]||[]).filter(r=>allDates.includes(r.fecha)).map(r=>r[metric]||0));
-  if(!allVals.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
+  const activeCids=Object.keys(META).filter(cid=>selected.includes(cid));
+  const allVals=activeCids.flatMap(cid=>(data[cid]||[]).filter(r=>allDates.includes(r.fecha)).map(r=>r[metric]||0)).filter(v=>isFinite(v));
+  if(!allVals.length||allDates.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin suficientes datos para mostrar tendencia</div>;
   const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);const range=maxV-minV||1;
   const toX=i=>PAD+i*(W-PAD-8)/(allDates.length-1||1);
   const toY=v=>H-((v-minV)/range)*(H-16)-8;
@@ -2057,7 +2071,7 @@ function CompararLineChart({allDates,data,selected,metric,C}){
       const col=C[META[cid].c];
       const pts=allDates.map(fecha=>{const row=(data[cid]||[]).find(r=>r.fecha===fecha);return row?row[metric]:null;});
       let pathD="";let inSeg=false;
-      pts.forEach((v,i)=>{if(v!=null){if(!inSeg){pathD+=`M${toX(i)},${toY(v)}`;inSeg=true;}else{pathD+=`L${toX(i)},${toY(v)}`;}}else{inSeg=false;}});
+      pts.forEach((v,i)=>{if(v!=null&&isFinite(toX(i))&&isFinite(toY(v))){if(!inSeg){pathD+=`M${toX(i)},${toY(v)}`;inSeg=true;}else{pathD+=`L${toX(i)},${toY(v)}`;}}else{inSeg=false;}});
       return<g key={cid}>
         <path d={pathD}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"opacity=".9"
           style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s ease forwards"}}/>
