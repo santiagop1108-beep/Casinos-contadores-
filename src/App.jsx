@@ -317,8 +317,10 @@ async function fetchBalanceFromSheets(cid){
       console.warn(`Balance ${cid}/${rawName} error:`,e.message);
     }
   }
-  console.warn(`Balance ${cid}: all attempts failed`);
-  return null;
+  console.warn(`Balance ${cid}: all attempts failed - using hardcoded data`);
+  // Return hardcoded data as fallback so we don't cache null
+  const fallback=(D[cid]?.b||[]).map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}));
+  return fallback.length ? fallback : null;
 }
 
 
@@ -944,7 +946,9 @@ function Report({cid,cont}){
       fetchBalanceFromSheets(cid).catch(()=>null)
     ]).then(([hist,bal])=>{
       setSheetsData(hist||[]);
-      setLiveBalance(bal||[]);
+      // bal=null means complete failure, bal=[] means sheets returned empty
+      // bal=[...] means success (either live or fallback hardcoded)
+      setLiveBalance(bal);
       setBalLoading(false);
     });
   },[cid]);
@@ -1410,7 +1414,7 @@ function Report({cid,cont}){
           <div style={{...T.cap,color:C.label2,letterSpacing:1.2,textTransform:"uppercase"}}>Utilidad Total · {bals.length} períodos</div>
           {balLoading&&<div style={{...T.cap,color:C.teal,background:`${C.teal}15`,borderRadius:20,padding:"1px 8px",border:`1px solid ${C.teal}33`,animation:"pulse 1s infinite"}}>↻ Cargando</div>}
           {!balLoading&&liveBalance&&liveBalance.length>0&&<div style={{...T.cap,color:C.green,background:`${C.green}15`,borderRadius:20,padding:"1px 8px",border:`1px solid ${C.green}33`}}>● Live</div>}
-          {!balLoading&&liveBalance&&liveBalance.length===0&&<div style={{...T.cap,color:C.orange,background:`${C.orange}15`,borderRadius:20,padding:"1px 8px",border:`1px solid ${C.orange}33`}}>Offline</div>}
+          {!balLoading&&(!liveBalance||liveBalance.length===0)&&<div style={{...T.cap,color:C.label3,background:C.fill3,borderRadius:20,padding:"1px 8px"}}>Sin conexión</div>}
         </div>
         <AnimNumber value={totUtil}style={{...T.lg,color:totUtil>=0?C.green:C.red,fontSize:38,fontWeight:700,letterSpacing:-1,display:"block",marginBottom:16}}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
