@@ -75,14 +75,15 @@ async function fetchSheetHist(cid){
         const inAcum=parseNum(row[1]);
         const outAcum=parseNum(row[2]);
         if(inAcum==null||outAcum==null||inAcum===0)continue;
-        // Col F (idx 5) = premios período, Col H (idx 7) = utilidad período
-        let premios=parseNum(row[5]);
-        let utilidad=parseNum(row[7]);
-        // Si no hay datos de período, calcular desde acumulados
-        if(utilidad==null&&prevIn!=null){
+        // Col D (idx 3) = premios período, Col E (idx 4) = utilidad período
+        // Structure: A=fecha, B=IN_acum, C=OUT_acum, D=premios, E=utilidad
+        let premios=parseNum(row[3]);
+        let utilidad=parseNum(row[4]);
+        // Si no hay utilidad explícita, calcular desde diferencia acumulados
+        if(utilidad==null&&prevIn!=null&&inAcum>prevIn){
           const inPer=inAcum-prevIn;
           const outPer=outAcum-prevOut;
-          premios=outPer*mq.factor;
+          if(premios==null)premios=outPer*mq.factor;
           utilidad=(inPer-outPer)*mq.factor;
         }
         results.push([mq.id,fecha,inAcum,outAcum,premios,utilidad]);
@@ -106,7 +107,20 @@ function parseSheetDate(raw){
   else if(mon>new Date().getMonth()+2)year--;
   return`${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
 }
-function parseNum(v){if(v==null||v==="")return null;const n=parseFloat(String(v).replace(/[,$\s]/g,""));return isNaN(n)?null:Math.round(n);}
+function parseNum(v){
+  if(v==null||v==="")return null;
+  // Handle Colombian format: "4.827.000" or "$4.827.000" or "4,827,000"
+  let s=String(v).replace(/[$\s]/g,"").trim();
+  // If dots are thousand separators (e.g. "4.827.000"), remove them
+  // Detect: if there are multiple dots OR dot followed by 3 digits at end
+  if(/\.\d{3}(\.|$)/.test(s)||/^\d{1,3}(\.\d{3})+$/.test(s)){
+    s=s.replace(/\./g,""); // remove thousand-separator dots
+  }
+  // Handle commas as thousand separators
+  s=s.replace(/,/g,"");
+  const n=parseFloat(s);
+  return isNaN(n)?null:Math.round(n);
+}
 
 
 const META={
