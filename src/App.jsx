@@ -1764,112 +1764,15 @@ function Home({onSelect,onCfg,user,pending}){
   </div>;
 }
 
-// ─── LOGIN ─────────────────────────────────────────────────────────────────────
-function Login({onAuth}){
-  const C=getC();
-  const[user,setUser]=useState(null);const[pin,setPin]=useState("");const[pin2,setPin2]=useState("");
-  const[paso,setPaso]=useState("sel");const[err,setErr]=useState("");const[faceLoading,setFL]=useState(false);
-  const uColor=u=>u==="Santiago"?C.indigo:u==="Eliza"?C.pink:C.teal;
-  function selUser(u){setUser(u);setPin("");setPin2("");setErr("");setPaso(localStorage.getItem("cp_"+u)?"in":"new");}
-  function go(){
-    setErr("");
-    if(paso==="new"){if(pin.length<4)return setErr("Mínimo 4 dígitos");return setPaso("conf");}
-    if(paso==="conf"){if(pin!==pin2)return setErr("PINs no coinciden");savePin(user,pin);onAuth(user);return;}
-    if(paso==="in"){if(checkPin(user,pin)){onAuth(user);}else{saveLog({action:"login_fail",target:user});setErr("PIN incorrecto");}}
-  }
-  async function doFaceId(){setFL(true);setErr("");try{if(!hasFaceId(user)){await registerFaceId(user);onAuth(user);}else{await authFaceId(user);onAuth(user);}}catch(e){setErr(e.message||"Face ID falló");}setFL(false);}
-
-  if(paso==="sel")return(
-    <div style={{minHeight:"100dvh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
-      <style>{ANIM_CSS}</style>
-      {/* Ambient orbs */}
-      <div style={{position:"absolute",top:"10%",left:"20%",width:200,height:200,borderRadius:100,background:`radial-gradient(circle,${C.indigo}22,transparent)`,filter:"blur(40px)",pointerEvents:"none"}}/>
-      <div style={{position:"absolute",bottom:"15%",right:"15%",width:160,height:160,borderRadius:80,background:`radial-gradient(circle,${C.blue}18,transparent)`,filter:"blur(40px)",pointerEvents:"none"}}/>
-      <div style={{width:"100%",maxWidth:340,position:"relative",zIndex:1}}>
-        <div className="fade-up"style={{textAlign:"center",marginBottom:40}}>
-          <div style={{width:80,height:80,borderRadius:24,background:`linear-gradient(145deg,${C.indigo}88,${C.blue})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",boxShadow:`0 12px 40px ${C.indigo}55`,animation:"floatUp 3s ease infinite"}}>
-            <Ico n="slot"c="#FFF"s={42}/>
-          </div>
-          <div style={{...T.lg,color:C.label,letterSpacing:-.5}}>Casino Contadores</div>
-          <div style={{...T.s,color:C.label2,marginTop:6}}>Selecciona tu perfil para continuar</div>
-        </div>
-        <div style={{display:"flex",flexDirection:"column",gap:10}}>
-          {USERS.map((u,i)=>{
-            const col=uColor(u);
-            return<button key={u}onClick={()=>selUser(u)}className={`btn-press fade-up-${i+1}`}
-              style={{background:C.bg2,border:`1px solid ${C.sep}`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",backdropFilter:"blur(20px)",transition:"border-color .2s,box-shadow .2s"}}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor=`${col}55`;e.currentTarget.style.boxShadow=`0 8px 32px ${col}22`;}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=C.sep;e.currentTarget.style.boxShadow="";}}>
-              <div style={{width:48,height:48,borderRadius:24,background:`linear-gradient(145deg,${col}88,${col})`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 4px 16px ${col}55`}}>
-                <Ico n="user"c="#FFF"s={22}/>
-              </div>
-              <div style={{flex:1}}>
-                <div style={{...T.h,color:C.label}}>{u}</div>
-                <div style={{...T.fn,color:C.label2,display:"flex",alignItems:"center",gap:4,marginTop:3}}>
-                  {hasFaceId(u)&&<Ico n="faceid"c={C.blue}s={12}/>}
-                  {localStorage.getItem("cp_"+u)?"PIN configurado":"Primera vez"}
-                </div>
-              </div>
-              <div style={{width:28,height:28,borderRadius:14,background:`${col}15`,display:"flex",alignItems:"center",justifyContent:"center"}}><Ico n="chevron"c={col}s={14}/></div>
-            </button>;
-          })}
-        </div>
-      </div>
-    </div>
-  );
-
-  const col=uColor(user);
-  return(
-    <div style={{minHeight:"100dvh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
-      <style>{ANIM_CSS}</style>
-      <div style={{position:"absolute",top:"5%",left:"10%",width:240,height:240,borderRadius:120,background:`radial-gradient(circle,${col}15,transparent)`,filter:"blur(50px)",pointerEvents:"none"}}/>
-      <div style={{width:"100%",maxWidth:320,position:"relative",zIndex:1,animation:"scaleIn .35s cubic-bezier(.16,1,.3,1) both"}}>
-        <button onClick={()=>setPaso("sel")}style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginBottom:28,...T.b,padding:0}}>
-          <Ico n="back"c={C.blue}s={18}/>Cambiar usuario
-        </button>
-        <div style={{textAlign:"center",marginBottom:32}}>
-          <div style={{width:64,height:64,borderRadius:32,background:`linear-gradient(145deg,${col}88,${col})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",boxShadow:`0 8px 28px ${col}55`}}>
-            <Ico n="user"c="#FFF"s={30}/>
-          </div>
-          <div style={{...T.lg,color:C.label,fontSize:28,letterSpacing:-.5}}>{user}</div>
-          <div style={{...T.s,color:C.label2,marginTop:5}}>{paso==="new"?"Crea tu PIN de acceso":paso==="conf"?"Confirma tu PIN":"Ingresa tu PIN"}</div>
-        </div>
-        {paso==="in"&&hasFaceId(user)&&<button onClick={doFaceId}disabled={faceLoading}className="btn-press"
-          style={{width:"100%",background:C.fill3,border:`1px solid ${C.blue}33`,borderRadius:16,padding:"15px",marginBottom:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,backdropFilter:"blur(10px)"}}>
-          <Ico n="faceid"c={C.blue}s={26}/><span style={{...T.h,color:C.blue}}>{faceLoading?"Verificando...":"Entrar con Face ID"}</span>
-        </button>}
-        {/* PIN dots display */}
-        <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:16}}>
-          {[0,1,2,3].map(i=><div key={i}style={{width:12,height:12,borderRadius:6,background:(paso==="conf"?pin2:pin).length>i?col:C.fill3,border:`1.5px solid ${(paso==="conf"?pin2:pin).length>i?col:C.sep}`,transition:"all .15s"}}/>)}
-        </div>
-        <input type="password"inputMode="numeric"value={paso==="conf"?pin2:pin}
-          onChange={e=>paso==="conf"?setPin2(e.target.value):setPin(e.target.value)}
-          onKeyDown={e=>e.key==="Enter"&&go()}placeholder="Ingresa tu PIN"autoFocus
-          style={{width:"100%",background:C.bg2,border:`1.5px solid ${C.sep}`,borderRadius:16,padding:"15px",color:C.label,...T.lg,fontSize:26,textAlign:"center",boxSizing:"border-box",outline:"none",marginBottom:14,letterSpacing:12,backdropFilter:"blur(10px)"}}/>
-        {err&&<div style={{...T.s,color:C.red,textAlign:"center",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6,animation:"fadeIn .2s ease"}}>
-          <Ico n="warning"c={C.red}s={14}/>{err}
-        </div>}
-        <button onClick={go}className="btn-press"style={{width:"100%",background:`linear-gradient(135deg,${col},${col}cc)`,border:"none",borderRadius:16,padding:"15px",...T.h,color:"#FFF",cursor:"pointer",boxShadow:`0 6px 20px ${col}44`,letterSpacing:.3}}>
-          {paso==="in"?"Entrar":paso==="new"?"Siguiente":"Confirmar PIN"}
-        </button>
-        {paso==="in"&&<button onClick={()=>{if(confirm("¿Resetear PIN de "+user+"?"))localStorage.removeItem("cp_"+user),setPaso("new"),setPin("");}}
-          style={{width:"100%",background:"transparent",border:"none",color:C.label3,cursor:"pointer",marginTop:10,...T.s,padding:"8px"}}>
-          Olvidé mi PIN
-        </button>}
-      </div>
-    </div>
-  );
-}
 
 // ─── CASINO SHELL ─────────────────────────────────────────────────────────────────
 function Casino({cid,cont,setCont,apiKey,onBack,user}){
   const C=getC();const[tab,setTab]=useState("lectura");const m=META[cid];const color=C[m.c];
   return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg,position:"relative"}}>
     <style>{ANIM_CSS}</style>
-    {/* Casino color accent at top */}
     <div style={{position:"absolute",top:0,left:0,right:0,height:200,background:`radial-gradient(ellipse 100% 100% at 50% -20%, ${color}18, transparent)`,pointerEvents:"none",zIndex:0}}/>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
-      <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"rgba(0,0,0,.3)",border:"1px solid rgba(255,255,255,.1)",borderRadius:99,cursor:"pointer",padding:"6px 14px 6px 10px",display:"flex",alignItems:"center",gap:4,margin:"10px 14px",backdropFilter:"blur(20px)"}}>
+      <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"rgba(0,0,0,.35)",border:"1px solid rgba(255,255,255,.12)",borderRadius:99,cursor:"pointer",padding:"6px 14px 6px 10px",display:"flex",alignItems:"center",gap:4,margin:"10px 14px",backdropFilter:"blur(20px)"}}>
         <Ico n="back"c={C.blue}s={18}/><span style={{...T.fn,color:C.blue,fontWeight:500}}>Inicio</span>
       </button>
     </div>
@@ -1882,9 +1785,6 @@ function Casino({cid,cont,setCont,apiKey,onBack,user}){
     <Tabs tab={tab}setTab={setTab}color={color}/>
   </div>;
 }
-
-
-
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App(){
@@ -1916,19 +1816,11 @@ export default function App(){
   function auth(u){setUser(u);saveLog({action:"login_ok",target:u,device:navigator.userAgent.slice(0,60)});setSc("home");}
   function out(){saveLog({action:"logout",target:user});setUser(null);setSc("login");}
 
-  const W={width:"100%",maxWidth:430,margin:"0 auto",height:"100dvh",overflow:"hidden",background:C.bg,boxShadow:"0 0 120px rgba(0,0,0,.8)",position:"relative"};
-
-  if(sc==="boot")return<div style={{...W,display:"flex",alignItems:"center",justifyContent:"center",background:"#080810",flexDirection:"column",gap:16}}>
-    <style>{ANIM_CSS}</style>
-    <div style={{position:"absolute",top:"30%",left:"30%",width:200,height:200,borderRadius:100,background:`radial-gradient(circle,${C.indigo}25,transparent)`,filter:"blur(60px)"}}/>
-    <div style={{width:80,height:80,borderRadius:24,background:`linear-gradient(145deg,${C.indigo}88,${C.blue})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 12px 40px ${C.indigo}55`,animation:"floatUp 2s ease infinite"}}>
-      <Ico n="slot"c="#FFF"s={42}/>
-    </div>
-    <div style={{...T.h,color:"rgba(255,255,255,.4)",letterSpacing:2,fontSize:12,textTransform:"uppercase",animation:"pulse 1.5s ease infinite"}}>Casino Contadores</div>
-  </div>;
-  if(sc==="login")return<div style={W}><Login onAuth={auth}/></div>;
-  if(sc==="admin"&&user==="Santiago")return<div style={W}><AdminPanel onBack={()=>setSc("home")}user={user}/></div>;
-  if(sc==="cfg")return<div style={W}><Settings onBack={()=>setSc(cid?"casino":"home")}onOut={out}user={user}apiKey={apiKey}onAk={k=>{setAk(k);saveApiKey(k);}}theme={theme}setTheme={t=>{setTheme(t);_theme=THEMES[t];}}pending={pending}onAdmin={()=>setSc("admin")}/></div>;
-  if(sc==="casino"&&cid)return<div style={W}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}user={user}/></div>;
-  return<div style={W}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}pending={pending}/></div>;
+  const W={width:"100%",maxWidth:430,margin:"0 auto",height:"100dvh",overflow:"hidden",background:C.bg,boxShadow:"0 0 80px rgba(0,0,0,.6)"};
+  if(sc==="boot")return<div style={{...W,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{animation:"pulse 1s ease infinite"}}><Ico n="slot"c={C.indigo}s={52}/></div></div>;
+  if(sc==="login")return<div style={{...W}}><Login onAuth={auth}/></div>;
+  if(sc==="admin"&&user==="Santiago")return<div style={{...W}}><AdminPanel onBack={()=>setSc("home")}user={user}/></div>;
+  if(sc==="cfg")return<div style={{...W}}><Settings onBack={()=>setSc(cid?"casino":"home")}onOut={out}user={user}apiKey={apiKey}onAk={k=>{setAk(k);saveApiKey(k);}}theme={theme}setTheme={t=>{setTheme(t);_theme=THEMES[t];}}pending={pending}onAdmin={()=>setSc("admin")}/></div>;
+  if(sc==="casino"&&cid)return<div style={{...W}}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}user={user}/></div>;
+  return<div style={{...W}}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}pending={pending}/></div>;
 }
