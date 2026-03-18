@@ -1242,9 +1242,9 @@ function Report({cid,cont}){
   // ── Gráfico de área acumulada ─────────────────────────────────────────────────
   function ChartArea(){
     const C=getC();
+    const[expandChart,setExpandChart]=useState(false);
     const pts=[...bals].reverse();
     if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
-    const[expandChart,setExpandChart]=useState(false);
     // Cumulative sum
     let cum=0;
     const cumPts=pts.map(p=>{cum+=(p.util||0);return{f:p.fecha.slice(5),util:p.util,cum};});
@@ -2038,6 +2038,39 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
 
 
 // ─── COMPARAR CASINOS ────────────────────────────────────────────────────────
+function CompararLineChart({allDates,data,selected,metric,C}){
+  const[hov,setHov]=useState(null);
+  const H=200,W=380,PAD=48;
+  const metricColor={util:C.green,phys:C.orange,caja:C.blue};
+  const allVals=Object.keys(META).filter(cid=>selected.includes(cid)).flatMap(cid=>(data[cid]||[]).filter(r=>allDates.includes(r.fecha)).map(r=>r[metric]||0));
+  if(!allVals.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
+  const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);const range=maxV-minV||1;
+  const toX=i=>PAD+i*(W-PAD-8)/(allDates.length-1||1);
+  const toY=v=>H-((v-minV)/range)*(H-16)-8;
+  return<svg width="100%"viewBox={`0 0 ${W} ${H+28}`}style={{overflow:"visible",cursor:"crosshair"}}
+    onMouseLeave={()=>setHov(null)}>
+    {[0,.5,1].map(f=>{const y=H-f*(H-16)-8;return<g key={f}>
+      <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/>
+      <text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(minV+(maxV-minV)*f)}</text>
+    </g>;})}
+    {Object.keys(META).filter(cid=>selected.includes(cid)).map(cid=>{
+      const col=C[META[cid].c];
+      const pts=allDates.map(fecha=>{const row=(data[cid]||[]).find(r=>r.fecha===fecha);return row?row[metric]:null;});
+      let pathD="";let inSeg=false;
+      pts.forEach((v,i)=>{if(v!=null){if(!inSeg){pathD+=`M${toX(i)},${toY(v)}`;inSeg=true;}else{pathD+=`L${toX(i)},${toY(v)}`;}}else{inSeg=false;}});
+      return<g key={cid}>
+        <path d={pathD}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"opacity=".9"
+          style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s ease forwards"}}/>
+        {pts.map((v,i)=>v!=null&&<circle key={i}cx={toX(i)}cy={toY(v)}r={hov===i?5:2.5}fill={col}stroke="rgba(8,8,16,.9)"strokeWidth="1.5"
+          onMouseEnter={()=>setHov(i)}/>)}
+      </g>;
+    })}
+    {allDates.filter((_,i)=>i%(Math.max(1,Math.ceil(allDates.length/6)))===0).map((d,i)=>
+      <text key={i}x={toX(allDates.indexOf(d))}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>)}
+    {hov!=null&&<line x1={toX(hov)}y1={8}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1"strokeDasharray="3,3"/>}
+  </svg>;
+}
+
 function Comparar({onBack}){
   const C=getC();
   const[selected,setSelected]=useState(Object.keys(META));
@@ -2187,41 +2220,7 @@ function Comparar({onBack}){
                   </div>;
                 })}
               </div>
-              {(()=>{
-                const H=200,W=380,PAD=48;
-                const allVals=Object.keys(META).filter(cid=>selected.includes(cid)).flatMap(cid=>(data[cid]||[]).filter(r=>allDates.includes(r.fecha)).map(r=>r[metric]||0));
-                const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);const range=maxV-minV||1;
-                const toX=i=>PAD+i*(W-PAD-8)/(allDates.length-1||1);
-                const toY=v=>H-((v-minV)/range)*(H-16)-8;
-                const[hov,setHov]=useState(null);
-                return<svg width="100%"viewBox={`0 0 ${W} ${H+28}`}style={{overflow:"visible",cursor:"crosshair"}}
-                  onMouseLeave={()=>setHov(null)}>
-                  {/* Grid */}
-                  {[0,.5,1].map(f=>{const y=H-f*(H-16)-8;return<g key={f}>
-                    <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/>
-                    <text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(minV+(maxV-minV)*f)}</text>
-                  </g>;})}
-                  {/* Lines per casino */}
-                  {Object.keys(META).filter(cid=>selected.includes(cid)).map(cid=>{
-                    const col=C[META[cid].c];
-                    const pts=allDates.map(fecha=>{const row=(data[cid]||[]).find(r=>r.fecha===fecha);return row?row[metric]:null;});
-                    const validPts=pts.map((v,i)=>v!=null?[toX(i),toY(v)]:null);
-                    // Build path segments (skip nulls)
-                    let pathD="";let inSeg=false;
-                    validPts.forEach((pt,i)=>{if(pt){if(!inSeg){pathD+=`M${pt[0]},${pt[1]}`;inSeg=true;}else{pathD+=`L${pt[0]},${pt[1]}`;}}else{inSeg=false;}});
-                    return<g key={cid}>
-                      <path d={pathD}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"opacity=".9"
-                        style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s ease forwards"}}/>
-                      {validPts.map((pt,i)=>pt&&<circle key={i}cx={pt[0]}cy={pt[1]}r={hov===i?5:2.5}fill={col}stroke={C.bg||"#080810"}strokeWidth="1.5"onMouseEnter={()=>setHov(i)}/>)}
-                    </g>;
-                  })}
-                  {/* X labels */}
-                  {allDates.filter((_,i)=>i%(Math.max(1,Math.ceil(allDates.length/6)))===0).map((d,i)=>
-                    <text key={i}x={toX(allDates.indexOf(d))}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>)}
-                  {/* Hover indicator */}
-                  {hov!=null&&<line x1={toX(hov)}y1={8}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1"strokeDasharray="3,3"/>}
-                </svg>;
-              })()}
+              <CompararLineChart allDates={allDates} data={data} selected={selected} metric={metric} C={C}/>
             </>}
           </div>}
 
