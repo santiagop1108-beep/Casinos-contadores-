@@ -3,44 +3,49 @@ import{useState,useEffect,useRef,useCallback,useMemo}from"react";
 
 // ─── CSS ANIMATIONS ───────────────────────────────────────────────────────────
 const ANIM_CSS=`
-*{-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
+*{-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
 
-@keyframes fadeUp{0%{opacity:0;transform:translateY(20px) scale(.98)}100%{opacity:1;transform:translateY(0) scale(1)}}
+/* ── Keyframes ─────────────────────────────────────── */
+@keyframes fadeUp{0%{opacity:0;transform:translateY(18px) scale(.97)}100%{opacity:1;transform:none}}
 @keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
-@keyframes scaleIn{0%{opacity:0;transform:scale(.92)}100%{opacity:1;transform:scale(1)}}
+@keyframes scaleIn{0%{opacity:0;transform:scale(.9)}100%{opacity:1;transform:scale(1)}}
 @keyframes slideUp{0%{transform:translateY(100%)}100%{transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes slideDown{0%{transform:translateY(-100%)}100%{transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 @keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
 @keyframes barGrow{0%{transform:scaleY(0);transform-origin:bottom}100%{transform:scaleY(1);transform-origin:bottom}}
-@keyframes lineIn{0%{stroke-dashoffset:2000}100%{stroke-dashoffset:0}}
-@keyframes slideRight{0%{width:0}100%{width:var(--w,100%)}}
-@keyframes countUp{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}
-@keyframes ripple{0%{transform:scale(0);opacity:.4}100%{transform:scale(2.5);opacity:0}}
-@keyframes glow{0%,100%{box-shadow:0 0 20px var(--glow,rgba(61,142,255,.3))}50%{box-shadow:0 0 40px var(--glow,rgba(61,142,255,.6))}}
-@keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+@keyframes lineIn{0%{stroke-dashoffset:3000}100%{stroke-dashoffset:0}}
+@keyframes countUp{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:none}}
+@keyframes ripple{0%{transform:scale(0);opacity:.5}100%{transform:scale(2.5);opacity:0}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px var(--glow,rgba(61,142,255,.25))}50%{box-shadow:0 0 40px var(--glow,rgba(61,142,255,.5))}}
+@keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes fadeSlideUp{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:none}}
+@keyframes orb{0%{transform:scale(1) translate(0,0)}33%{transform:scale(1.08) translate(8px,-6px)}66%{transform:scale(.95) translate(-6px,4px)}100%{transform:scale(1) translate(0,0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 
-.fade-up{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) both}
-.fade-up-1{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .06s both}
-.fade-up-2{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .12s both}
-.fade-up-3{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .18s both}
-.fade-up-4{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .24s both}
-.fade-up-5{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .30s both}
+/* ── Utility classes ────────────────────────────────── */
+.fade-up{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) both}
+.fade-up-1{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .07s both}
+.fade-up-2{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .14s both}
+.fade-up-3{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .21s both}
+.fade-up-4{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .28s both}
+.fade-up-5{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .35s both}
 .scale-in{animation:scaleIn .35s cubic-bezier(.16,1,.3,1) both}
 .fade-in{animation:fadeIn .3s ease both}
 
-/* Glass morphism */
-.glass{background:rgba(255,255,255,.05);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,.1)}
-.glass-dark{background:rgba(0,0,0,.4);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,.08)}
+/* ── Glass morphism ─────────────────────────────────── */
+.glass{background:rgba(255,255,255,.06);backdrop-filter:blur(28px) saturate(200%);-webkit-backdrop-filter:blur(28px) saturate(200%);border:1px solid rgba(255,255,255,.12)}
+.glass-dark{background:rgba(0,0,0,.45);backdrop-filter:blur(28px) saturate(200%);-webkit-backdrop-filter:blur(28px) saturate(200%);border:1px solid rgba(255,255,255,.08)}
 
-/* Buttons */
-.btn-press{transition:transform .1s,opacity .1s}
-.btn-press:active{transform:scale(.95);opacity:.8}
+/* ── Press interaction ──────────────────────────────── */
+.btn-press{transition:transform .12s cubic-bezier(.16,1,.3,1),opacity .12s;cursor:pointer}
+.btn-press:active{transform:scale(.93);opacity:.8}
 
-/* Scrollbar */
-::-webkit-scrollbar{width:0;height:0}
+/* ── Scrollbar hide ─────────────────────────────────── */
+*::-webkit-scrollbar{width:0;height:0}
 
-/* Number transitions */
-.num-flash{animation:countUp .4s cubic-bezier(.16,1,.3,1) both}
+/* ── Noise texture overlay ──────────────────────────── */
+.noise::after{content:"";position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");pointer-events:none;border-radius:inherit}
 `;
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
@@ -109,6 +114,7 @@ const D={
 "faraon":{"m":[{"id":"M1","nombre":"Multi 1","factor":10},{"id":"A13","nombre":"Aristocrat 13","factor":1},{"id":"P3","nombre":"Poker 3","factor":50},{"id":"P4","nombre":"Poker 4","factor":50},{"id":"P5","nombre":"Poker 5","factor":50},{"id":"M6","nombre":"Multi 6","factor":10},{"id":"M7","nombre":"Multi 7","factor":10},{"id":"M8","nombre":"Multi 8","factor":10},{"id":"M9","nombre":"Multi 9","factor":10},{"id":"M10","nombre":"Multi 10","factor":10},{"id":"M11","nombre":"Multi 11","factor":10},{"id":"SA12","nombre":"Stand Alone 12","factor":1},{"id":"M2","nombre":"Multi 2","factor":10},{"id":"M14","nombre":"Multi 14","factor":10},{"id":"W20","nombre":"WMS 20","factor":1},{"id":"W16","nombre":"WMS 16","factor":1},{"id":"C17","nombre":"Clon 17","factor":10},{"id":"M18","nombre":"Multi 18","factor":10},{"id":"M19","nombre":"Multi 19","factor":10},{"id":"M15","nombre":"Multi 15","factor":10}],"ul":{"M1":{"d":18059120,"p":12540253},"A13":{"d":47179000,"p":33956220},"P3":{"d":4728200,"p":3391348},"P4":{"d":6168420,"p":4500375},"P5":{"d":454740,"p":321082},"M6":{"d":17963400,"p":13982538},"M7":{"d":15190400,"p":10979861},"M8":{"d":19010000,"p":14818284},"M9":{"d":16303400,"p":11585047},"M10":{"d":1681000,"p":1215245},"M11":{"d":20817400,"p":16108209},"SA12":{"d":159306000,"p":118006290},"M2":{"d":18959700,"p":12938056},"M14":{"d":18789400,"p":14493698},"W20":{"d":113171000,"p":77782980},"W16":{"d":283917000,"p":186827660},"C17":{"d":24258600,"p":17508979},"M18":{"d":16359100,"p":12055821},"M19":{"d":16396500,"p":11473711},"M15":{"d":19927900,"p":15641026}},"b":[{"fecha":"2025-12-29","phys_total":5558520,"util_total":3403280},{"fecha":"2025-12-30","phys_total":3262020,"util_total":2424180},{"fecha":"2025-12-31","phys_total":3394850,"util_total":1565150},{"fecha":"2026-01-02","phys_total":7148310,"util_total":2279690},{"fecha":"2026-01-03","phys_total":3022050,"util_total":1351950},{"fecha":"2026-01-04","phys_total":3147360,"util_total":884640},{"fecha":"2026-01-05","phys_total":3342300,"util_total":675700},{"fecha":"2026-01-06","phys_total":2778670,"util_total":1174330},{"fecha":"2026-01-07","phys_total":4399640,"util_total":1221360},{"fecha":"2026-01-08","phys_total":4090020,"util_total":781980},{"fecha":"2026-01-09","phys_total":2457390,"util_total":1273610},{"fecha":"2026-01-10","phys_total":3646300,"util_total":1043700},{"fecha":"2026-01-11","phys_total":4844030,"util_total":647970},{"fecha":"2026-01-12","phys_total":2601010,"util_total":327990},{"fecha":"2026-01-13","phys_total":3373120,"util_total":555880},{"fecha":"2026-01-14","phys_total":3033950,"util_total":1056050},{"fecha":"2026-01-16","phys_total":5569410,"util_total":3441590},{"fecha":"2026-01-17","phys_total":3533380,"util_total":3224620},{"fecha":"2026-01-18","phys_total":2362380,"util_total":1484620},{"fecha":"2026-01-19","phys_total":2927560,"util_total":773440},{"fecha":"2026-01-20","phys_total":3802630,"util_total":550370},{"fecha":"2026-01-21","phys_total":2345280,"util_total":599720},{"fecha":"2026-01-23","phys_total":5528500,"util_total":3085500},{"fecha":"2026-01-25","phys_total":4710370,"util_total":4002630},{"fecha":"2026-01-26","phys_total":2045960,"util_total":2332040},{"fecha":"2026-01-28","phys_total":4663840,"util_total":3594160},{"fecha":"2026-01-29","phys_total":3437350,"util_total":-10350},{"fecha":"2026-01-30","phys_total":1912140,"util_total":1800860},{"fecha":"2026-01-31","phys_total":3377390,"util_total":1447610},{"fecha":"2026-02-01","phys_total":3742390,"util_total":2058610},{"fecha":"2026-02-02","phys_total":4557690,"util_total":1073310},{"fecha":"2026-02-04","phys_total":2595730,"util_total":2286270},{"fecha":"2026-02-05","phys_total":2568790,"util_total":1776210},{"fecha":"2026-02-06","phys_total":3862060,"util_total":485940},{"fecha":"2026-02-07","phys_total":3701010,"util_total":1008990},{"fecha":"2026-02-08","phys_total":3427780,"util_total":1502220},{"fecha":"2026-02-09","phys_total":3623910,"util_total":1208090},{"fecha":"2026-02-10","phys_total":4156300,"util_total":413700},{"fecha":"2026-02-12","phys_total":4330880,"util_total":1097120},{"fecha":"2026-02-13","phys_total":1890410,"util_total":1407590},{"fecha":"2026-02-14","phys_total":6018080,"util_total":1799920},{"fecha":"2026-02-15","phys_total":2729690,"util_total":1546310},{"fecha":"2026-02-16","phys_total":1971260,"util_total":1641740},{"fecha":"2026-02-17","phys_total":2693140,"util_total":182860},{"fecha":"2026-02-18","phys_total":2177870,"util_total":1908130},{"fecha":"2026-02-19","phys_total":2688930,"util_total":1339070},{"fecha":"2026-02-20","phys_total":2770600,"util_total":1869400},{"fecha":"2026-02-22","phys_total":6527250,"util_total":2104830},{"fecha":"2026-02-23","phys_total":1624510,"util_total":590410},{"fecha":"2026-02-24","phys_total":2307010,"util_total":758990},{"fecha":"2026-02-26","phys_total":5224820,"util_total":2347180},{"fecha":"2026-02-27","phys_total":2801460,"util_total":871540},{"fecha":"2026-02-28","phys_total":3941050,"util_total":2090950},{"fecha":"2026-03-01","phys_total":2917840,"util_total":1299160},{"fecha":"2026-03-02","phys_total":4654300,"util_total":1263700},{"fecha":"2026-03-03","phys_total":3330370,"util_total":853630},{"fecha":"2026-03-05","phys_total":5293230,"util_total":4119770},{"fecha":"2026-03-06","phys_total":3122050,"util_total":693950},{"fecha":"2026-03-07","phys_total":3397760,"util_total":2376240},{"fecha":"2026-03-08","phys_total":4598850,"util_total":1130150},{"fecha":"2026-03-09","phys_total":4477320,"util_total":1248680},{"fecha":"2026-03-10","phys_total":2801280,"util_total":616720},{"fecha":"2026-03-11","phys_total":4913340,"util_total":256660},{"fecha":"2026-03-12","phys_total":3951710,"util_total":3126290},{"fecha":"2026-03-13","phys_total":4232360,"util_total":-362360},{"fecha":"2026-03-14","phys_total":4047120,"util_total":1498880},{"fecha":"2026-03-15","phys_total":2841600,"util_total":2550400},{"fecha":"2026-03-16","phys_total":3297370,"util_total":1769630},{"fecha":"2026-03-17","phys_total":4245080,"util_total":962920}]},
 "playarica":{"m":[{"id":"P1","nombre":"Poker 1","factor":50},{"id":"P2","nombre":"Poker 2","factor":50},{"id":"P3","nombre":"Poker 3","factor":50},{"id":"P4","nombre":"Poker 4","factor":50},{"id":"P5","nombre":"Poker 5","factor":50},{"id":"M6","nombre":"Multi 6","factor":10},{"id":"M7","nombre":"Multi 7","factor":10},{"id":"P16","nombre":"Poker 16","factor":50},{"id":"P11","nombre":"Poker 11","factor":50},{"id":"P10","nombre":"Poker 10","factor":50},{"id":"P15","nombre":"Poker 15","factor":50},{"id":"G9","nombre":"gaminator 9","factor":10},{"id":"D12","nombre":"Dolphin 12","factor":10},{"id":"G13","nombre":"Gaminator 13","factor":10},{"id":"N14","nombre":"novomaty 14","factor":1},{"id":"M8","nombre":"multy 8","factor":10}],"ul":{"P1":{"d":412380,"p":276631},"P2":{"d":171540,"p":111965},"P3":{"d":308540,"p":201095},"P4":{"d":669480,"p":439084},"P5":{"d":466600,"p":322843},"M6":{"d":860900,"p":562458},"M7":{"d":361500,"p":250846},"P16":{"d":196200,"p":131795},"P11":{"d":122100,"p":72607},"P10":{"d":73840,"p":49004},"P15":{"d":70560,"p":43965},"G9":{"d":3573100,"p":2542116},"D12":{"d":4120000,"p":3036980},"G13":{"d":2529800,"p":1798068},"N14":{"d":14788000,"p":11229290},"M8":{"d":1448500,"p":1049913}},"b":[{"fecha":"2026-01-03","phys_total":3146940,"util_total":990060},{"fecha":"2026-01-09","phys_total":2800830,"util_total":676170},{"fecha":"2026-01-16","phys_total":2789090,"util_total":1571910},{"fecha":"2026-01-21","phys_total":3004290,"util_total":1413710},{"fecha":"2026-01-25","phys_total":2477180,"util_total":1876820},{"fecha":"2026-01-31","phys_total":2766560,"util_total":1189440},{"fecha":"2026-02-05","phys_total":2550040,"util_total":1572960},{"fecha":"2026-02-08","phys_total":3634750,"util_total":824250},{"fecha":"2026-02-12","phys_total":3068700,"util_total":947300},{"fecha":"2026-02-17","phys_total":2886070,"util_total":990930},{"fecha":"2026-02-23","phys_total":3329340,"util_total":1418660},{"fecha":"2026-02-27","phys_total":2642510,"util_total":1133490},{"fecha":"2026-03-04","phys_total":2696490,"util_total":1161510},{"fecha":"2026-03-08","phys_total":3377940,"util_total":464060},{"fecha":"2026-03-14","phys_total":2974330,"util_total":1414670}]},
 "hugo":{"m":[{"id":"G1","nombre":"Gaminator 1","factor":10},{"id":"G2","nombre":"Gaminator 2","factor":10},{"id":"M3","nombre":"Multi 3","factor":10},{"id":"M4","nombre":"Multi 4","factor":10},{"id":"M5","nombre":"multi 5","factor":10},{"id":"P6","nombre":"Poker 6","factor":50},{"id":"P7","nombre":"Poker 7","factor":50},{"id":"M8","nombre":"Multi 8","factor":10},{"id":"M9","nombre":"Multi 9","factor":10},{"id":"M10","nombre":"Multi 10","factor":10},{"id":"M11","nombre":"Multi 11","factor":10}],"ul":{"G1":{"d":71433500,"p":49562892},"G2":{"d":5697000,"p":3646064},"M3":{"d":26070700,"p":19167722},"M4":{"d":27865700,"p":21301685},"M5":{"d":304100,"p":181195},"P6":{"d":2551740,"p":1535052},"P7":{"d":209940,"p":104100},"M8":{"d":165900,"p":94205},"M9":{"d":568300,"p":377703},"M10":{"d":404200,"p":225775},"M11":{"d":913708,"p":535829}},"b":[{"fecha":"2026-01-06","phys_total":1718950,"util_total":1318050},{"fecha":"2026-01-09","phys_total":1899850,"util_total":418150},{"fecha":"2026-01-14","phys_total":1024840,"util_total":2177160},{"fecha":"2026-01-17","phys_total":1498490,"util_total":896510},{"fecha":"2026-01-20","phys_total":1227790,"util_total":530210},{"fecha":"2026-01-24","phys_total":1446950,"util_total":154050},{"fecha":"2026-01-26","phys_total":2170740,"util_total":-378740},{"fecha":"2026-01-30","phys_total":995040,"util_total":1397960},{"fecha":"2026-02-01","phys_total":1174600,"util_total":377400},{"fecha":"2026-02-06","phys_total":1318840,"util_total":1513160},{"fecha":"2026-02-10","phys_total":1457520,"util_total":1243480},{"fecha":"2026-02-14","phys_total":1452180,"util_total":636820},{"fecha":"2026-02-16","phys_total":1839220,"util_total":-177220},{"fecha":"2026-02-20","phys_total":1812300,"util_total":13700},{"fecha":"2026-02-24","phys_total":1359750,"util_total":918250},{"fecha":"2026-02-27","phys_total":1041620,"util_total":440380},{"fecha":"2026-03-03","phys_total":2711340,"util_total":105660},{"fecha":"2026-03-10","phys_total":1436960,"util_total":932040},{"fecha":"2026-03-13","phys_total":1279060,"util_total":530940},{"fecha":"2026-03-17","phys_total":1199930,"util_total":1313150}]},
+"simulacion":{"m":[{"id":"G1","nombre":"Gaminator 1","factor":10},{"id":"G2","nombre":"Gaminator 2","factor":10},{"id":"M3","nombre":"Multi 3","factor":10},{"id":"M4","nombre":"Multi 4","factor":10},{"id":"M5","nombre":"Multi 5","factor":10},{"id":"P6","nombre":"Poker 6","factor":50},{"id":"P7","nombre":"Poker 7","factor":50},{"id":"M8","nombre":"Multi 8","factor":10},{"id":"M9","nombre":"Multi 9","factor":10},{"id":"M10","nombre":"Multi 10","factor":10},{"id":"M11","nombre":"Multi 11","factor":10}],"ul":{},"b":[]}
 };
 
 // ─── GOOGLE SHEETS LIVE DATA ─────────────────────────────────────────────────
@@ -134,6 +140,7 @@ const COL_MAP={
 const _sheetsCache={};
 
 async function fetchSheetHist(cid){
+  if(META[cid]?.sim)return[]; // simulation casino - no sheets
   if(_sheetsCache[cid])return _sheetsCache[cid];
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
@@ -270,7 +277,37 @@ function parseNum(v){
 // Cache para balance desde Sheets
 const _balanceCache={};
 
+
+// ── OCR→SHEETS PIPELINE (inactivo — activar cuando OCR esté listo) ───────────
+// Esta función escribirá lecturas OCR directamente a la hoja de cada máquina
+// Requiere OAuth2 para escritura (solo lectura con API key no alcanza)
+/*
+async function writeOCRToSheets(cid, items, fecha){
+  const sheetId = SHEET_IDS[cid];
+  if(!sheetId || META[cid]?.sim) return; // skip simulation
+  
+  // OAuth2 token requerido para escritura
+  const token = await getOAuthToken(); // implementar con Google Identity Services
+  
+  for(const item of items){
+    const maqNombre = item.n;
+    const COL = COL_MAP[cid]?.[maqNombre] || {p:5, u:6};
+    
+    // Append row: [fecha, inAcum, outAcum, ?, ?, premios, utilidad, ...]
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(maqNombre)}!A:H:append?valueInputOption=USER_ENTERED&key=${GAPI_KEY}`;
+    
+    const row = [fecha, item.d, item.p, '', '', item.pp/item.fc, item.u/item.fc, ''];
+    await fetch(url, {
+      method:'POST',
+      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
+      body: JSON.stringify({values:[row]})
+    });
+  }
+}
+*/
+
 async function fetchBalanceFromSheets(cid){
+  if(META[cid]?.sim)return null; // simulation casino - no sheets
   if(_balanceCache[cid])return _balanceCache[cid];
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return null;
@@ -347,6 +384,7 @@ const META={
   faraon:{n:"Faraón",e:"sun",c:"yellow",liq:"Diario"},
   playarica:{n:"Playa Rica",e:"palmtree",c:"green",liq:"3-4 días"},
   hugo:{n:"Hugo",e:"clubs",c:"purple",liq:"3-4 días"},
+  simulacion:{n:"Simulación OCR",e:"slot",c:"teal",liq:"Pruebas",sim:true},
 };
 const USERS=["Santiago","Eliza","Jessica"];
 
@@ -482,22 +520,33 @@ function Row({ic,icC,lbl,sub,right,arr=true,fn,del,last,noBorder}){
   </div>;
 }
 function Nav({title,sub,right=[],sy=0,large=true,back,onBack}){
-  const C=getC();const col=large&&sy>48;
-  return<div style={{position:"sticky",top:0,zIndex:50,background:col?C.navBg:"transparent",backdropFilter:col?"blur(24px) saturate(180%)":"none",borderBottom:col?`0.5px solid ${C.sep}`:"none",transition:"all .2s"}}>
-    <div style={{display:"flex",alignItems:"center",height:44,padding:"0 8px",position:"relative"}}>
-      {onBack&&<button onClick={onBack}style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 8px"}}>
-        <Ico n="back"c={C.blue}s={20}/><span style={{...T.b,color:C.blue}}>{back||"Atrás"}</span>
+  const C=getC();const scrolled=sy>30;
+  return<div style={{position:"sticky",top:0,zIndex:50,transition:"background .25s,backdrop-filter .25s,border .25s",
+    background:scrolled?C.navBg:"transparent",
+    backdropFilter:scrolled?"blur(24px) saturate(180%)":"none",
+    WebkitBackdropFilter:scrolled?"blur(24px) saturate(180%)":"none",
+    borderBottom:scrolled?`0.5px solid ${C.sep}`:"none"}}>
+    <div style={{display:"flex",alignItems:"center",minHeight:44,padding:"8px 10px 6px",position:"relative"}}>
+      {onBack&&<button onClick={onBack}className="btn-press"style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 8px",flexShrink:0}}>
+        <Ico n="back"c={C.blue}s={20}/><span style={{...T.b,color:C.blue,fontWeight:500}}>{back||"Atrás"}</span>
       </button>}
-      {(!large||col)&&<span style={{...T.h,color:C.label,position:"absolute",left:"50%",transform:"translateX(-50%)",whiteSpace:"nowrap"}}>{title}</span>}
+      {/* Center title - always visible when scrolled or not large */}
+      <div style={{position:"absolute",left:0,right:0,top:0,bottom:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
+        <span style={{...T.h,color:C.label,transition:"opacity .2s",opacity:(!large||scrolled)?1:0,whiteSpace:"nowrap"}}>{title}</span>
+      </div>
       <div style={{flex:1}}/>
-      {right.map((r,i)=><button key={i}onClick={r.fn}style={{background:C.fill3,border:"none",borderRadius:99,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",marginLeft:4,transition:"background .15s"}}>{typeof r.icon==="string"?<Ico n={r.icon}c={C.label}s={17}/>:r.icon}</button>)}
+      <div style={{display:"flex",gap:6,flexShrink:0}}>
+        {right.map((r,i)=><button key={i}onClick={r.fn}className="btn-press"style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.1)",borderRadius:99,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{typeof r.icon==="string"?<Ico n={r.icon}c={C.label2}s={17}/>:r.icon}</button>)}
+      </div>
     </div>
-    {large&&<div style={{padding:"0 18px 14px",opacity:col?0:1,transition:"opacity .2s",pointerEvents:col?"none":"auto"}}>
-      <div style={{...T.lg,color:C.label}}>{title}</div>
-      {sub&&<div style={{...T.s,color:C.label2,marginTop:2}}>{sub}</div>}
+    {/* Large title - only shows when NOT scrolled, collapses smoothly */}
+    {large&&<div style={{overflow:"hidden",maxHeight:scrolled?"0px":"60px",transition:"max-height .3s cubic-bezier(.16,1,.3,1),opacity .2s",opacity:scrolled?0:1,padding:scrolled?"0 20px":"0 20px 10px"}}>
+      <div style={{...T.lg,color:C.label,fontSize:26,fontWeight:700,letterSpacing:-.3}}>{title}</div>
+      {sub&&<div style={{...T.fn,color:C.label2,marginTop:1}}>{sub}</div>}
     </div>}
   </div>;
 }
+
 function Tabs({tab,setTab,color}){
   const C=getC();
   const ts=[{id:"lectura",lbl:"Contadores",icon:"counters"},{id:"camara",lbl:"Cámara",icon:"camera"},{id:"reporte",lbl:"Reporte",icon:"report"},{id:"maquinas",lbl:"Máquinas",icon:"machines"}];
@@ -766,6 +815,11 @@ function Camera({cid,cont,setCont,apiKey}){
       items.push({i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:drop,p:phys,y:yld,u:util,pp,src:"ocr"});
     }
     setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>!items.find(x=>x.i===c.i&&x.f===c.f)),...items]};saveCont(n);return n;});
+    // ── OCR→SHEETS PIPELINE (preparado, inactivo) ────────────────────────────
+    // Cuando esté listo: descomentar writeOCRToSheets(cid, items, fecha)
+    // La función escribirá cada lectura a la hoja correspondiente via Sheets API OAuth2
+    // await writeOCRToSheets(cid, items, fecha);
+    // ─────────────────────────────────────────────────────────────────────────
     if(GDClientId()&&GDFolderId()){setDriveStatus("Subiendo fotos...");for(const x of valid){const mq=mqs.find(q=>q.id===x.maqId);try{await uploadPhoto(x.blob,m.n,fecha,mq?.nombre||x.maqId);}catch(e){console.warn(e);}}setDriveStatus("✓ Fotos en Drive");setTimeout(()=>setDriveStatus(""),3000);}
     setSaved(true);setTimeout(()=>{setQueue([]);setSaved(false);},2500);
   }
@@ -1980,7 +2034,7 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}
 function Home({onSelect,onCfg,onComparar,user,pending}){
   const C=getC();const[sy,setSy]=useState(0);
   const lastBal=cid=>{const d=D[cid];if(!d?.b?.length)return null;return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];};
-  const total=Object.keys(META).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
+  const total=Object.keys(META).filter(cid=>!META[cid].sim).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
   const uColor=user==="Santiago"?C.indigo:user==="Eliza"?C.pink:C.teal;
 
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch",background:C.bg}}>
@@ -1997,32 +2051,32 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
     <div style={{padding:"0 16px",paddingBottom:80,position:"relative",zIndex:1}}>
 
       {/* Hero total */}
-      <div className="fade-up"style={{background:"linear-gradient(135deg, rgba(124,109,250,.15), rgba(61,142,255,.08))",borderRadius:24,padding:"24px 20px",marginBottom:20,border:`1px solid rgba(124,109,250,.2)`,backdropFilter:"blur(20px)",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-40,right:-40,width:180,height:180,borderRadius:90,background:`radial-gradient(circle, ${C.indigo}22, transparent)`,pointerEvents:"none"}}/>
-        <div style={{position:"absolute",bottom:-30,left:-30,width:120,height:120,borderRadius:60,background:`radial-gradient(circle, ${C.blue}15, transparent)`,pointerEvents:"none"}}/>
-        <div style={{...T.cap,color:C.label2,letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>Último período · Todos los locales</div>
-        <AnimNumber value={total}style={{...T.lg,color:C.label,fontSize:40,fontWeight:700,letterSpacing:-1,display:"block",marginBottom:20}}/>
+      <div className="fade-up"style={{background:"linear-gradient(145deg, rgba(124,109,250,.18), rgba(61,142,255,.1), rgba(0,206,201,.06))",borderRadius:28,padding:"24px 20px",marginBottom:22,border:"1px solid rgba(124,109,250,.25)",backdropFilter:"blur(30px)",position:"relative",overflow:"hidden"}}>
+        {/* Ambient orbs */}
+        <div style={{position:"absolute",top:-40,right:-40,width:160,height:160,borderRadius:80,background:"radial-gradient(circle, rgba(124,109,250,.25), transparent)",filter:"blur(20px)",animation:"orb 8s ease infinite",pointerEvents:"none"}}/>
+        <div style={{position:"absolute",bottom:-30,left:-30,width:120,height:120,borderRadius:60,background:"radial-gradient(circle, rgba(61,142,255,.2), transparent)",filter:"blur(20px)",animation:"orb 10s ease infinite reverse",pointerEvents:"none"}}/>
+        <div style={{...T.cap,color:"rgba(255,255,255,.5)",letterSpacing:1.5,marginBottom:10,textTransform:"uppercase",fontSize:11}}>Resultado · Todos los locales</div>
+        <AnimNumber value={total}style={{...T.lg,color:"#FFF",fontSize:42,fontWeight:700,letterSpacing:-1.5,display:"block",marginBottom:20,textShadow:"0 2px 20px rgba(124,109,250,.4)"}}/>
         <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {Object.entries(META).map(([cid,m],i)=>{
+          {Object.entries(META).filter(([cid,m])=>!m.sim).map(([cid,m],i)=>{
             const b=lastBal(cid);const col=C[m.c];
             return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press"
-              style={{background:`${col}12`,border:`1px solid ${col}25`,borderRadius:14,padding:"10px 12px",cursor:"pointer",textAlign:"left",flex:"1 0 auto",minWidth:80,backdropFilter:"blur(10px)",animationDelay:`${.1+i*.04}s`}}
-              onMouseEnter={e=>{e.currentTarget.style.background=`${col}22`;e.currentTarget.style.borderColor=`${col}44`;}}
-              onMouseLeave={e=>{e.currentTarget.style.background=`${col}12`;e.currentTarget.style.borderColor=`${col}25`;}}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                <Ico n={m.e}c={col}s={14}/>
-                <span style={{...T.cap,color:col,fontWeight:600,letterSpacing:.5}}>{m.n.split(" ").slice(-1)[0].toUpperCase()}</span>
+              style={{background:`${col}14`,border:`1px solid ${col}28`,borderRadius:16,padding:"10px 13px",cursor:"pointer",textAlign:"left",flex:"1 0 auto",minWidth:80,backdropFilter:"blur(10px)",transition:"all .2s"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=`${col}28`;e.currentTarget.style.transform="translateY(-2px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background=`${col}14`;e.currentTarget.style.transform="";}}>
+              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
+                <Ico n={m.e}c={col}s={13}/>
+                <span style={{...T.cap,color:col,fontWeight:700,letterSpacing:.6,fontSize:10}}>{m.n.split(" ").pop().slice(0,7).toUpperCase()}</span>
               </div>
-              <div style={{...T.s,color:b?.util_total>=0?C.green:C.red,fontWeight:700}}>{fmt(b?.util_total)}</div>
+              <div style={{fontSize:13,fontWeight:700,color:b?.util_total>=0?C.green:C.red}}>{fmt(b?.util_total)}</div>
             </button>;
           })}
         </div>
       </div>
-
       {/* Casino cards */}
       <div style={{...T.cap,color:C.label2,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600}}>Locales</div>
       <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
-        {Object.entries(META).map(([cid,m],i)=>{
+        {Object.entries(META).filter(([cid,m])=>!m.sim).map(([cid,m],i)=>{
           const b=lastBal(cid);const dd=D[cid];const col=C[m.c];
           const isPos=b?.util_total>=0;
           return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press fade-up"
@@ -2050,7 +2104,7 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
 
       {/* Quick access daily */}
       <div style={{...T.cap,color:C.label2,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600}}>Liquidación diaria</div>
-      <div style={{display:"flex",gap:10}}>
+      <div style={{display:"flex",gap:10,marginBottom:20}}>
         {["vikingos","faraon"].map((cid,i)=>{const m=META[cid];const b=lastBal(cid);const col=C[m.c];
           return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press fade-up"
             style={{flex:1,background:`linear-gradient(135deg,${col}18,${col}08)`,border:`1px solid ${col}25`,borderRadius:20,padding:"14px",cursor:"pointer",textAlign:"left",animationDelay:`${.35+i*.06}s`}}>
@@ -2060,6 +2114,24 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
           </button>;
         })}
       </div>
+      {/* Simulation casino */}
+      <div style={{...T.cap,color:C.teal,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:6,height:6,borderRadius:3,background:C.teal,animation:"pulse 1.5s infinite"}}/>
+        Laboratorio OCR
+      </div>
+      <button onClick={()=>onSelect("simulacion")}className="btn-press fade-up"
+        style={{width:"100%",background:`linear-gradient(135deg,${C.teal}12,${C.teal}06)`,border:`2px dashed ${C.teal}33`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",animationDelay:".4s"}}>
+        <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(145deg,${C.teal}33,${C.teal}66)`,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.teal}44`}}>
+          <Ico n="slot"c={C.teal}s={24}/>
+        </div>
+        <div style={{flex:1}}>
+          <div style={{...T.h,color:C.teal}}>Casino Simulación</div>
+          <div style={{...T.fn,color:C.label2,marginTop:3}}>Entorno de pruebas OCR · Desconectado de Sheets</div>
+        </div>
+        <div style={{background:`${C.teal}15`,borderRadius:20,padding:"3px 10px",border:`1px solid ${C.teal}25`}}>
+          <span style={{...T.cap,color:C.teal,fontWeight:700}}>TEST</span>
+        </div>
+      </button>
     </div>
   </div>;
 }
