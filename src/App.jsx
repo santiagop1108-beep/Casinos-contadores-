@@ -2,27 +2,102 @@ import{useState,useEffect,useRef,useCallback,useMemo}from"react";
 
 // ─── CSS ANIMATIONS ───────────────────────────────────────────────────────────
 const ANIM_CSS=`
-@keyframes fadeSlideUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
-@keyframes fadeSlideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
-@keyframes fadeIn{from{opacity:0}to{opacity:1}}
-@keyframes scaleIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
-@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
-@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-@keyframes barGrow{from{transform:scaleY(0);transform-origin:bottom}to{transform:scaleY(1);transform-origin:bottom}}
-@keyframes lineDrawIn{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
-@keyframes slideRight{from{transform:translateX(-100%)}to{transform:translateX(0)}}
-.anim-fadeSlideUp{animation:fadeSlideUp .35s cubic-bezier(.4,0,.2,1) both}
-.anim-fadeIn{animation:fadeIn .25s ease both}
-.anim-scaleIn{animation:scaleIn .3s cubic-bezier(.4,0,.2,1) both}
-.anim-pulse{animation:pulse 1.5s ease infinite}
+@import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap');
+
+*{-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
+
+@keyframes fadeUp{0%{opacity:0;transform:translateY(20px) scale(.98)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
+@keyframes scaleIn{0%{opacity:0;transform:scale(.92)}100%{opacity:1;transform:scale(1)}}
+@keyframes slideUp{0%{transform:translateY(100%)}100%{transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+@keyframes barGrow{0%{transform:scaleY(0);transform-origin:bottom}100%{transform:scaleY(1);transform-origin:bottom}}
+@keyframes lineIn{0%{stroke-dashoffset:2000}100%{stroke-dashoffset:0}}
+@keyframes slideRight{0%{width:0}100%{width:var(--w,100%)}}
+@keyframes countUp{0%{opacity:0;transform:translateY(6px)}100%{opacity:1;transform:translateY(0)}}
+@keyframes ripple{0%{transform:scale(0);opacity:.4}100%{transform:scale(2.5);opacity:0}}
+@keyframes glow{0%,100%{box-shadow:0 0 20px var(--glow,rgba(61,142,255,.3))}50%{box-shadow:0 0 40px var(--glow,rgba(61,142,255,.6))}}
+@keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+
+.fade-up{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) both}
+.fade-up-1{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .06s both}
+.fade-up-2{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .12s both}
+.fade-up-3{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .18s both}
+.fade-up-4{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .24s both}
+.fade-up-5{animation:fadeUp .45s cubic-bezier(.16,1,.3,1) .30s both}
+.scale-in{animation:scaleIn .35s cubic-bezier(.16,1,.3,1) both}
+.fade-in{animation:fadeIn .3s ease both}
+
+/* Glass morphism */
+.glass{background:rgba(255,255,255,.05);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,.1)}
+.glass-dark{background:rgba(0,0,0,.4);backdrop-filter:blur(24px) saturate(180%);-webkit-backdrop-filter:blur(24px) saturate(180%);border:1px solid rgba(255,255,255,.08)}
+
+/* Buttons */
+.btn-press{transition:transform .1s,opacity .1s}
+.btn-press:active{transform:scale(.95);opacity:.8}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:0;height:0}
+
+/* Number transitions */
+.num-flash{animation:countUp .4s cubic-bezier(.16,1,.3,1) both}
 `;
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const THEMES={
-  dark:{bg:"#0A0A0F",bg2:"#13131A",bg3:"#1C1C26",bg4:"#242430",card:"#13131A",label:"#F0F0FF",label2:"rgba(220,220,255,.55)",label3:"rgba(200,200,255,.25)",sep:"rgba(100,100,140,.3)",fill3:"rgba(120,120,160,.18)",fill4:"rgba(100,100,140,.12)",blue:"#3D8EFF",green:"#2ED573",red:"#FF4757",orange:"#FFA502",yellow:"#FFD32A",purple:"#A55EEA",indigo:"#6C5CE7",pink:"#FD79A8",teal:"#00CEC9",navBg:"rgba(10,10,15,.94)"},
-  light:{bg:"#F0F0F8",bg2:"#FFFFFF",bg3:"#F0F0F8",bg4:"#E4E4F0",card:"#FFFFFF",label:"#0A0A1A",label2:"rgba(30,30,80,.55)",label3:"rgba(30,30,80,.28)",sep:"rgba(80,80,120,.18)",fill3:"rgba(100,100,150,.1)",fill4:"rgba(80,80,120,.07)",blue:"#2979FF",green:"#00C853",red:"#FF1744",orange:"#FF6D00",yellow:"#FFD600",purple:"#AA00FF",indigo:"#3D5AFE",pink:"#F50057",teal:"#00BFA5",navBg:"rgba(240,240,248,.94)"},
+  dark:{
+    bg:"#080810",
+    bg2:"rgba(255,255,255,.04)",
+    bg3:"rgba(255,255,255,.07)",
+    bg4:"rgba(255,255,255,.10)",
+    card:"rgba(255,255,255,.05)",
+    label:"rgba(255,255,255,.95)",
+    label2:"rgba(255,255,255,.5)",
+    label3:"rgba(255,255,255,.2)",
+    sep:"rgba(255,255,255,.08)",
+    fill3:"rgba(255,255,255,.06)",
+    fill4:"rgba(255,255,255,.04)",
+    blue:"#3D8EFF",
+    green:"#2ED573",
+    red:"#FF4757",
+    orange:"#FFA502",
+    yellow:"#FFD32A",
+    purple:"#A55EEA",
+    indigo:"#7C6DFA",
+    pink:"#FF6B9D",
+    teal:"#00CEC9",
+    navBg:"rgba(8,8,16,.85)",
+    shadow:"0 32px 64px rgba(0,0,0,.6)",
+    shadowSm:"0 8px 24px rgba(0,0,0,.4)",
+  },
+  light:{
+    bg:"#F0F4FF",
+    bg2:"rgba(255,255,255,.9)",
+    bg3:"rgba(255,255,255,.6)",
+    bg4:"rgba(255,255,255,.4)",
+    card:"rgba(255,255,255,.95)",
+    label:"rgba(0,0,20,.9)",
+    label2:"rgba(0,0,20,.5)",
+    label3:"rgba(0,0,20,.25)",
+    sep:"rgba(0,0,20,.08)",
+    fill3:"rgba(0,0,20,.05)",
+    fill4:"rgba(0,0,20,.03)",
+    blue:"#2979FF",
+    green:"#00C853",
+    red:"#FF1744",
+    orange:"#FF6D00",
+    yellow:"#FFD600",
+    purple:"#AA00FF",
+    indigo:"#3D5AFE",
+    pink:"#F50057",
+    teal:"#00BFA5",
+    navBg:"rgba(240,244,255,.85)",
+    shadow:"0 32px 64px rgba(0,0,60,.12)",
+    shadowSm:"0 8px 24px rgba(0,0,60,.08)",
+  },
 };
+
 let _theme=THEMES.dark;
 const getC=()=>_theme;
 
@@ -63,11 +138,13 @@ async function fetchSheetHist(cid){
   if(_sheetsCache[cid])return _sheetsCache[cid];
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
-  const mqs=D[cid]?.m||[];
+  const mqs=getMaqs(cid);
   const cidColMap=COL_MAP[cid]||{};
+  const resets=loadResets(cid); // { maqId: "YYYY-MM-DD" }
   const results=[];
 
   for(const mq of mqs){
+    if(mq.disabled)continue;
     const sheetName=encodeURIComponent(mq.nombre);
     const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:H?key=${GAPI_KEY}`;
     try{
@@ -75,13 +152,15 @@ async function fetchSheetHist(cid){
       if(!r.ok)continue;
       const data=await r.json();
       const rows=data.values||[];
-      // Detectar si primera fila es encabezado (no fecha)
       const startIdx=(rows.length>0&&!parseSheetDate(rows[0][0]))?1:0;
-      // Obtener índices correctos para esta máquina
       const maqCols=cidColMap[mq.nombre]||{};
-      const pIdx=maqCols.p!=null?maqCols.p:5; // default F
-      const uIdx=maqCols.u!=null?maqCols.u:6; // default G
-      let prevIn=null,prevOut=null;
+      const pIdx=maqCols.p!=null?maqCols.p:5;
+      const uIdx=maqCols.u!=null?maqCols.u:6;
+      const isPoker=mq.factor===50;
+      const resetDate=resets[mq.id]||null;
+      let prevIn=null,prevOut=null,prevJack=null;
+      let resetApplied=false;
+
       for(let i=startIdx;i<rows.length;i++){
         const row=rows[i];
         const fecha=parseSheetDate(row[0]);
@@ -89,8 +168,35 @@ async function fetchSheetHist(cid){
         const inAcum=parseNum(row[1]);
         const outAcum=parseNum(row[2]);
         if(inAcum==null||outAcum==null||inAcum===0)continue;
+
+        // Si hay un reset manual definido para esta máquina,
+        // ignorar lecturas anteriores a la fecha de reset
+        if(resetDate&&fecha<resetDate){
+          prevIn=inAcum;prevOut=outAcum;
+          if(isPoker)prevJack=parseNum(row[3]);
+          continue;
+        }
+        // Primera lectura después del reset - partir desde 0
+        if(resetDate&&!resetApplied&&fecha>=resetDate){
+          prevIn=null;prevOut=null;prevJack=null;
+          resetApplied=true;
+        }
+
         let premios=parseNum(row[pIdx]);
         let utilidad=parseNum(row[uIdx]);
+
+        // Jackpot para Poker: ΔD (col D idx 3) se suma a premios
+        let jackpot=null;
+        if(isPoker){
+          const jackAcum=parseNum(row[3]);
+          if(jackAcum!=null&&prevJack!=null&&jackAcum>prevJack){
+            jackpot=jackAcum-prevJack;
+            if(premios!=null)premios+=jackpot;
+            else premios=jackpot;
+          }
+          prevJack=jackAcum;
+        }
+
         // Fallback: calcular desde diferencia si no hay datos de período
         if(utilidad==null&&prevIn!=null&&inAcum>prevIn){
           const inPer=inAcum-prevIn;
@@ -98,7 +204,8 @@ async function fetchSheetHist(cid){
           if(premios==null)premios=outPer*mq.factor;
           utilidad=(inPer-outPer)*mq.factor;
         }
-        results.push([mq.id,fecha,inAcum,outAcum,premios,utilidad]);
+
+        results.push([mq.id,fecha,inAcum,outAcum,premios,utilidad,jackpot]);
         prevIn=inAcum;prevOut=outAcum;
       }
     }catch(e){console.warn(`Sheets ${cid}/${mq.nombre}:`,e.message);}
@@ -106,6 +213,22 @@ async function fetchSheetHist(cid){
   _sheetsCache[cid]=results;
   return results;
 }
+
+// Reset de contadores
+const RESET_KEY="cc_resets";
+function loadResets(cid){try{return JSON.parse(localStorage.getItem(RESET_KEY)||"{}")[cid]||{};}catch{return{};}}
+function saveReset(cid,maqId,fecha){
+  try{
+    const all=JSON.parse(localStorage.getItem(RESET_KEY)||"{}");
+    if(!all[cid])all[cid]={};
+    if(fecha)all[cid][maqId]=fecha;
+    else delete all[cid][maqId];
+    localStorage.setItem(RESET_KEY,JSON.stringify(all));
+    // Limpiar cache para que recargue
+    delete _sheetsCache[cid];
+  }catch{}
+}
+
 
 function parseSheetDate(raw){
   if(!raw||typeof raw!=="string")return null;
@@ -330,6 +453,18 @@ function Sparkline({data,color,height=32,width=80}){
   return<svg width={width}height={height}style={{overflow:"visible"}}>
     <polyline points={pts}fill="none"stroke={color}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"style={{strokeDasharray:1000,strokeDashoffset:0,animation:"lineDrawIn .8s ease both"}}/>
   </svg>;
+}
+
+
+function StatCard({label,value,color,sub,icon,delay=0}){
+  const C=getC();
+  return<div className="fade-up"style={{background:C.bg2,borderRadius:18,padding:"14px 16px",border:`1px solid ${C.sep}`,flex:1,backdropFilter:"blur(20px)",position:"relative",overflow:"hidden",animationDelay:`${delay}s`}}>
+    <div style={{position:"absolute",top:-20,right:-20,width:80,height:80,borderRadius:40,background:`${color}08`,pointerEvents:"none"}}/>
+    {icon&&<div style={{width:28,height:28,borderRadius:8,background:`${color}15`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:8,border:`1px solid ${color}22`}}><Ico n={icon}c={color}s={14}/></div>}
+    <div style={{...T.cap,color:C.label2,marginBottom:4,letterSpacing:.8,textTransform:"uppercase"}}>{label}</div>
+    <AnimNumber value={value}style={{...T.lg,color,fontWeight:700,fontSize:20,display:"block",letterSpacing:-.3}}/>
+    {sub&&<div style={{...T.cap,color:C.label3,marginTop:4}}>{sub}</div>}
+  </div>;
 }
 
 
@@ -680,12 +815,12 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
     <div style={{overflowX:"auto",borderRadius:14,border:`1px solid ${C.sep}`,background:C.bg2}}>
       <table style={{width:"100%",borderCollapse:"collapse",...T.fn,color:C.label,minWidth:480}}>
         <thead><tr style={{background:C.bg3}}>
-          {["Fecha","Máquina","IN Acum","OUT Acum","Premios","Utilidad"].map(h=>
+          {["Fecha","Máquina","IN Acum","OUT Acum","Premios","Jackpot","Utilidad"].map(h=>
             <th key={h}style={{padding:"9px 10px",textAlign:"right",color:C.label2,fontWeight:600,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Fecha"||h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}
         </tr></thead>
         <tbody>
           {paginated.map((r,i)=>{
-            const[maqId,fecha,inAcum,outAcum,premios,utilidad]=r;
+            const[maqId,fecha,inAcum,outAcum,premios,utilidad,jackpot]=r;
             const mq=mqs.find(m=>m.id===maqId);
             const col=mq?maqC(mq.factor,C):C.label2;
             return<tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
@@ -699,6 +834,7 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
               <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{inAcum?.toLocaleString()||"—"}</td>
               <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{outAcum?.toLocaleString()||"—"}</td>
               <td style={{padding:"7px 10px",textAlign:"right",color:C.orange}}>{premios!=null?fmtE(premios):"—"}</td>
+              <td style={{padding:"7px 10px",textAlign:"right",color:C.purple}}>{jackpot!=null?fmtE(jackpot):"—"}</td>
               <td style={{padding:"7px 10px",textAlign:"right",color:utilidad!=null?(utilidad>=0?C.green:C.red):C.label3,fontWeight:utilidad!=null?600:400}}>{utilidad!=null?fmtE(utilidad):"—"}</td>
             </tr>;
           })}
@@ -770,123 +906,177 @@ function Report({cid,cont}){
   const chartPts=useMemo(()=>[...bals].reverse().slice(-30).map(b=>({f:b.fecha.slice(5),util:b.util,phys:b.phys,caja:(b.util||0)+(b.phys||0)-(b.pa||0)})),[bals]);
   const top5=useMemo(()=>[...maqData].sort((a,b)=>b.total-a.total).slice(0,5),[maqData]);
 
-  // ── Gráfico de barras mejorado ─────────────────────────────────────────
-  function ChartBarras(){
-    const pts=chartPts;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
-    const maxV=Math.max(...pts.map(p=>Math.max(Math.abs(p.util),p.caja||0)),1);
-    const W=360,H=140,pad=10;const bw=Math.max(3,Math.floor((W-pad*2)/pts.length)-3);
-    const[hovered,setHovered]=useState(null);
-    return<div>
-      <svg width="100%"viewBox={`0 0 ${W} ${H+36}`}style={{overflow:"visible"}}>
+  // ── GRÁFICOS PREMIUM ─────────────────────────────────────────────────────
+
+  // Modal de gráfico expandido
+  function ChartModal({title,children,onClose}){
+    const C=getC();
+    return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:600,display:"flex",flexDirection:"column",animation:"fadeIn .2s ease both"}}
+      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
+      <div style={{flex:1,display:"flex",flexDirection:"column",padding:"60px 0 0",animation:"slideUp .35s cubic-bezier(.16,1,.3,1) both"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 20px 16px"}}>
+          <div style={{...T.h,color:"#FFF"}}>{title}</div>
+          <button onClick={onClose}style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.15)",borderRadius:99,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#FFF"}}>✕</button>
+        </div>
+        <div style={{flex:1,padding:"0 12px 40px",overflowY:"auto"}}>{children}</div>
+      </div>
+    </div>;
+  }
+
+  function ChartBarras({expanded=false}){
+    const pts=chartPts;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
+    const[hov,setHov]=useState(null);
+    const[expandChart,setExpandChart]=useState(false);
+    const maxV=Math.max(...pts.map(p=>Math.max(Math.abs(p.util),Math.abs(p.caja||0))),1);
+    const H=expanded?220:140,W=expanded?window.innerWidth-48:360,pad=12;
+    const bw=Math.max(3,Math.floor((W-pad*2)/pts.length)-3);
+    const chart=<div>
+      <svg width="100%"viewBox={`0 0 ${W} ${H+40}`}style={{overflow:"visible",cursor:"crosshair"}}
+        onMouseLeave={()=>setHov(null)}>
+        <defs>
+          <linearGradient id="barPos"x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={C.green}stopOpacity=".9"/><stop offset="100%"stopColor={C.green}stopOpacity=".5"/></linearGradient>
+          <linearGradient id="barNeg"x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={C.red}stopOpacity=".5"/><stop offset="100%"stopColor={C.red}stopOpacity=".9"/></linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="3"result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        {/* Grid */}
+        {[0,.25,.5,.75,1].map(f=>{const y=H-(f*(H-10))-5;return<g key={f}><line x1={pad}y1={y}x2={W-pad}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,3"/><text x={pad}y={y-3}fontSize="7"fill={C.label3}>{fmt(maxV*f)}</text></g>;})}
+        {/* Caja bars (behind) */}
+        {pts.map((p,i)=>{const x=pad+i*((W-pad*2)/pts.length);const hCaja=Math.max(2,(p.caja||0)/maxV*(H-10));return<rect key={i}x={x+bw*.2}y={H-hCaja}width={bw*.6}height={hCaja}fill={color}opacity=".18"rx="2"/>;})}
+        {/* Util bars */}
         {pts.map((p,i)=>{
           const x=pad+i*((W-pad*2)/pts.length);
-          const hUtil=Math.max(2,Math.abs(p.util)/maxV*(H-10));
-          const hCaja=Math.max(2,(p.caja||0)/maxV*(H-10));
-          const isPos=p.util>=0;
-          const barYUtil=isPos?H-hUtil:H;
-          return<g key={i}onMouseEnter={()=>setHovered(i)}onMouseLeave={()=>setHovered(null)}>
-            {/* Caja bar (lighter, behind) */}
-            <rect x={x+bw/4}y={H-hCaja}width={bw/2}height={hCaja}fill={color}opacity=".25"rx="1"/>
-            {/* Util bar */}
-            <rect x={x}y={barYUtil}width={bw}height={hUtil}fill={isPos?C.green:C.red}opacity={hovered===i?.95:.75}rx="2"
-              style={{transformOrigin:`${x+bw/2}px ${H}px`,animation:`barGrow .5s ease ${i*.02}s both`}}/>
-            {i%(Math.ceil(pts.length/8))===0&&<text x={x+bw/2}y={H+12}fontSize="7.5"fill={C.label2}textAnchor="middle">{p.f}</text>}
-            {hovered===i&&<>
-              <rect x={Math.min(x-2,W-80)}y={barYUtil-26}width={78}height={22}fill={C.bg3}rx="4"/>
-              <text x={Math.min(x+bw/2,W-40)}y={barYUtil-11}fontSize="8"fill={isPos?C.green:C.red}textAnchor="middle"fontWeight="600">{fmt(p.util)}</text>
-            </>}
+          const h=Math.max(2,Math.abs(p.util)/maxV*(H-10));
+          const barY=p.util>=0?H-h:H;
+          const isHov=hov===i;
+          return<g key={i}onMouseEnter={()=>setHov(i)}onTouchStart={()=>setHov(i)}>
+            <rect x={x}y={barY}width={bw}height={h}fill={p.util>=0?"url(#barPos)":"url(#barNeg)"}rx="3"
+              filter={isHov?"url(#glow)":"none"}opacity={hov!==null&&!isHov?.4:1}
+              style={{transformOrigin:`${x+bw/2}px ${H}px`,animation:`barGrow .6s cubic-bezier(.16,1,.3,1) ${i*.015}s both`,transition:"opacity .15s"}}/>
+            {i%(Math.ceil(pts.length/8))===0&&<text x={x+bw/2}y={H+14}fontSize="7.5"fill={C.label3}textAnchor="middle">{p.f.slice(0,5)}</text>}
           </g>;
         })}
         <line x1={pad}y1={H}x2={W-pad}y2={H}stroke={C.sep}strokeWidth="1"/>
-        <text x={pad}y={H-maxV/maxV*(H-10)+8}fontSize="8"fill={C.label3}>{fmt(maxV)}</text>
+        {/* Tooltip */}
+        {hov!=null&&(()=>{
+          const p=pts[hov];const x=pad+hov*((W-pad*2)/pts.length);
+          const tx=Math.max(4,Math.min(x,W-90));const isPos=p.util>=0;
+          return<g>
+            <rect x={tx}y={Math.min(H-50,10)}width={86}height={42}fill={C.bg3||"#1C1C2E"}rx="8"filter="url(#glow)"/>
+            <text x={tx+8}y={Math.min(H-50,10)+14}fontSize="8"fill={C.label2}>{p.f}</text>
+            <text x={tx+8}y={Math.min(H-50,10)+28}fontSize="9.5"fill={isPos?C.green:C.red}fontWeight="700">{fmt(p.util)}</text>
+          </g>;
+        })()}
       </svg>
-      <div style={{display:"flex",gap:12,justifyContent:"center",marginTop:4}}>
-        {[[C.green,"Utilidad"],[C.red,"Pérdida"],[color+"66","Caja física"]].map(([col,lbl])=>
-          <div key={lbl}style={{display:"flex",alignItems:"center",gap:4,...T.cap,color:C.label2}}>
+      <div style={{display:"flex",gap:14,justifyContent:"center",marginTop:4,flexWrap:"wrap"}}>
+        {[[C.green,"Utilidad positiva"],[C.red,"Pérdida"],[`${color}60`,"Caja física"]].map(([col,lbl])=>
+          <div key={lbl}style={{display:"flex",alignItems:"center",gap:5,...T.cap,color:C.label2}}>
             <div style={{width:10,height:10,borderRadius:3,background:col}}/>
             {lbl}
-          </div>
-        )}
+          </div>)}
       </div>
     </div>;
-  }
-
-  // ── Gráfico de línea (tendencia) ──────────────────────────────────────
-  function ChartLinea(){
-    const pts=chartPts;if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
-    const vals=pts.map(p=>p.util);
-    const min=Math.min(...vals),max=Math.max(...vals);const range=max-min||1;
-    const W=360,H=120,pad=20;
-    const toX=i=>pad+i*(W-pad*2)/(pts.length-1);
-    const toY=v=>H-((v-min)/range)*(H-10)-5;
-    // Build path
-    const linePts=pts.map((p,i)=>`${toX(i)},${toY(p.util)}`).join(" ");
-    // Area fill
-    const areaPath=`M${toX(0)},${H} `+pts.map((p,i)=>`L${toX(i)},${toY(p.util)}`).join(" ")+` L${toX(pts.length-1)},${H} Z`;
-    const trend=vals.length>1?(vals[vals.length-1]-vals[0])>=0:true;
-    const trendColor=trend?C.green:C.red;
-    const[hov,setHov]=useState(null);
     return<div>
-      <svg width="100%"viewBox={`0 0 ${W} ${H+28}`}style={{overflow:"visible"}}>
-        <defs>
-          <linearGradient id="areaGrad"x1="0"y1="0"x2="0"y2="1">
-            <stop offset="0%"stopColor={trendColor}stopOpacity=".3"/>
-            <stop offset="100%"stopColor={trendColor}stopOpacity="0"/>
-          </linearGradient>
-        </defs>
-        {/* Grid lines */}
-        {[0,.25,.5,.75,1].map(f=>{const y=H-f*(H-10)-5;return<line key={f}x1={pad}y1={y}x2={W-pad}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>;})  }
-        {/* Area */}
-        <path d={areaPath}fill="url(#areaGrad)"/>
-        {/* Line */}
-        <polyline points={linePts}fill="none"stroke={trendColor}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"
-          style={{strokeDasharray:2000,strokeDashoffset:2000,animation:"lineDrawIn 1s ease .1s forwards"}}/>
-        {/* Points */}
-        {pts.map((p,i)=><circle key={i}cx={toX(i)}cy={toY(p.util)}r={hov===i?5:3}fill={p.util>=0?C.green:C.red}stroke={C.bg2}strokeWidth="2"
-          onMouseEnter={()=>setHov(i)}onMouseLeave={()=>setHov(null)}style={{cursor:"default",transition:"r .1s"}}/>)}
-        {/* X labels */}
-        {pts.filter((_,i)=>i%(Math.ceil(pts.length/6))===0).map((p,i)=><text key={i}x={toX(pts.findIndex(pt=>pt.f===p.f))}y={H+14}fontSize="8"fill={C.label2}textAnchor="middle">{p.f}</text>)}
-        {/* Hover tooltip */}
-        {hov!=null&&<>
-          <rect x={Math.min(toX(hov)-36,W-80)}y={toY(pts[hov].util)-26}width={72}height={20}fill={C.bg3}rx="4"/>
-          <text x={Math.min(toX(hov),W-40)}y={toY(pts[hov].util)-12}fontSize="8.5"fill={pts[hov].util>=0?C.green:C.red}textAnchor="middle"fontWeight="700">{fmt(pts[hov].util)}</text>
-        </>}
-      </svg>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
-        <span style={{...T.cap,color:C.label2}}>Tendencia {trend?"↗ alcista":"↘ bajista"}</span>
-        <span style={{...T.fn,color:trendColor,fontWeight:600}}>{fmtE(vals[vals.length-1]-vals[0])}</span>
-      </div>
+      {chart}
+      {!expanded&&<button onClick={()=>setExpandChart(true)}style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:8,...T.fn,color:C.label2,cursor:"pointer"}}>
+        ⤢ Expandir gráfico
+      </button>}
+      {expandChart&&<ChartModal title="Utilidad por período"onClose={()=>setExpandChart(false)}>
+        <ChartBarras expanded={true}/>
+      </ChartModal>}
     </div>;
   }
 
-  // ── Top 5 máquinas con sparklines ────────────────────────────────────
+  function ChartLinea({expanded=false}){
+    const pts=chartPts;if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
+    const[hov,setHov]=useState(null);const[expandChart,setExpandChart]=useState(false);
+    const vals=pts.map(p=>p.util);
+    const minV=Math.min(...vals),maxV=Math.max(...vals);const range=maxV-minV||1;
+    const W=expanded?window.innerWidth-48:360,H=expanded?240:130,pad=28;
+    const toX=i=>pad+i*(W-pad*2)/(pts.length-1);
+    const toY=v=>H-((v-minV)/range)*(H-16)-8;
+    const pathD=pts.map((p,i)=>`${i===0?"M":"L"}${toX(i)},${toY(p.util)}`).join(" ");
+    const areaD=`M${toX(0)},${H} `+pts.map((p,i)=>`L${toX(i)},${toY(p.util)}`).join(" ")+` L${toX(pts.length-1)},${H} Z`;
+    const trend=vals[vals.length-1]>=vals[0];
+    const tCol=trend?C.green:C.red;
+    const avgVal=Math.round(vals.reduce((s,v)=>s+v,0)/vals.length);
+    const avgY=toY(avgVal);
+    const id=`lg-${Math.random().toString(36).slice(2,6)}`;
+    const chart=<div>
+      <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap"}}>
+        {[[trend?"↗ Tendencia alcista":"↘ Tendencia bajista",tCol],[`Promedio: ${fmt(avgVal)}`,C.label2],[`Máx: ${fmt(maxV)}`,C.green],[`Mín: ${fmt(minV)}`,C.red]].map(([l,c])=>
+          <div key={l}style={{...T.cap,color:c,fontWeight:600}}>{l}</div>)}
+      </div>
+      <svg width="100%"viewBox={`0 0 ${W} ${H+24}`}style={{overflow:"visible",cursor:"crosshair"}}
+        onMouseLeave={()=>setHov(null)}>
+        <defs>
+          <linearGradient id={id}x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={tCol}stopOpacity=".3"/><stop offset="100%"stopColor={tCol}stopOpacity="0"/></linearGradient>
+          <filter id="glw2"><feGaussianBlur stdDeviation="2"result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        </defs>
+        {[0,.25,.5,.75,1].map(f=>{const y=H-((maxV-minV)*f/range*(H-16))-8+(minV/range*(H-16));return<line key={f}x1={pad}y1={y}x2={W-pad}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>;})}
+        {/* Average line */}
+        <line x1={pad}y1={avgY}x2={W-pad}y2={avgY}stroke={C.label3}strokeWidth="1"strokeDasharray="6,4"/>
+        <text x={pad}y={avgY-3}fontSize="7"fill={C.label3}>promedio</text>
+        {/* Area */}
+        <path d={areaD}fill={`url(#${id})`}/>
+        {/* Line */}
+        <path d={pathD}fill="none"stroke={tCol}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"
+          style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1.2s cubic-bezier(.16,1,.3,1) .1s forwards"}}/>
+        {/* Hover points */}
+        {pts.map((p,i)=><circle key={i}cx={toX(i)}cy={toY(p.util)}r={hov===i?6:3}
+          fill={p.util>=0?C.green:C.red}stroke={C.bg||"#080810"}strokeWidth="2"
+          onMouseEnter={()=>setHov(i)}onTouchStart={()=>setHov(i)}
+          style={{cursor:"default",transition:"r .15s",filter:hov===i?"url(#glw2)":"none"}}/>)}
+        {/* X labels */}
+        {pts.filter((_,i)=>i%(Math.ceil(pts.length/6))===0).map((p,i)=><text key={i}x={toX(pts.indexOf(p))}y={H+16}fontSize="7.5"fill={C.label3}textAnchor="middle">{p.f.slice(0,5)}</text>)}
+        {/* Tooltip */}
+        {hov!=null&&(()=>{
+          const p=pts[hov];const tx=Math.max(4,Math.min(toX(hov)-40,W-90));
+          return<g>
+            <line x1={toX(hov)}y1={0}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1"strokeDasharray="4,3"/>
+            <rect x={tx}y={Math.max(2,toY(p.util)-36)}width={88}height={34}fill={C.bg3||"#1C1C2E"}rx="8"/>
+            <text x={tx+8}y={Math.max(2,toY(p.util)-36)+13}fontSize="8"fill={C.label2}>{p.f}</text>
+            <text x={tx+8}y={Math.max(2,toY(p.util)-36)+27}fontSize="10"fill={p.util>=0?C.green:C.red}fontWeight="700">{fmt(p.util)}</text>
+          </g>;
+        })()}
+      </svg>
+    </div>;
+    return<div>
+      {chart}
+      {!expanded&&<button onClick={()=>setExpandChart(true)}style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:8,...T.fn,color:C.label2,cursor:"pointer"}}>⤢ Expandir gráfico</button>}
+      {expandChart&&<ChartModal title="Tendencia de utilidad"onClose={()=>setExpandChart(false)}><ChartLinea expanded={true}/></ChartModal>}
+    </div>;
+  }
+
   function ChartTop5(){
-    if(!top5.filter(m=>m.periods>0).length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos aún</div>;
-    const maxTot=Math.max(...top5.map(m=>Math.abs(m.total)),1);
+    const top=top5.filter(m=>m.periods>0);
+    if(!top.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos — ingresa lecturas locales o carga el historial de Sheets</div>;
+    const maxTot=Math.max(...top.map(m=>Math.abs(m.total)),1);
     return<div style={{padding:"4px 0"}}>
-      {top5.filter(m=>m.periods>0).map((mq,i)=>{
+      {top.map((mq,i)=>{
         const pct=Math.abs(mq.total)/maxTot*100;const col=maqC(mq.factor,C);
-        return<div key={mq.id}style={{marginBottom:14,animation:`fadeSlideUp .3s ease ${i*.06}s both`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              <MaqIcon factor={mq.factor}nombre={mq.nombre}size={26}/>
+        const isPos=mq.total>=0;
+        return<div key={mq.id}style={{marginBottom:16,animation:`fadeUp .4s ease ${i*.06}s both`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <MaqIcon factor={mq.factor}nombre={mq.nombre}size={30}/>
               <div>
                 <div style={{...T.s,color:C.label,fontWeight:600}}>{mq.nombre}</div>
                 <div style={{...T.cap,color:C.label2}}>{mq.periods} períodos · prom {fmtE(mq.periods?Math.round(mq.total/mq.periods):0)}</div>
               </div>
             </div>
             <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {mq.history.length>1&&<Sparkline data={mq.history}color={col}height={28}width={60}/>}
-              <span style={{...T.c,color:mq.total>=0?C.green:C.red,fontWeight:700,minWidth:64,textAlign:"right"}}>{fmtE(mq.total)}</span>
+              {mq.history.length>1&&<Sparkline data={mq.history}color={col}height={28}width={56}/>}
+              <span style={{...T.c,color:isPos?C.green:C.red,fontWeight:700,minWidth:70,textAlign:"right"}}>{fmtE(mq.total)}</span>
             </div>
           </div>
-          <div style={{background:C.fill3,borderRadius:6,height:6,overflow:"hidden"}}>
-            <div style={{width:`${pct}%`,height:"100%",background:`linear-gradient(90deg,${col}88,${col})`,borderRadius:6,animation:`slideRight .6s ease ${i*.06}s both`}}/>
+          <div style={{background:C.fill3,borderRadius:6,height:5,overflow:"hidden"}}>
+            <div style={{height:"100%",background:`linear-gradient(90deg,${col}66,${col})`,borderRadius:6,transition:"width .8s cubic-bezier(.16,1,.3,1)",width:`${pct}%`}}/>
           </div>
         </div>;
       })}
     </div>;
   }
+
 
   function exportExcel(){
     const XLSX=window.XLSX;if(!XLSX){const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=exportExcel;document.head.appendChild(s);return;}
@@ -916,9 +1106,9 @@ function Report({cid,cont}){
     <Nav title="Reporte"sub={m.n}sy={sy}right={[{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
       {/* Vista tabs */}
-      <div style={{display:"flex",background:C.bg2,borderRadius:12,padding:3,marginBottom:12,border:`1px solid ${C.sep}`}}>
+      <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(10px)"}}>
         {[["balance","Balance"],["tabla","Tabla"],["grafica","Gráfica"]].map(([v,l])=>
-          <button key={v}onClick={()=>setVista(v)}style={{flex:1,background:vista===v?C.bg3:"transparent",border:"none",borderRadius:10,padding:"8px",color:vista===v?C.label:C.label2,cursor:"pointer",...T.s,fontWeight:vista===v?700:400,transition:"all .15s"}}>{l}</button>)}
+          <button key={v}onClick={()=>setVista(v)}className="btn-press"style={{flex:1,background:vista===v?`${color}22`:"transparent",border:vista===v?`1px solid ${color}33`:"1px solid transparent",borderRadius:12,padding:"9px",color:vista===v?color:C.label2,cursor:"pointer",...T.s,fontWeight:vista===v?700:400,transition:"all .2s"}}>{l}</button>)}
       </div>
       {/* Filtros */}
       <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:2}}>
@@ -931,18 +1121,21 @@ function Report({cid,cont}){
         <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{...T.fn,color:C.label2}}>Hasta</span><input type="date"value={hasta}onChange={e=>setHasta(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.fn}}/></div>
       </div>}
 
-      {/* KPI Cards */}
-      <div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:18,padding:18,marginBottom:14,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .35s ease both"}}>
-        <div style={{...T.cap,color:C.label2,marginBottom:4,letterSpacing:1}}>UTILIDAD TOTAL · {bals.length} PERÍODOS</div>
-        <AnimNumber value={totUtil}style={{...T.lg,color:C.label,fontSize:36,display:"block",marginBottom:14}}/>
+      {/* KPI Hero */}
+      <div className="fade-up"style={{background:`linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,.02))`,borderRadius:24,padding:"20px",marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(20px)",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:60,background:`${color}12`,pointerEvents:"none"}}/>
+        <div style={{...T.cap,color:C.label2,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Utilidad Total · {bals.length} períodos</div>
+        <AnimNumber value={totUtil}style={{...T.lg,color:totUtil>=0?C.green:C.red,fontSize:38,fontWeight:700,letterSpacing:-1,display:"block",marginBottom:16}}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-          {[["Premios",totPhys,C.orange],["Caja",totCaja,color],["Promedio",avg,C.blue]].map(([lbl,val,col],i)=>
-            <div key={i}style={{background:C.fill4,borderRadius:12,padding:"10px 10px",animation:`fadeSlideUp .35s ease ${.1+i*.05}s both`}}>
-              <div style={{...T.cap,color:C.label2,marginBottom:3}}>{lbl}</div>
-              <AnimNumber value={val}style={{...T.c,color:col,fontWeight:700,display:"block"}}/>
+          {[["Premios",totPhys,C.orange,"trophy"],["Caja",totCaja,color,"report"],["Promedio",avg,C.blue,"chart"]].map(([lbl,val,col,ic],i)=>
+            <div key={i}className={`fade-up-${i+2}`}style={{background:`${col}10`,borderRadius:14,padding:"10px 12px",border:`1px solid ${col}20`}}>
+              <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}><Ico n={ic}c={col}s={11}/><span style={{...T.cap,color:col,letterSpacing:.5,fontWeight:600}}>{lbl}</span></div>
+              <AnimNumber value={val}style={{...T.c,color:col,fontWeight:700,display:"block",fontSize:14}}/>
             </div>)}
         </div>
-        {totPA>0&&<div style={{...T.fn,color:C.yellow,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Ico n="trophy"c={C.yellow}s={13}/>Premio Amor: {fmtE(totPA)}</div>}
+        {totPA>0&&<div style={{...T.fn,color:C.yellow,marginTop:10,display:"flex",alignItems:"center",gap:6,background:`${C.yellow}10`,padding:"6px 10px",borderRadius:10,border:`1px solid ${C.yellow}20`}}>
+          <Ico n="trophy"c={C.yellow}s={13}/>Premio Amor: {fmtE(totPA)}
+        </div>}
       </div>
 
       {/* BALANCE */}
@@ -1001,10 +1194,13 @@ function Machines({cid,cont}){
   const C=getC();const m=META[cid];const color=C[m.c];
   const[sy,setSy]=useState(0);
   const[maqs,setMaqs]=useState(()=>getMaqs(cid));
-  const[editing,setEditing]=useState(null); // maq id being edited
+  const[editing,setEditing]=useState(null);
   const[adding,setAdding]=useState(false);
   const[newMaq,setNewMaq]=useState({nombre:"",factor:10});
   const[confirmDel,setConfirmDel]=useState(null);
+  const[resetModal,setResetModal]=useState(null); // maqId
+  const[resetDate,setResetDate]=useState(today());
+  const[resets,setResets]=useState(()=>loadResets(cid));
 
   function save(updated){
     const overrides=loadMaqOverrides();
@@ -1044,6 +1240,15 @@ function Machines({cid,cont}){
     setConfirmDel(null);
   }
 
+  function doReset(maqId){
+    saveReset(cid,maqId,resetDate);
+    setResets(loadResets(cid));
+    setResetModal(null);
+  }
+  function clearReset(maqId){
+    saveReset(cid,maqId,null);
+    setResets(loadResets(cid));
+  }
   function toggleDisabled(id){
     const updated=maqs.map(mq=>mq.id===id?{...mq,disabled:!mq.disabled}:mq);
     save(updated);
@@ -1112,9 +1317,10 @@ function Machines({cid,cont}){
                   </div>
                   <MaqIcon factor={mq.factor}nombre={mq.nombre}size={34}/>
                   <div style={{flex:1,minWidth:0}}>
-                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                       <span style={{...T.h,color:mq.disabled?C.label2:C.label}}>{mq.nombre}</span>
                       {mq.disabled&&<span style={{...T.cap,color:C.orange,background:`${C.orange}18`,borderRadius:20,padding:"1px 7px"}}>Pausada</span>}
+                      {resets[mq.id]&&<span style={{...T.cap,color:C.yellow,background:`${C.yellow}18`,borderRadius:20,padding:"1px 7px"}}>↺ reset {fmtF(resets[mq.id])}</span>}
                     </div>
                     <div style={{...T.fn,color:C.label2,marginTop:1}}>
                       <span style={{color:col,fontWeight:600}}>×{mq.factor}</span>
@@ -1125,6 +1331,11 @@ function Machines({cid,cont}){
                   <div style={{display:"flex",gap:6,flexShrink:0}}>
                     <button onClick={()=>setEditing(mq.id)}style={{background:`${C.blue}18`,border:"none",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
                       <Ico n="edit"c={C.blue}s={15}/>
+                    </button>
+                    <button onClick={()=>{setResetModal(mq.id);setResetDate(today());}}
+                      style={{background:`${resets[mq.id]?C.yellow:C.teal}18`,border:"none",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}
+                      title={resets[mq.id]?`Reset desde ${resets[mq.id]}`:"Reiniciar contadores"}>
+                      <svg width="15"height="15"viewBox="0 0 24 24"fill="none"stroke={resets[mq.id]?C.yellow:C.teal}strokeWidth="2"strokeLinecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.5"/></svg>
                     </button>
                     <button onClick={()=>toggleDisabled(mq.id)}style={{background:`${mq.disabled?C.green:C.orange}18`,border:"none",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
                       {mq.disabled
@@ -1208,6 +1419,38 @@ function Machines({cid,cont}){
         El ícono ↺ arriba restaura las máquinas al estado original del Excel
       </div>
     </div>
+
+    {/* Reset modal */}
+    {resetModal&&(()=>{
+      const mq=maqs.find(m=>m.id===resetModal);
+      const hasReset=!!resets[resetModal];
+      return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",zIndex:500,display:"flex",alignItems:"flex-end",justifyContent:"center"}}
+        onClick={e=>{if(e.target===e.currentTarget)setResetModal(null);}}>
+        <div style={{width:"100%",maxWidth:430,background:C.bg2,borderRadius:"20px 20px 0 0",padding:"20px 18px 40px",animation:"fadeSlideUp .25s ease both"}}>
+          <div style={{width:40,height:4,background:C.sep,borderRadius:2,margin:"0 auto 16px"}}/>
+          <div style={{...T.lg,color:C.label,fontSize:22,marginBottom:4}}>Reiniciar contadores</div>
+          <div style={{...T.s,color:C.label2,marginBottom:16}}>{mq?.nombre}</div>
+          <div style={{background:`${C.yellow}12`,border:`1px solid ${C.yellow}44`,borderRadius:12,padding:"10px 14px",marginBottom:16,...T.fn,color:C.yellow}}>
+            A partir de la fecha seleccionada, el historial de Sheets de esta máquina se calculará desde 0. Las lecturas anteriores se ignoran.
+          </div>
+          <div style={{...T.cap,color:C.label2,marginBottom:6}}>Fecha del reset</div>
+          <input type="date"value={resetDate}onChange={e=>setResetDate(e.target.value)}
+            style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"11px",color:C.blue,...T.c,boxSizing:"border-box",outline:"none",marginBottom:14}}/>
+          <button onClick={()=>doReset(resetModal)}
+            style={{width:"100%",background:C.yellow,border:"none",borderRadius:12,padding:"13px",...T.h,color:"#000",cursor:"pointer",marginBottom:8}}>
+            Confirmar reset desde {fmtF(resetDate)}
+          </button>
+          {hasReset&&<button onClick={()=>clearReset(resetModal)}
+            style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:12,padding:"13px",...T.h,color:C.red,cursor:"pointer",marginBottom:8}}>
+            Quitar reset (volver al historial completo)
+          </button>}
+          <button onClick={()=>setResetModal(null)}
+            style={{width:"100%",background:"transparent",border:"none",borderRadius:12,padding:"10px",...T.s,color:C.label2,cursor:"pointer"}}>
+            Cancelar
+          </button>
+        </div>
+      </div>;
+    })()}
   </div>;
 }
 
@@ -1439,60 +1682,198 @@ function Home({onSelect,onCfg,user,pending}){
   const C=getC();const[sy,setSy]=useState(0);
   const lastBal=cid=>{const d=D[cid];if(!d?.b?.length)return null;return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];};
   const total=Object.keys(META).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
-  const allRecent=Object.keys(META).map(cid=>{const b=lastBal(cid);return{cid,util:b?.util_total||0};}).sort((a,b)=>b.util-a.util);
-  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+  const uColor=user==="Santiago"?C.indigo:user==="Eliza"?C.pink:C.teal;
+
+  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch",background:C.bg}}>
     <style>{ANIM_CSS}</style>
-    <Nav title="Mis Casinos"sub={user}sy={sy}right={[
-      ...(pending>0?[{icon:<div style={{position:"relative"}}><Ico n="sync"c={C.orange}s={17}/><div style={{position:"absolute",top:-4,right:-4}}><Badge n={pending}c={C.orange}/></div></div>,fn:()=>{}}]:[]),
+    {/* Ambient background */}
+    <div style={{position:"fixed",top:0,left:0,right:0,height:320,pointerEvents:"none",zIndex:0,background:`radial-gradient(ellipse 80% 60% at 50% -10%, ${C.indigo}22, transparent)`}}/>
+
+    <Nav title="Casinos"sub={`Hola, ${user}`}sy={sy}right={[
+      ...(pending>0?[{icon:<div style={{position:"relative"}}><Ico n="sync"c={C.orange}s={17}/><div style={{position:"absolute",top:-5,right:-5}}><Badge n={pending}c={C.orange}/></div></div>,fn:()=>{}}]:[]),
       {icon:"settings",fn:onCfg}
     ]}/>
-    <div style={{padding:"0 14px",paddingBottom:60}}>
-      {/* Hero KPI */}
-      <div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:20,padding:20,marginBottom:20,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .4s ease both",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-20,right:-20,width:120,height:120,borderRadius:60,background:`${C[allRecent[0]?.cid?META[allRecent[0].cid]?.c:"indigo"]||C.indigo}18`,pointerEvents:"none"}}/>
-        <div style={{...T.cap,color:C.label2,marginBottom:4,letterSpacing:1}}>ÚLTIMO PERÍODO — TODOS</div>
-        <AnimNumber value={total}style={{...T.lg,color:C.label,fontSize:38,display:"block",marginBottom:16}}/>
-        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-          {Object.entries(META).map(([cid,m],i)=>{const b=lastBal(cid);const col=C[m.c];
-            return<div key={cid}onClick={()=>onSelect(cid)}style={{flex:"1 0 auto",background:C.fill3,borderRadius:12,padding:"8px 10px",cursor:"pointer",border:`1px solid ${C.sep}`,transition:"transform .15s",animation:`fadeSlideUp .4s ease ${.1+i*.05}s both`}}
-              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}onMouseLeave={e=>e.currentTarget.style.transform=""}>
+
+    <div style={{padding:"0 16px",paddingBottom:80,position:"relative",zIndex:1}}>
+
+      {/* Hero total */}
+      <div className="fade-up"style={{background:"linear-gradient(135deg, rgba(124,109,250,.15), rgba(61,142,255,.08))",borderRadius:24,padding:"24px 20px",marginBottom:20,border:`1px solid rgba(124,109,250,.2)`,backdropFilter:"blur(20px)",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-40,right:-40,width:180,height:180,borderRadius:90,background:`radial-gradient(circle, ${C.indigo}22, transparent)`,pointerEvents:"none"}}/>
+        <div style={{position:"absolute",bottom:-30,left:-30,width:120,height:120,borderRadius:60,background:`radial-gradient(circle, ${C.blue}15, transparent)`,pointerEvents:"none"}}/>
+        <div style={{...T.cap,color:C.label2,letterSpacing:1.2,marginBottom:8,textTransform:"uppercase"}}>Último período · Todos los locales</div>
+        <AnimNumber value={total}style={{...T.lg,color:C.label,fontSize:40,fontWeight:700,letterSpacing:-1,display:"block",marginBottom:20}}/>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          {Object.entries(META).map(([cid,m],i)=>{
+            const b=lastBal(cid);const col=C[m.c];
+            return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press"
+              style={{background:`${col}12`,border:`1px solid ${col}25`,borderRadius:14,padding:"10px 12px",cursor:"pointer",textAlign:"left",flex:"1 0 auto",minWidth:80,backdropFilter:"blur(10px)",animationDelay:`${.1+i*.04}s`}}
+              onMouseEnter={e=>{e.currentTarget.style.background=`${col}22`;e.currentTarget.style.borderColor=`${col}44`;}}
+              onMouseLeave={e=>{e.currentTarget.style.background=`${col}12`;e.currentTarget.style.borderColor=`${col}25`;}}>
               <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
                 <Ico n={m.e}c={col}s={14}/>
-                <span style={{...T.cap,color:C.label2}}>{m.n.split(" ").pop()}</span>
+                <span style={{...T.cap,color:col,fontWeight:600,letterSpacing:.5}}>{m.n.split(" ").slice(-1)[0].toUpperCase()}</span>
               </div>
               <div style={{...T.s,color:b?.util_total>=0?C.green:C.red,fontWeight:700}}>{fmt(b?.util_total)}</div>
-            </div>;
+            </button>;
           })}
         </div>
       </div>
-      {/* Casino list */}
-      <Sec hdr="Locales"delay={.15}>
-        {Object.entries(META).map(([cid,m],i,a)=>{const b=lastBal(cid);const dd=D[cid];const col=C[m.c];
-          return<Row key={cid}ic={m.e}icC={col}lbl={m.n}sub={`${dd?.m?.length||0} máqs · ${m.liq}${b?` · ${b.fecha.slice(5)}`:""}`}
-            right={b?<span style={{...T.c,color:b.util_total>=0?C.green:C.red,fontWeight:700}}>{fmt(b.util_total)}</span>:null}
-            fn={()=>onSelect(cid)}last={i===a.length-1}/>;
+
+      {/* Casino cards */}
+      <div style={{...T.cap,color:C.label2,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600}}>Locales</div>
+      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
+        {Object.entries(META).map(([cid,m],i)=>{
+          const b=lastBal(cid);const dd=D[cid];const col=C[m.c];
+          const isPos=b?.util_total>=0;
+          return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press fade-up"
+            style={{background:C.bg2,border:`1px solid ${C.sep}`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",backdropFilter:"blur(20px)",animationDelay:`${.1+i*.05}s`,transition:"border-color .2s,box-shadow .2s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=`${col}44`;e.currentTarget.style.boxShadow=`0 8px 32px ${col}18`;}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=C.sep;e.currentTarget.style.boxShadow="none";}}>
+            <CasinoAvatar cid={cid}size={50}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{...T.h,color:C.label,marginBottom:3}}>{m.n}</div>
+              <div style={{...T.fn,color:C.label2}}>
+                {dd?.m?.length||0} máqs
+                <span style={{margin:"0 6px",opacity:.4}}>·</span>
+                {m.liq}
+                {b&&<><span style={{margin:"0 6px",opacity:.4}}>·</span><span style={{color:C.label3}}>{b.fecha.slice(5)}</span></>}
+              </div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              {b&&<div style={{...T.h,color:isPos?C.green:C.red,fontWeight:700}}>{fmt(b.util_total)}</div>}
+              <div style={{...T.cap,color:isPos?`${C.green}66`:`${C.red}66`,marginTop:2}}>{isPos?"↑":"↓"} {m.liq}</div>
+            </div>
+            <Ico n="chevron"c={C.label3}s={16}/>
+          </button>;
         })}
-      </Sec>
-      <Sec hdr="Liquidación diaria"delay={.2}>
+      </div>
+
+      {/* Quick access daily */}
+      <div style={{...T.cap,color:C.label2,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600}}>Liquidación diaria</div>
+      <div style={{display:"flex",gap:10}}>
         {["vikingos","faraon"].map((cid,i)=>{const m=META[cid];const b=lastBal(cid);const col=C[m.c];
-          return<Row key={cid}ic={m.e}icC={col}lbl={`Ingresar hoy — ${m.n}`}sub={`Última: ${b?.fecha||"—"}`}fn={()=>onSelect(cid)}last={i===1}/>;
+          return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press fade-up"
+            style={{flex:1,background:`linear-gradient(135deg,${col}18,${col}08)`,border:`1px solid ${col}25`,borderRadius:20,padding:"14px",cursor:"pointer",textAlign:"left",animationDelay:`${.35+i*.06}s`}}>
+            <CasinoAvatar cid={cid}size={36}/>
+            <div style={{marginTop:10,...T.h,color:C.label}}>{m.n}</div>
+            <div style={{...T.fn,color:C.label2,marginTop:2}}>Última: {b?.fecha||"—"}</div>
+          </button>;
         })}
-      </Sec>
+      </div>
     </div>
   </div>;
 }
 
-// ─── CASINO SHELL ─────────────────────────────────────────────────────────────
+// ─── LOGIN ─────────────────────────────────────────────────────────────────────
+function Login({onAuth}){
+  const C=getC();
+  const[user,setUser]=useState(null);const[pin,setPin]=useState("");const[pin2,setPin2]=useState("");
+  const[paso,setPaso]=useState("sel");const[err,setErr]=useState("");const[faceLoading,setFL]=useState(false);
+  const uColor=u=>u==="Santiago"?C.indigo:u==="Eliza"?C.pink:C.teal;
+  function selUser(u){setUser(u);setPin("");setPin2("");setErr("");setPaso(localStorage.getItem("cp_"+u)?"in":"new");}
+  function go(){
+    setErr("");
+    if(paso==="new"){if(pin.length<4)return setErr("Mínimo 4 dígitos");return setPaso("conf");}
+    if(paso==="conf"){if(pin!==pin2)return setErr("PINs no coinciden");savePin(user,pin);onAuth(user);return;}
+    if(paso==="in"){if(checkPin(user,pin)){onAuth(user);}else{saveLog({action:"login_fail",target:user});setErr("PIN incorrecto");}}
+  }
+  async function doFaceId(){setFL(true);setErr("");try{if(!hasFaceId(user)){await registerFaceId(user);onAuth(user);}else{await authFaceId(user);onAuth(user);}}catch(e){setErr(e.message||"Face ID falló");}setFL(false);}
+
+  if(paso==="sel")return(
+    <div style={{minHeight:"100dvh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
+      <style>{ANIM_CSS}</style>
+      {/* Ambient orbs */}
+      <div style={{position:"absolute",top:"10%",left:"20%",width:200,height:200,borderRadius:100,background:`radial-gradient(circle,${C.indigo}22,transparent)`,filter:"blur(40px)",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",bottom:"15%",right:"15%",width:160,height:160,borderRadius:80,background:`radial-gradient(circle,${C.blue}18,transparent)`,filter:"blur(40px)",pointerEvents:"none"}}/>
+      <div style={{width:"100%",maxWidth:340,position:"relative",zIndex:1}}>
+        <div className="fade-up"style={{textAlign:"center",marginBottom:40}}>
+          <div style={{width:80,height:80,borderRadius:24,background:`linear-gradient(145deg,${C.indigo}88,${C.blue})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 16px",boxShadow:`0 12px 40px ${C.indigo}55`,animation:"floatUp 3s ease infinite"}}>
+            <Ico n="slot"c="#FFF"s={42}/>
+          </div>
+          <div style={{...T.lg,color:C.label,letterSpacing:-.5}}>Casino Contadores</div>
+          <div style={{...T.s,color:C.label2,marginTop:6}}>Selecciona tu perfil para continuar</div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {USERS.map((u,i)=>{
+            const col=uColor(u);
+            return<button key={u}onClick={()=>selUser(u)}className={`btn-press fade-up-${i+1}`}
+              style={{background:C.bg2,border:`1px solid ${C.sep}`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",backdropFilter:"blur(20px)",transition:"border-color .2s,box-shadow .2s"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=`${col}55`;e.currentTarget.style.boxShadow=`0 8px 32px ${col}22`;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=C.sep;e.currentTarget.style.boxShadow="";}}>
+              <div style={{width:48,height:48,borderRadius:24,background:`linear-gradient(145deg,${col}88,${col})`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 4px 16px ${col}55`}}>
+                <Ico n="user"c="#FFF"s={22}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{...T.h,color:C.label}}>{u}</div>
+                <div style={{...T.fn,color:C.label2,display:"flex",alignItems:"center",gap:4,marginTop:3}}>
+                  {hasFaceId(u)&&<Ico n="faceid"c={C.blue}s={12}/>}
+                  {localStorage.getItem("cp_"+u)?"PIN configurado":"Primera vez"}
+                </div>
+              </div>
+              <div style={{width:28,height:28,borderRadius:14,background:`${col}15`,display:"flex",alignItems:"center",justifyContent:"center"}}><Ico n="chevron"c={col}s={14}/></div>
+            </button>;
+          })}
+        </div>
+      </div>
+    </div>
+  );
+
+  const col=uColor(user);
+  return(
+    <div style={{minHeight:"100dvh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:24,position:"relative",overflow:"hidden"}}>
+      <style>{ANIM_CSS}</style>
+      <div style={{position:"absolute",top:"5%",left:"10%",width:240,height:240,borderRadius:120,background:`radial-gradient(circle,${col}15,transparent)`,filter:"blur(50px)",pointerEvents:"none"}}/>
+      <div style={{width:"100%",maxWidth:320,position:"relative",zIndex:1,animation:"scaleIn .35s cubic-bezier(.16,1,.3,1) both"}}>
+        <button onClick={()=>setPaso("sel")}style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:6,marginBottom:28,...T.b,padding:0}}>
+          <Ico n="back"c={C.blue}s={18}/>Cambiar usuario
+        </button>
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{width:64,height:64,borderRadius:32,background:`linear-gradient(145deg,${col}88,${col})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px",boxShadow:`0 8px 28px ${col}55`}}>
+            <Ico n="user"c="#FFF"s={30}/>
+          </div>
+          <div style={{...T.lg,color:C.label,fontSize:28,letterSpacing:-.5}}>{user}</div>
+          <div style={{...T.s,color:C.label2,marginTop:5}}>{paso==="new"?"Crea tu PIN de acceso":paso==="conf"?"Confirma tu PIN":"Ingresa tu PIN"}</div>
+        </div>
+        {paso==="in"&&hasFaceId(user)&&<button onClick={doFaceId}disabled={faceLoading}className="btn-press"
+          style={{width:"100%",background:C.fill3,border:`1px solid ${C.blue}33`,borderRadius:16,padding:"15px",marginBottom:14,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,backdropFilter:"blur(10px)"}}>
+          <Ico n="faceid"c={C.blue}s={26}/><span style={{...T.h,color:C.blue}}>{faceLoading?"Verificando...":"Entrar con Face ID"}</span>
+        </button>}
+        {/* PIN dots display */}
+        <div style={{display:"flex",justifyContent:"center",gap:12,marginBottom:16}}>
+          {[0,1,2,3].map(i=><div key={i}style={{width:12,height:12,borderRadius:6,background:(paso==="conf"?pin2:pin).length>i?col:C.fill3,border:`1.5px solid ${(paso==="conf"?pin2:pin).length>i?col:C.sep}`,transition:"all .15s"}}/>)}
+        </div>
+        <input type="password"inputMode="numeric"value={paso==="conf"?pin2:pin}
+          onChange={e=>paso==="conf"?setPin2(e.target.value):setPin(e.target.value)}
+          onKeyDown={e=>e.key==="Enter"&&go()}placeholder="Ingresa tu PIN"autoFocus
+          style={{width:"100%",background:C.bg2,border:`1.5px solid ${C.sep}`,borderRadius:16,padding:"15px",color:C.label,...T.lg,fontSize:26,textAlign:"center",boxSizing:"border-box",outline:"none",marginBottom:14,letterSpacing:12,backdropFilter:"blur(10px)"}}/>
+        {err&&<div style={{...T.s,color:C.red,textAlign:"center",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6,animation:"fadeIn .2s ease"}}>
+          <Ico n="warning"c={C.red}s={14}/>{err}
+        </div>}
+        <button onClick={go}className="btn-press"style={{width:"100%",background:`linear-gradient(135deg,${col},${col}cc)`,border:"none",borderRadius:16,padding:"15px",...T.h,color:"#FFF",cursor:"pointer",boxShadow:`0 6px 20px ${col}44`,letterSpacing:.3}}>
+          {paso==="in"?"Entrar":paso==="new"?"Siguiente":"Confirmar PIN"}
+        </button>
+        {paso==="in"&&<button onClick={()=>{if(confirm("¿Resetear PIN de "+user+"?"))localStorage.removeItem("cp_"+user),setPaso("new"),setPin("");}}
+          style={{width:"100%",background:"transparent",border:"none",color:C.label3,cursor:"pointer",marginTop:10,...T.s,padding:"8px"}}>
+          Olvidé mi PIN
+        </button>}
+      </div>
+    </div>
+  );
+}
+
+// ─── CASINO SHELL ─────────────────────────────────────────────────────────────────
 function Casino({cid,cont,setCont,apiKey,onBack,user}){
   const C=getC();const[tab,setTab]=useState("lectura");const m=META[cid];const color=C[m.c];
-  return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg}}>
+  return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg,position:"relative"}}>
     <style>{ANIM_CSS}</style>
+    {/* Casino color accent at top */}
+    <div style={{position:"absolute",top:0,left:0,right:0,height:200,background:`radial-gradient(ellipse 100% 100% at 50% -20%, ${color}18, transparent)`,pointerEvents:"none",zIndex:0}}/>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
-      <button onClick={onBack}style={{pointerEvents:"auto",background:"transparent",border:"none",color:C.blue,cursor:"pointer",padding:"10px 14px",display:"flex",alignItems:"center",gap:4}}>
-        <Ico n="back"c={C.blue}s={18}/><span style={{...T.b,color:C.blue}}>Inicio</span>
+      <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"rgba(0,0,0,.3)",border:"1px solid rgba(255,255,255,.1)",borderRadius:99,cursor:"pointer",padding:"6px 14px 6px 10px",display:"flex",alignItems:"center",gap:4,margin:"10px 14px",backdropFilter:"blur(20px)"}}>
+        <Ico n="back"c={C.blue}s={18}/><span style={{...T.fn,color:C.blue,fontWeight:500}}>Inicio</span>
       </button>
     </div>
-    <div style={{flex:1,overflow:"hidden",paddingTop:44,animation:"fadeIn .25s ease both"}}>
+    <div style={{flex:1,overflow:"hidden",paddingTop:50,position:"relative",zIndex:1,animation:"fadeIn .2s ease both"}}>
       {tab==="lectura"&&<Counters cid={cid}cont={cont}setCont={setCont}user={user}/>}
       {tab==="camara"&&<Camera cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}user={user}/>}
       {tab==="reporte"&&<Report cid={cid}cont={cont}/>}
@@ -1501,6 +1882,9 @@ function Casino({cid,cont,setCont,apiKey,onBack,user}){
     <Tabs tab={tab}setTab={setTab}color={color}/>
   </div>;
 }
+
+
+
 
 // ─── ROOT ─────────────────────────────────────────────────────────────────────
 export default function App(){
@@ -1532,11 +1916,19 @@ export default function App(){
   function auth(u){setUser(u);saveLog({action:"login_ok",target:u,device:navigator.userAgent.slice(0,60)});setSc("home");}
   function out(){saveLog({action:"logout",target:user});setUser(null);setSc("login");}
 
-  const W={width:"100%",maxWidth:430,margin:"0 auto",height:"100dvh",overflow:"hidden",background:C.bg,boxShadow:"0 0 80px rgba(0,0,0,.6)"};
-  if(sc==="boot")return<div style={{...W,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{animation:"pulse 1s ease infinite"}}><Ico n="slot"c={C.indigo}s={52}/></div></div>;
-  if(sc==="login")return<div style={{...W}}><Login onAuth={auth}/></div>;
-  if(sc==="admin"&&user==="Santiago")return<div style={{...W}}><AdminPanel onBack={()=>setSc("home")}user={user}/></div>;
-  if(sc==="cfg")return<div style={{...W}}><Settings onBack={()=>setSc(cid?"casino":"home")}onOut={out}user={user}apiKey={apiKey}onAk={k=>{setAk(k);saveApiKey(k);}}theme={theme}setTheme={t=>{setTheme(t);_theme=THEMES[t];}}pending={pending}onAdmin={()=>setSc("admin")}/></div>;
-  if(sc==="casino"&&cid)return<div style={{...W}}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}user={user}/></div>;
-  return<div style={{...W}}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}pending={pending}/></div>;
+  const W={width:"100%",maxWidth:430,margin:"0 auto",height:"100dvh",overflow:"hidden",background:C.bg,boxShadow:"0 0 120px rgba(0,0,0,.8)",position:"relative"};
+
+  if(sc==="boot")return<div style={{...W,display:"flex",alignItems:"center",justifyContent:"center",background:"#080810",flexDirection:"column",gap:16}}>
+    <style>{ANIM_CSS}</style>
+    <div style={{position:"absolute",top:"30%",left:"30%",width:200,height:200,borderRadius:100,background:`radial-gradient(circle,${C.indigo}25,transparent)`,filter:"blur(60px)"}}/>
+    <div style={{width:80,height:80,borderRadius:24,background:`linear-gradient(145deg,${C.indigo}88,${C.blue})`,display:"flex",alignItems:"center",justifyContent:"center",boxShadow:`0 12px 40px ${C.indigo}55`,animation:"floatUp 2s ease infinite"}}>
+      <Ico n="slot"c="#FFF"s={42}/>
+    </div>
+    <div style={{...T.h,color:"rgba(255,255,255,.4)",letterSpacing:2,fontSize:12,textTransform:"uppercase",animation:"pulse 1.5s ease infinite"}}>Casino Contadores</div>
+  </div>;
+  if(sc==="login")return<div style={W}><Login onAuth={auth}/></div>;
+  if(sc==="admin"&&user==="Santiago")return<div style={W}><AdminPanel onBack={()=>setSc("home")}user={user}/></div>;
+  if(sc==="cfg")return<div style={W}><Settings onBack={()=>setSc(cid?"casino":"home")}onOut={out}user={user}apiKey={apiKey}onAk={k=>{setAk(k);saveApiKey(k);}}theme={theme}setTheme={t=>{setTheme(t);_theme=THEMES[t];}}pending={pending}onAdmin={()=>setSc("admin")}/></div>;
+  if(sc==="casino"&&cid)return<div style={W}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}user={user}/></div>;
+  return<div style={W}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}pending={pending}/></div>;
 }
