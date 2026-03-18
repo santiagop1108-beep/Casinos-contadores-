@@ -3,8 +3,6 @@ import{useState,useEffect,useRef,useCallback,useMemo}from"react";
 
 // ─── CSS ANIMATIONS ───────────────────────────────────────────────────────────
 const ANIM_CSS=`
-@import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap');
-
 *{-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;}
 
 @keyframes fadeUp{0%{opacity:0;transform:translateY(20px) scale(.98)}100%{opacity:1;transform:translateY(0) scale(1)}}
@@ -468,6 +466,13 @@ function StatCard({label,value,color,sub,icon,delay=0}){
   </div>;
 }
 
+
+function CasinoAvatar({cid,size=40}){
+  const C=getC();const m=META[cid];const col=C[m.c];
+  return<div style={{width:size,height:size,borderRadius:size*.26,background:`linear-gradient(145deg,${col}44,${col}99)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:`1px solid ${col}55`,boxShadow:`0 6px 20px ${col}44`}}>
+    <Ico n={m.e}c="#FFF"s={size*.55}/>
+  </div>;
+}
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 function Login({onAuth}){
