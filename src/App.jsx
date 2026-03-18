@@ -262,6 +262,59 @@ function parseNum(v){
 }
 
 
+// Cache para balance desde Sheets
+const _balanceCache={};
+
+async function fetchBalanceFromSheets(cid){
+  if(_balanceCache[cid])return _balanceCache[cid];
+  const sheetId=SHEET_IDS[cid];
+  if(!sheetId)return null;
+
+  // Balance sheet names per casino
+  const balNames={
+    faraon:"Balance",hugo:"Balance",obrero:"Balance",
+    playarica:" Balance",vikingos:"balance"
+  };
+  const sheetName=encodeURIComponent(balNames[cid]||"Balance");
+  const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:C?key=${GAPI_KEY}`;
+
+  try{
+    const r=await fetch(url);
+    if(!r.ok)return null;
+    const data=await r.json();
+    const rows=data.values||[];
+    const TODAY=new Date().toISOString().slice(0,10);
+    const result=[];
+
+    for(const row of rows){
+      // Col A = fecha, B = phys_total (premios), C = util_total
+      const fecha=parseSheetDate(row[0]);
+      if(!fecha||fecha>TODAY)continue;
+      const phys=parseNum(row[1]);
+      const util=parseNum(row[2]);
+      // Skip rows with clearly bad data (formula errors giving huge negatives)
+      if(phys==null||util==null)continue;
+      if(Math.abs(phys)>500000000||Math.abs(util)>500000000)continue;
+      result.push({fecha,phys_total:phys,util_total:util});
+    }
+
+    // Sort by date
+    result.sort((a,b)=>a.fecha.localeCompare(b.fecha));
+    _balanceCache[cid]=result;
+    return result;
+  }catch(e){
+    console.warn(`Balance Sheets ${cid}:`,e.message);
+    return null;
+  }
+}
+
+// Invalidate caches when needed
+function invalidateSheetsCaches(cid){
+  delete _sheetsCache[cid];
+  delete _balanceCache[cid];
+}
+
+
 const META={
   obrero:{n:"Casino Obrero",e:"building",c:"indigo",liq:"3-4 días"},
   vikingos:{n:"Vikingos",e:"sword",c:"orange",liq:"Diario"},
@@ -864,11 +917,30 @@ function Report({cid,cont}){
   const[desde,setDesde]=useState("");const[hasta,setHasta]=useState("");
   const[chartTab,setChartTab]=useState("barras");const[tableMode,setTableMode]=useState("byfecha");
   const[sheetsData,setSheetsData]=useState([]);
-  useEffect(()=>{fetchSheetHist(cid).then(data=>setSheetsData(data)).catch(()=>{});},[cid]);
+  const[liveBalance,setLiveBalance]=useState(null); // null=loading, []=no data, [...]=data
+  const[balLoading,setBalLoading]=useState(true);
+
+  useEffect(()=>{
+    setSheetsData([]);
+    setLiveBalance(null);
+    setBalLoading(true);
+    // Load both in parallel
+    Promise.all([
+      fetchSheetHist(cid).catch(()=>[]),
+      fetchBalanceFromSheets(cid).catch(()=>null)
+    ]).then(([hist,bal])=>{
+      setSheetsData(hist||[]);
+      setLiveBalance(bal||[]);
+      setBalLoading(false);
+    });
+  },[cid]);
 
   function getBals(){
     const b={};
-    (d?.b||[]).forEach(bl=>{b[bl.fecha]={fecha:bl.fecha,util:bl.util_total,phys:bl.phys_total,pa:0,nota:null};});
+    // Use live Sheets balance if available, otherwise fallback to hardcoded D
+    const baseData=(liveBalance&&liveBalance.length>0)?liveBalance:(d?.b||[]);
+    baseData.forEach(bl=>{b[bl.fecha]={fecha:bl.fecha,util:bl.util_total,phys:bl.phys_total,pa:0,nota:null,src:liveBalance&&liveBalance.length>0?"sheets":"local"};});
+    // Overlay local manual entries
     (cont[cid]||[]).forEach(c=>{if(c.u==null)return;if(!b[c.f])b[c.f]={fecha:c.f,util:0,phys:0,pa:0,nota:c.nota||null};
       b[c.f].util+=(c.u||0);b[c.f].phys+=(c.pp||0);if(c.pa)b[c.f].pa=(b[c.f].pa||0)+c.pa;if(c.nota)b[c.f].nota=c.nota;});
     return Object.values(b).sort((a,b)=>b.fecha.localeCompare(a.fecha));
@@ -912,79 +984,152 @@ function Report({cid,cont}){
   const chartPts=useMemo(()=>[...bals].reverse().slice(-30).map(b=>({f:b.fecha.slice(5),util:b.util,phys:b.phys,caja:(b.util||0)+(b.phys||0)-(b.pa||0)})),[bals]);
   const top5=useMemo(()=>[...maqData].sort((a,b)=>b.total-a.total).slice(0,5),[maqData]);
 
-  // ── GRÁFICOS PREMIUM ─────────────────────────────────────────────────────
+  // ── GRÁFICOS PREMIUM v2 ──────────────────────────────────────────────────────
 
-  // Modal de gráfico expandido
-  function ChartModal({title,children,onClose}){
+  // ── Tooltip flotante grande ──────────────────────────────────────────────────
+  function BigTooltip({x,y,data,color,visible}){
+    if(!visible||!data)return null;
     const C=getC();
-    return<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.85)",zIndex:600,display:"flex",flexDirection:"column",animation:"fadeIn .2s ease both"}}
-      onClick={e=>{if(e.target===e.currentTarget)onClose();}}>
-      <div style={{flex:1,display:"flex",flexDirection:"column",padding:"60px 0 0",animation:"slideUp .35s cubic-bezier(.16,1,.3,1) both"}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"0 20px 16px"}}>
-          <div style={{...T.h,color:"#FFF"}}>{title}</div>
-          <button onClick={onClose}style={{background:"rgba(255,255,255,.1)",border:"1px solid rgba(255,255,255,.15)",borderRadius:99,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#FFF"}}>✕</button>
+    const isPos=data.util>=0;
+    return<div style={{
+      position:"absolute",left:Math.min(x,window.innerWidth-180),top:Math.max(y-110,8),
+      background:"rgba(12,12,24,.96)",border:`1px solid ${isPos?C.green:C.red}44`,
+      borderRadius:16,padding:"12px 16px",minWidth:160,pointerEvents:"none",
+      boxShadow:`0 8px 32px rgba(0,0,0,.6), 0 0 0 1px ${isPos?C.green:C.red}22`,
+      backdropFilter:"blur(20px)",zIndex:100,animation:"fadeIn .1s ease both"
+    }}>
+      <div style={{...T.cap,color:C.label2,marginBottom:6,letterSpacing:.8}}>{data.f}</div>
+      <div style={{...T.lg,color:isPos?C.green:C.red,fontSize:24,fontWeight:700,letterSpacing:-1,marginBottom:8}}>{fmtE(data.util)}</div>
+      <div style={{display:"flex",flexDirection:"column",gap:4}}>
+        <div style={{display:"flex",justifyContent:"space-between",gap:16}}>
+          <span style={{...T.cap,color:C.label3}}>Premios</span>
+          <span style={{...T.fn,color:C.orange,fontWeight:600}}>{fmtE(data.phys)}</span>
         </div>
-        <div style={{flex:1,padding:"0 12px 40px",overflowY:"auto"}}>{children}</div>
+        <div style={{display:"flex",justifyContent:"space-between",gap:16}}>
+          <span style={{...T.cap,color:C.label3}}>Caja física</span>
+          <span style={{...T.fn,color:color,fontWeight:600}}>{fmtE((data.util||0)+(data.phys||0))}</span>
+        </div>
+        {data.pa>0&&<div style={{display:"flex",justifyContent:"space-between",gap:16}}>
+          <span style={{...T.cap,color:C.label3}}>Premio Amor</span>
+          <span style={{...T.fn,color:C.yellow,fontWeight:600}}>{fmtE(data.pa)}</span>
+        </div>}
       </div>
     </div>;
   }
 
+  // ── Gráfico de barras con zoom/scroll ────────────────────────────────────────
   function ChartBarras({expanded=false}){
-    const pts=chartPts;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
+    const C=getC();
+    const allPts=[...bals].reverse().map(b=>({
+      f:b.fecha.slice(5),fecha:b.fecha,util:b.util,phys:b.phys,
+      caja:(b.util||0)+(b.phys||0)-(b.pa||0),pa:b.pa||0
+    }));
+    const[zoom,setZoom]=useState(expanded?allPts.length:Math.min(30,allPts.length));
+    const[offset,setOffset]=useState(0);
     const[hov,setHov]=useState(null);
+    const[tooltip,setTooltip]=useState({x:0,y:0,data:null,visible:false});
     const[expandChart,setExpandChart]=useState(false);
-    const maxV=Math.max(...pts.map(p=>Math.max(Math.abs(p.util),Math.abs(p.caja||0))),1);
-    const H=expanded?220:140,W=expanded?window.innerWidth-48:360,pad=12;
-    const bw=Math.max(3,Math.floor((W-pad*2)/pts.length)-3);
-    const chart=<div>
-      <svg width="100%"viewBox={`0 0 ${W} ${H+40}`}style={{overflow:"visible",cursor:"crosshair"}}
-        onMouseLeave={()=>setHov(null)}>
+    const containerRef=useRef(null);
+
+    const pts=allPts.slice(Math.max(0,allPts.length-zoom-offset),allPts.length-offset);
+    const maxV=Math.max(...pts.map(p=>Math.max(Math.abs(p.util),p.caja||0)),1);
+    const H=expanded?260:150;
+    const PAD=40;
+
+    function handleMouseMove(e,i,p){
+      const rect=containerRef.current?.getBoundingClientRect();
+      if(!rect)return;
+      setTooltip({x:e.clientX-rect.left,y:e.clientY-rect.top,data:p,visible:true});
+      setHov(i);
+    }
+
+    function handleWheel(e){
+      e.preventDefault();
+      if(e.ctrlKey||e.metaKey){
+        // Zoom
+        setZoom(z=>Math.max(5,Math.min(allPts.length,z+Math.sign(e.deltaY)*3)));
+      } else {
+        // Scroll
+        setOffset(o=>Math.max(0,Math.min(allPts.length-zoom,o+Math.sign(e.deltaY)*3)));
+      }
+    }
+
+    const chartContent=<div ref={containerRef}style={{position:"relative",userSelect:"none"}}
+      onWheel={handleWheel}onMouseLeave={()=>{setHov(null);setTooltip(t=>({...t,visible:false}));}}>
+      <BigTooltip x={tooltip.x}y={tooltip.y}data={tooltip.data}color={color}visible={tooltip.visible}/>
+      <svg width="100%"viewBox={`0 0 400 ${H+50}`}style={{overflow:"visible",cursor:"crosshair"}}>
         <defs>
-          <linearGradient id="barPos"x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={C.green}stopOpacity=".9"/><stop offset="100%"stopColor={C.green}stopOpacity=".5"/></linearGradient>
-          <linearGradient id="barNeg"x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={C.red}stopOpacity=".5"/><stop offset="100%"stopColor={C.red}stopOpacity=".9"/></linearGradient>
-          <filter id="glow"><feGaussianBlur stdDeviation="3"result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          <linearGradient id="gPos"x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={C.green}stopOpacity=".95"/><stop offset="100%"stopColor={C.green}stopOpacity=".5"/></linearGradient>
+          <linearGradient id="gNeg"x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={C.red}stopOpacity=".5"/><stop offset="100%"stopColor={C.red}stopOpacity=".95"/></linearGradient>
+          <filter id="glow"><feGaussianBlur stdDeviation="4"result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
         </defs>
-        {/* Grid */}
-        {[0,.25,.5,.75,1].map(f=>{const y=H-(f*(H-10))-5;return<g key={f}><line x1={pad}y1={y}x2={W-pad}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,3"/><text x={pad}y={y-3}fontSize="7"fill={C.label3}>{fmt(maxV*f)}</text></g>;})}
-        {/* Caja bars (behind) */}
-        {pts.map((p,i)=>{const x=pad+i*((W-pad*2)/pts.length);const hCaja=Math.max(2,(p.caja||0)/maxV*(H-10));return<rect key={i}x={x+bw*.2}y={H-hCaja}width={bw*.6}height={hCaja}fill={color}opacity=".18"rx="2"/>;})}
+        {/* Grid lines */}
+        {[0,.25,.5,.75,1].map(f=>{
+          const y=H-f*(H-10)-5;
+          return<g key={f}>
+            <line x1={PAD}y1={y}x2={400-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>
+            <text x={PAD-4}y={y+4}fontSize="8"fill={C.label3}textAnchor="end">{fmt(maxV*f)}</text>
+          </g>;
+        })}
+        {/* Caja bars */}
+        {pts.map((p,i)=>{
+          const W=(400-PAD-8)/pts.length;
+          const x=PAD+i*W+W*.1;
+          const h=Math.max(2,(p.caja||0)/maxV*(H-10));
+          return<rect key={i}x={x}y={H-h}width={W*.8}height={h}fill={color}opacity=".15"rx="2"/>;
+        })}
         {/* Util bars */}
         {pts.map((p,i)=>{
-          const x=pad+i*((W-pad*2)/pts.length);
+          const W=(400-PAD-8)/pts.length;
+          const x=PAD+i*W+W*.15;
           const h=Math.max(2,Math.abs(p.util)/maxV*(H-10));
           const barY=p.util>=0?H-h:H;
           const isHov=hov===i;
-          return<g key={i}onMouseEnter={()=>setHov(i)}onTouchStart={()=>setHov(i)}>
-            <rect x={x}y={barY}width={bw}height={h}fill={p.util>=0?"url(#barPos)":"url(#barNeg)"}rx="3"
-              filter={isHov?"url(#glow)":"none"}opacity={hov!==null&&!isHov?.4:1}
-              style={{transformOrigin:`${x+bw/2}px ${H}px`,animation:`barGrow .6s cubic-bezier(.16,1,.3,1) ${i*.015}s both`,transition:"opacity .15s"}}/>
-            {i%(Math.ceil(pts.length/8))===0&&<text x={x+bw/2}y={H+14}fontSize="7.5"fill={C.label3}textAnchor="middle">{p.f.slice(0,5)}</text>}
+          return<g key={i}onMouseMove={e=>handleMouseMove(e,i,p)}onTouchStart={()=>setHov(i)}>
+            <rect x={x}y={barY}width={W*.7}height={h}
+              fill={p.util>=0?"url(#gPos)":"url(#gNeg)"}rx="3"
+              filter={isHov?"url(#glow)":"none"}
+              opacity={hov!==null&&!isHov?.35:1}
+              style={{transformOrigin:`${x+W*.35}px ${H}px`,animation:`barGrow .5s cubic-bezier(.16,1,.3,1) ${i*.01}s both`,transition:"opacity .1s,filter .1s"}}/>
+            {/* X label */}
+            {(i%(Math.max(1,Math.ceil(pts.length/8)))===0)&&
+              <text x={x+W*.35}y={H+14}fontSize="7.5"fill={C.label3}textAnchor="middle"transform={`rotate(-30,${x+W*.35},${H+14})`}>{p.f}</text>}
           </g>;
         })}
-        <line x1={pad}y1={H}x2={W-pad}y2={H}stroke={C.sep}strokeWidth="1"/>
-        {/* Tooltip */}
-        {hov!=null&&(()=>{
-          const p=pts[hov];const x=pad+hov*((W-pad*2)/pts.length);
-          const tx=Math.max(4,Math.min(x,W-90));const isPos=p.util>=0;
-          return<g>
-            <rect x={tx}y={Math.min(H-50,10)}width={86}height={42}fill={C.bg3||"#1C1C2E"}rx="8"filter="url(#glow)"/>
-            <text x={tx+8}y={Math.min(H-50,10)+14}fontSize="8"fill={C.label2}>{p.f}</text>
-            <text x={tx+8}y={Math.min(H-50,10)+28}fontSize="9.5"fill={isPos?C.green:C.red}fontWeight="700">{fmt(p.util)}</text>
-          </g>;
-        })()}
+        <line x1={PAD}y1={H}x2={400-8}y2={H}stroke={C.sep}strokeWidth="1"/>
       </svg>
-      <div style={{display:"flex",gap:14,justifyContent:"center",marginTop:4,flexWrap:"wrap"}}>
-        {[[C.green,"Utilidad positiva"],[C.red,"Pérdida"],[`${color}60`,"Caja física"]].map(([col,lbl])=>
+      {/* Zoom/scroll controls */}
+      <div style={{display:"flex",alignItems:"center",gap:8,marginTop:8,flexWrap:"wrap"}}>
+        <div style={{display:"flex",gap:4}}>
+          {[7,14,30,allPts.length].map(n=><button key={n}onClick={()=>{setZoom(Math.min(n,allPts.length));setOffset(0);}}
+            style={{background:zoom===Math.min(n,allPts.length)&&offset===0?color:C.fill3,border:"none",borderRadius:8,padding:"4px 10px",...T.cap,color:zoom===Math.min(n,allPts.length)&&offset===0?"#000":C.label2,cursor:"pointer",fontWeight:600}}>
+            {n===allPts.length?"Todo":`${n}d`}
+          </button>)}
+        </div>
+        <div style={{flex:1}}/>
+        <div style={{...T.cap,color:C.label3}}>⌘+scroll=zoom · scroll=navegar</div>
+      </div>
+      {/* Scroll bar visual */}
+      {allPts.length>zoom&&<div style={{background:C.fill3,borderRadius:4,height:3,marginTop:6,position:"relative"}}>
+        <div style={{background:color,borderRadius:4,height:"100%",position:"absolute",
+          left:`${(offset/(allPts.length-zoom))*100*(1-zoom/allPts.length)}%`,
+          width:`${(zoom/allPts.length)*100}%`,transition:"all .1s"}}/>
+      </div>}
+      {/* Legend */}
+      <div style={{display:"flex",gap:14,justifyContent:"center",marginTop:10,flexWrap:"wrap"}}>
+        {[[C.green,"Utilidad"],[C.red,"Pérdida"],[`${color}60`,"Caja física"]].map(([col,lbl])=>
           <div key={lbl}style={{display:"flex",alignItems:"center",gap:5,...T.cap,color:C.label2}}>
             <div style={{width:10,height:10,borderRadius:3,background:col}}/>
             {lbl}
           </div>)}
       </div>
     </div>;
+
     return<div>
-      {chart}
-      {!expanded&&<button onClick={()=>setExpandChart(true)}style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:8,...T.fn,color:C.label2,cursor:"pointer"}}>
-        ⤢ Expandir gráfico
+      {chartContent}
+      {!expanded&&<button onClick={()=>setExpandChart(true)}className="btn-press"
+        style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:10,...T.fn,color:C.label2,cursor:"pointer"}}>
+        ⤢ Pantalla completa
       </button>}
       {expandChart&&<ChartModal title="Utilidad por período"onClose={()=>setExpandChart(false)}>
         <ChartBarras expanded={true}/>
@@ -992,94 +1137,211 @@ function Report({cid,cont}){
     </div>;
   }
 
+  // ── Gráfico de línea interactivo ─────────────────────────────────────────────
   function ChartLinea({expanded=false}){
-    const pts=chartPts;if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
-    const[hov,setHov]=useState(null);const[expandChart,setExpandChart]=useState(false);
-    const vals=pts.map(p=>p.util);
-    const minV=Math.min(...vals),maxV=Math.max(...vals);const range=maxV-minV||1;
-    const W=expanded?window.innerWidth-48:360,H=expanded?240:130,pad=28;
-    const toX=i=>pad+i*(W-pad*2)/(pts.length-1);
+    const C=getC();
+    const allPts=[...bals].reverse().map(b=>({
+      f:b.fecha.slice(5),fecha:b.fecha,util:b.util,phys:b.phys,
+      caja:(b.util||0)+(b.phys||0)-(b.pa||0),pa:b.pa||0
+    }));
+    const[series,setSeries]=useState(["util"]);
+    const[hov,setHov]=useState(null);
+    const[expandChart,setExpandChart]=useState(false);
+    const containerRef=useRef(null);
+    const[tooltip,setTooltip]=useState({x:0,y:0,data:null,visible:false});
+    const pts=allPts;
+    if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
+
+    const seriesDef=[
+      {key:"util",label:"Utilidad",color:C.green},
+      {key:"phys",label:"Premios",color:C.orange},
+      {key:"caja",label:"Caja física",color:color},
+    ];
+
+    const allVals=pts.flatMap(p=>series.map(s=>p[s]||0));
+    const minV=Math.min(...allVals),maxV=Math.max(...allVals);const range=maxV-minV||1;
+    const H=expanded?280:150,W=400,PAD=44;
+    const toX=i=>PAD+i*(W-PAD-8)/(pts.length-1);
     const toY=v=>H-((v-minV)/range)*(H-16)-8;
-    const pathD=pts.map((p,i)=>`${i===0?"M":"L"}${toX(i)},${toY(p.util)}`).join(" ");
-    const areaD=`M${toX(0)},${H} `+pts.map((p,i)=>`L${toX(i)},${toY(p.util)}`).join(" ")+` L${toX(pts.length-1)},${H} Z`;
-    const trend=vals[vals.length-1]>=vals[0];
-    const tCol=trend?C.green:C.red;
-    const avgVal=Math.round(vals.reduce((s,v)=>s+v,0)/vals.length);
-    const avgY=toY(avgVal);
-    const id=`lg-${Math.random().toString(36).slice(2,6)}`;
-    const chart=<div>
-      <div style={{display:"flex",gap:12,marginBottom:12,flexWrap:"wrap"}}>
-        {[[trend?"↗ Tendencia alcista":"↘ Tendencia bajista",tCol],[`Promedio: ${fmt(avgVal)}`,C.label2],[`Máx: ${fmt(maxV)}`,C.green],[`Mín: ${fmt(minV)}`,C.red]].map(([l,c])=>
-          <div key={l}style={{...T.cap,color:c,fontWeight:600}}>{l}</div>)}
+    const avgUtil=Math.round(pts.reduce((s,p)=>s+(p.util||0),0)/pts.length);
+
+    function handleSvgMove(e){
+      const rect=e.currentTarget.getBoundingClientRect();
+      const x=e.clientX-rect.left;
+      const svgW=rect.width;
+      const idx=Math.round((x-PAD*(svgW/W))/((svgW-PAD*(svgW/W)-8*(svgW/W))/(pts.length-1)));
+      const clamped=Math.max(0,Math.min(pts.length-1,idx));
+      setHov(clamped);
+      const contRect=containerRef.current?.getBoundingClientRect();
+      if(contRect)setTooltip({x:e.clientX-contRect.left,y:e.clientY-contRect.top,data:pts[clamped],visible:true});
+    }
+
+    const id=`ln-${Math.random().toString(36).slice(2,6)}`;
+    const chartContent=<div ref={containerRef}style={{position:"relative"}}
+      onMouseLeave={()=>{setHov(null);setTooltip(t=>({...t,visible:false}));}}>
+      <BigTooltip x={tooltip.x}y={tooltip.y}data={tooltip.data}color={color}visible={tooltip.visible}/>
+      {/* Series toggles */}
+      <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
+        {seriesDef.map(s=><button key={s.key}onClick={()=>setSeries(prev=>prev.includes(s.key)?prev.filter(x=>x!==s.key):[...prev,s.key])}
+          style={{display:"flex",alignItems:"center",gap:5,background:series.includes(s.key)?`${s.color}20`:C.fill3,border:`1px solid ${series.includes(s.key)?s.color:C.sep}`,borderRadius:20,padding:"4px 12px",cursor:"pointer",...T.cap,color:series.includes(s.key)?s.color:C.label2,fontWeight:600}}>
+          <div style={{width:8,height:8,borderRadius:4,background:series.includes(s.key)?s.color:C.label3}}/>
+          {s.label}
+        </button>)}
       </div>
-      <svg width="100%"viewBox={`0 0 ${W} ${H+24}`}style={{overflow:"visible",cursor:"crosshair"}}
-        onMouseLeave={()=>setHov(null)}>
+      <svg width="100%"viewBox={`0 0 ${W} ${H+30}`}style={{overflow:"visible",cursor:"crosshair"}}
+        onMouseMove={handleSvgMove}>
         <defs>
-          <linearGradient id={id}x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={tCol}stopOpacity=".3"/><stop offset="100%"stopColor={tCol}stopOpacity="0"/></linearGradient>
-          <filter id="glw2"><feGaussianBlur stdDeviation="2"result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+          {seriesDef.map(s=><linearGradient key={s.key}id={`${id}-${s.key}`}x1="0"y1="0"x2="0"y2="1">
+            <stop offset="0%"stopColor={s.color}stopOpacity=".25"/>
+            <stop offset="100%"stopColor={s.color}stopOpacity="0"/>
+          </linearGradient>)}
         </defs>
-        {[0,.25,.5,.75,1].map(f=>{const y=H-((maxV-minV)*f/range*(H-16))-8+(minV/range*(H-16));return<line key={f}x1={pad}y1={y}x2={W-pad}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>;})}
+        {/* Grid */}
+        {[0,.25,.5,.75,1].map(f=>{const y=H-((maxV-minV)*f/range*(H-16))-8+(minV/range*(H-16));return<g key={f}>
+          <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>
+          <text x={PAD-4}y={y+4}fontSize="7.5"fill={C.label3}textAnchor="end">{fmt(maxV-(maxV-minV)*f)}</text>
+        </g>;})}
         {/* Average line */}
-        <line x1={pad}y1={avgY}x2={W-pad}y2={avgY}stroke={C.label3}strokeWidth="1"strokeDasharray="6,4"/>
-        <text x={pad}y={avgY-3}fontSize="7"fill={C.label3}>promedio</text>
-        {/* Area */}
-        <path d={areaD}fill={`url(#${id})`}/>
-        {/* Line */}
-        <path d={pathD}fill="none"stroke={tCol}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"
-          style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1.2s cubic-bezier(.16,1,.3,1) .1s forwards"}}/>
-        {/* Hover points */}
-        {pts.map((p,i)=><circle key={i}cx={toX(i)}cy={toY(p.util)}r={hov===i?6:3}
-          fill={p.util>=0?C.green:C.red}stroke={C.bg||"#080810"}strokeWidth="2"
-          onMouseEnter={()=>setHov(i)}onTouchStart={()=>setHov(i)}
-          style={{cursor:"default",transition:"r .15s",filter:hov===i?"url(#glw2)":"none"}}/>)}
-        {/* X labels */}
-        {pts.filter((_,i)=>i%(Math.ceil(pts.length/6))===0).map((p,i)=><text key={i}x={toX(pts.indexOf(p))}y={H+16}fontSize="7.5"fill={C.label3}textAnchor="middle">{p.f.slice(0,5)}</text>)}
-        {/* Tooltip */}
-        {hov!=null&&(()=>{
-          const p=pts[hov];const tx=Math.max(4,Math.min(toX(hov)-40,W-90));
-          return<g>
-            <line x1={toX(hov)}y1={0}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1"strokeDasharray="4,3"/>
-            <rect x={tx}y={Math.max(2,toY(p.util)-36)}width={88}height={34}fill={C.bg3||"#1C1C2E"}rx="8"/>
-            <text x={tx+8}y={Math.max(2,toY(p.util)-36)+13}fontSize="8"fill={C.label2}>{p.f}</text>
-            <text x={tx+8}y={Math.max(2,toY(p.util)-36)+27}fontSize="10"fill={p.util>=0?C.green:C.red}fontWeight="700">{fmt(p.util)}</text>
+        {series.includes("util")&&<>
+          <line x1={PAD}y1={toY(avgUtil)}x2={W-8}y2={toY(avgUtil)}stroke={C.label3}strokeWidth="1"strokeDasharray="5,4"/>
+          <text x={W-6}y={toY(avgUtil)-3}fontSize="7"fill={C.label3}textAnchor="end">prom</text>
+        </>}
+        {/* Areas + Lines */}
+        {seriesDef.filter(s=>series.includes(s.key)).map(s=>{
+          const pathD=pts.map((p,i)=>`${i===0?"M":"L"}${toX(i)},${toY(p[s.key]||0)}`).join(" ");
+          const areaD=`M${toX(0)},${H} `+pts.map((p,i)=>`L${toX(i)},${toY(p[s.key]||0)}`).join(" ")+` L${toX(pts.length-1)},${H} Z`;
+          return<g key={s.key}>
+            <path d={areaD}fill={`url(#${id}-${s.key})`}/>
+            <path d={pathD}fill="none"stroke={s.color}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"
+              style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s cubic-bezier(.16,1,.3,1) forwards"}}/>
           </g>;
-        })()}
+        })}
+        {/* Hover line + dots */}
+        {hov!=null&&<>
+          <line x1={toX(hov)}y1={8}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1.5"strokeDasharray="4,3"/>
+          {seriesDef.filter(s=>series.includes(s.key)).map(s=>
+            <circle key={s.key}cx={toX(hov)}cy={toY(pts[hov][s.key]||0)}r="5"fill={s.color}stroke={C.bg||"#080810"}strokeWidth="2"
+              style={{filter:`drop-shadow(0 0 4px ${s.color})`}}/>)}
+        </>}
+        {/* X labels */}
+        {pts.filter((_,i)=>i%(Math.max(1,Math.ceil(pts.length/8)))===0).map((p,i)=>
+          <text key={i}x={toX(pts.indexOf(p))}y={H+18}fontSize="7.5"fill={C.label3}textAnchor="middle">{p.f}</text>)}
       </svg>
     </div>;
+
     return<div>
-      {chart}
-      {!expanded&&<button onClick={()=>setExpandChart(true)}style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:8,...T.fn,color:C.label2,cursor:"pointer"}}>⤢ Expandir gráfico</button>}
-      {expandChart&&<ChartModal title="Tendencia de utilidad"onClose={()=>setExpandChart(false)}><ChartLinea expanded={true}/></ChartModal>}
+      {chartContent}
+      {!expanded&&<button onClick={()=>setExpandChart(true)}className="btn-press"
+        style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:8,...T.fn,color:C.label2,cursor:"pointer"}}>
+        ⤢ Pantalla completa
+      </button>}
+      {expandChart&&<ChartModal title="Tendencia"onClose={()=>setExpandChart(false)}><ChartLinea expanded={true}/></ChartModal>}
     </div>;
   }
 
+  // ── Gráfico de área acumulada ─────────────────────────────────────────────────
+  function ChartArea(){
+    const C=getC();
+    const pts=[...bals].reverse();
+    if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
+    const[expandChart,setExpandChart]=useState(false);
+    // Cumulative sum
+    let cum=0;
+    const cumPts=pts.map(p=>{cum+=(p.util||0);return{f:p.fecha.slice(5),util:p.util,cum};});
+    const minC=Math.min(...cumPts.map(p=>p.cum)),maxC=Math.max(...cumPts.map(p=>p.cum));
+    const range=maxC-minC||1;
+    const H=150,W=400,PAD=50;
+    const toX=i=>PAD+i*(W-PAD-8)/(cumPts.length-1);
+    const toY=v=>H-((v-minC)/range)*(H-16)-8;
+    const finalIsPos=cumPts[cumPts.length-1]?.cum>=0;
+    const pathD=cumPts.map((p,i)=>`${i===0?"M":"L"}${toX(i)},${toY(p.cum)}`).join(" ");
+    const areaD=`M${toX(0)},${toY(0)} `+cumPts.map((p,i)=>`L${toX(i)},${toY(p.cum)}`).join(" ")+` L${toX(cumPts.length-1)},${toY(0)} Z`;
+    const id="ca-"+Math.random().toString(36).slice(2,6);
+    const zeroY=toY(0);
+
+    return<div>
+      <div style={{...T.cap,color:C.label2,marginBottom:8}}>Acumulado total del período seleccionado</div>
+      <div style={{...T.h,color:finalIsPos?C.green:C.red,fontSize:22,fontWeight:700,marginBottom:12}}>
+        {fmtE(cumPts[cumPts.length-1]?.cum||0)}
+      </div>
+      <svg width="100%"viewBox={`0 0 ${W} ${H+24}`}style={{overflow:"visible"}}>
+        <defs>
+          <linearGradient id={id}x1="0"y1="0"x2="0"y2="1">
+            <stop offset="0%"stopColor={finalIsPos?C.green:C.red}stopOpacity=".4"/>
+            <stop offset="100%"stopColor={finalIsPos?C.green:C.red}stopOpacity=".02"/>
+          </linearGradient>
+        </defs>
+        {[0,.25,.5,.75,1].map(f=>{const y=H-((maxC-minC)*f/range*(H-16))-8+(minC/range*(H-16));return<g key={f}>
+          <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/>
+          <text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(maxC-(maxC-minC)*f)}</text>
+        </g>;})}
+        {zeroY>8&&zeroY<H&&<line x1={PAD}y1={zeroY}x2={W-8}y2={zeroY}stroke={C.sep}strokeWidth="1.5"/>}
+        <path d={areaD}fill={`url(#${id})`}/>
+        <path d={pathD}fill="none"stroke={finalIsPos?C.green:C.red}strokeWidth="2.5"strokeLinecap="round"strokeLinejoin="round"
+          style={{strokeDasharray:4000,strokeDashoffset:4000,animation:"lineIn 1.4s cubic-bezier(.16,1,.3,1) forwards"}}/>
+        <circle cx={toX(cumPts.length-1)}cy={toY(cumPts[cumPts.length-1].cum)}r="5"fill={finalIsPos?C.green:C.red}stroke={C.bg||"#080810"}strokeWidth="2"
+          style={{filter:`drop-shadow(0 0 6px ${finalIsPos?C.green:C.red})`}}/>
+        {cumPts.filter((_,i)=>i%(Math.max(1,Math.ceil(cumPts.length/7)))===0).map((p,i)=>
+          <text key={i}x={toX(cumPts.findIndex(cp=>cp.f===p.f))}y={H+16}fontSize="7.5"fill={C.label3}textAnchor="middle">{p.f}</text>)}
+      </svg>
+      <button onClick={()=>setExpandChart(true)}className="btn-press"
+        style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:8,...T.fn,color:C.label2,cursor:"pointer"}}>
+        ⤢ Pantalla completa
+      </button>
+      {expandChart&&<ChartModal title="Acumulado"onClose={()=>setExpandChart(false)}><ChartArea/></ChartModal>}
+    </div>;
+  }
+
+  // ── Top 5 máquinas ────────────────────────────────────────────────────────────
   function ChartTop5(){
     const top=top5.filter(m=>m.periods>0);
-    if(!top.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos — ingresa lecturas locales o carga el historial de Sheets</div>;
+    if(!top.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30,lineHeight:1.6}}>
+      Sin datos — ingresa lecturas manuales<br/>o carga el historial desde Sheets
+    </div>;
     const maxTot=Math.max(...top.map(m=>Math.abs(m.total)),1);
     return<div style={{padding:"4px 0"}}>
       {top.map((mq,i)=>{
-        const pct=Math.abs(mq.total)/maxTot*100;const col=maqC(mq.factor,C);
-        const isPos=mq.total>=0;
-        return<div key={mq.id}style={{marginBottom:16,animation:`fadeUp .4s ease ${i*.06}s both`}}>
+        const pct=Math.abs(mq.total)/maxTot*100;const col=maqC(mq.factor,C);const isPos=mq.total>=0;
+        return<div key={mq.id}style={{marginBottom:18,animation:`fadeUp .4s ease ${i*.07}s both`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <MaqIcon factor={mq.factor}nombre={mq.nombre}size={30}/>
+              <MaqIcon factor={mq.factor}nombre={mq.nombre}size={32}/>
               <div>
                 <div style={{...T.s,color:C.label,fontWeight:600}}>{mq.nombre}</div>
-                <div style={{...T.cap,color:C.label2}}>{mq.periods} períodos · prom {fmtE(mq.periods?Math.round(mq.total/mq.periods):0)}</div>
+                <div style={{...T.cap,color:C.label2,marginTop:1}}>
+                  {mq.periods} per · prom <span style={{color:col}}>{fmtE(mq.periods?Math.round(mq.total/mq.periods):0)}</span>
+                </div>
               </div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:8}}>
-              {mq.history.length>1&&<Sparkline data={mq.history}color={col}height={28}width={56}/>}
-              <span style={{...T.c,color:isPos?C.green:C.red,fontWeight:700,minWidth:70,textAlign:"right"}}>{fmtE(mq.total)}</span>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              {mq.history.length>1&&<Sparkline data={mq.history}color={col}height={32}width={60}/>}
+              <div style={{textAlign:"right"}}>
+                <div style={{...T.h,color:isPos?C.green:C.red,fontWeight:700,fontSize:16}}>{fmtE(mq.total)}</div>
+                <div style={{...T.cap,color:C.label3}}>{isPos?"↑ ganancia":"↓ pérdida"}</div>
+              </div>
             </div>
           </div>
-          <div style={{background:C.fill3,borderRadius:6,height:5,overflow:"hidden"}}>
-            <div style={{height:"100%",background:`linear-gradient(90deg,${col}66,${col})`,borderRadius:6,transition:"width .8s cubic-bezier(.16,1,.3,1)",width:`${pct}%`}}/>
+          <div style={{background:C.fill3,borderRadius:6,height:6,overflow:"hidden",position:"relative"}}>
+            <div style={{height:"100%",background:`linear-gradient(90deg,${col}66,${col})`,borderRadius:6,transition:"width .9s cubic-bezier(.16,1,.3,1)",width:`${pct}%`,boxShadow:`0 0 8px ${col}44`}}/>
           </div>
         </div>;
       })}
+    </div>;
+  }
+
+  // ── Modal de gráfico expandido ────────────────────────────────────────────────
+  function ChartModal({title,children,onClose}){
+    const C=getC();
+    useEffect(()=>{
+      document.body.style.overflow="hidden";
+      return()=>{document.body.style.overflow="";};
+    },[]);
+    return<div style={{position:"fixed",inset:0,background:"rgba(4,4,12,.95)",zIndex:600,display:"flex",flexDirection:"column",animation:"fadeIn .2s ease both",backdropFilter:"blur(10px)"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 20px",borderBottom:`1px solid ${C.sep}`}}>
+        <div style={{...T.h,color:C.label}}>{title}</div>
+        <button onClick={onClose}className="btn-press"style={{background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:99,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.label,...T.h}}>✕</button>
+      </div>
+      <div style={{flex:1,padding:"16px 16px 40px",overflowY:"auto"}}>{children}</div>
     </div>;
   }
 
@@ -1130,7 +1392,12 @@ function Report({cid,cont}){
       {/* KPI Hero */}
       <div className="fade-up"style={{background:`linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,.02))`,borderRadius:24,padding:"20px",marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(20px)",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:60,background:`${color}12`,pointerEvents:"none"}}/>
-        <div style={{...T.cap,color:C.label2,letterSpacing:1.2,marginBottom:6,textTransform:"uppercase"}}>Utilidad Total · {bals.length} períodos</div>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+          <div style={{...T.cap,color:C.label2,letterSpacing:1.2,textTransform:"uppercase"}}>Utilidad Total · {bals.length} períodos</div>
+          {balLoading&&<div style={{...T.cap,color:C.teal,background:`${C.teal}15`,borderRadius:20,padding:"1px 8px",border:`1px solid ${C.teal}33`,animation:"pulse 1s infinite"}}>↻ Cargando</div>}
+          {!balLoading&&liveBalance&&liveBalance.length>0&&<div style={{...T.cap,color:C.green,background:`${C.green}15`,borderRadius:20,padding:"1px 8px",border:`1px solid ${C.green}33`}}>● Live</div>}
+          {!balLoading&&liveBalance&&liveBalance.length===0&&<div style={{...T.cap,color:C.orange,background:`${C.orange}15`,borderRadius:20,padding:"1px 8px",border:`1px solid ${C.orange}33`}}>Offline</div>}
+        </div>
         <AnimNumber value={totUtil}style={{...T.lg,color:totUtil>=0?C.green:C.red,fontSize:38,fontWeight:700,letterSpacing:-1,display:"block",marginBottom:16}}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
           {[["Premios",totPhys,C.orange,"trophy"],["Caja",totCaja,color,"report"],["Promedio",avg,C.blue,"chart"]].map(([lbl,val,col,ic],i)=>
@@ -1168,16 +1435,14 @@ function Report({cid,cont}){
 
       {/* GRÁFICA */}
       {vista==="grafica"&&<>
-        <div style={{display:"flex",background:C.bg2,borderRadius:12,padding:3,marginBottom:12,border:`1px solid ${C.sep}`}}>
-          {[["barras","Barras"],["linea","Tendencia"],["top5","Top Máquinas"]].map(([v,l])=>
-            <button key={v}onClick={()=>setChartTab(v)}style={{flex:1,background:chartTab===v?C.bg3:"transparent",border:"none",borderRadius:10,padding:"8px",color:chartTab===v?C.label:C.label2,cursor:"pointer",...T.fn,fontWeight:chartTab===v?700:400,transition:"all .15s"}}>{l}</button>)}
+        <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:12,border:`1px solid ${C.sep}`,overflowX:"auto"}}>
+          {[["barras","Barras"],["linea","Líneas"],["area","Acumulado"],["top5","Top Máqs"]].map(([v,l])=>
+            <button key={v}onClick={()=>setChartTab(v)}className="btn-press"style={{flex:"0 0 auto",background:chartTab===v?`${color}22`:"transparent",border:chartTab===v?`1px solid ${color}33`:"1px solid transparent",borderRadius:12,padding:"8px 14px",color:chartTab===v?color:C.label2,cursor:"pointer",...T.fn,fontWeight:chartTab===v?700:400,transition:"all .2s",whiteSpace:"nowrap"}}>{l}</button>)}
         </div>
-        <div style={{background:C.bg2,borderRadius:16,padding:"16px 12px 10px",border:`1px solid ${C.sep}`,animation:"fadeSlideUp .3s ease both"}}>
-          <div style={{...T.fn,color:C.label2,marginBottom:10,paddingLeft:4,fontWeight:600}}>
-            {chartTab==="barras"?"Utilidad por período (últimos 30)":chartTab==="linea"?"Línea de tendencia":"Top 5 máquinas"}
-          </div>
+        <div style={{background:"rgba(255,255,255,.03)",borderRadius:18,padding:"16px 14px 12px",border:`1px solid ${C.sep}`,backdropFilter:"blur(20px)"}}>
           {chartTab==="barras"&&<ChartBarras/>}
           {chartTab==="linea"&&<ChartLinea/>}
+          {chartTab==="area"&&<ChartArea/>}
           {chartTab==="top5"&&<ChartTop5/>}
         </div>
       </>}
@@ -1684,7 +1949,7 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}
 }
 
 // ─── HOME ─────────────────────────────────────────────────────────────────────
-function Home({onSelect,onCfg,user,pending}){
+function Home({onSelect,onCfg,onComparar,user,pending}){
   const C=getC();const[sy,setSy]=useState(0);
   const lastBal=cid=>{const d=D[cid];if(!d?.b?.length)return null;return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];};
   const total=Object.keys(META).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
@@ -1696,6 +1961,7 @@ function Home({onSelect,onCfg,user,pending}){
     <div style={{position:"fixed",top:0,left:0,right:0,height:320,pointerEvents:"none",zIndex:0,background:`radial-gradient(ellipse 80% 60% at 50% -10%, ${C.indigo}22, transparent)`}}/>
 
     <Nav title="Casinos"sub={`Hola, ${user}`}sy={sy}right={[
+      {icon:<svg width="17"height="17"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><rect x="3"y="3"width="7"height="7"rx="1"/><rect x="14"y="3"width="7"height="7"rx="1"/><rect x="3"y="14"width="7"height="7"rx="1"/><rect x="14"y="14"width="7"height="7"rx="1"/></svg>,fn:onComparar},
       ...(pending>0?[{icon:<div style={{position:"relative"}}><Ico n="sync"c={C.orange}s={17}/><div style={{position:"absolute",top:-5,right:-5}}><Badge n={pending}c={C.orange}/></div></div>,fn:()=>{}}]:[]),
       {icon:"settings",fn:onCfg}
     ]}/>
@@ -1771,12 +2037,246 @@ function Home({onSelect,onCfg,user,pending}){
 }
 
 
+// ─── COMPARAR CASINOS ────────────────────────────────────────────────────────
+function Comparar({onBack}){
+  const C=getC();
+  const[selected,setSelected]=useState(Object.keys(META));
+  const[metric,setMetric]=useState("util"); // util | phys | caja
+  const[period,setPeriod]=useState("mes");
+  const[mes,setMes]=useState(today().slice(0,7));
+  const[data,setData]=useState({}); // { cid: [{fecha,util,phys,caja}] }
+  const[loading,setLoading]=useState(true);
+  const[chartType,setChartType]=useState("barras"); // barras | linea | radar
+  const[sy,setSy]=useState(0);
+
+  useEffect(()=>{
+    setLoading(true);
+    Promise.all(Object.keys(META).map(cid=>
+      fetchBalanceFromSheets(cid)
+        .then(bal=>[cid,bal&&bal.length>0?bal:D[cid]?.b?.map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}))||[]])
+        .catch(()=>[cid,D[cid]?.b?.map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}))||[]])
+    )).then(results=>{
+      const d={};
+      results.forEach(([cid,rows])=>{
+        d[cid]=rows.map(r=>({
+          fecha:r.fecha,
+          util:r.util_total||0,
+          phys:r.phys_total||0,
+          caja:(r.util_total||0)+(r.phys_total||0),
+        }));
+      });
+      setData(d);
+      setLoading(false);
+    });
+  },[]);
+
+  function filterRows(rows){
+    if(!rows)return[];
+    const t=today();
+    if(period==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);const s=d7.toISOString().slice(0,10);return rows.filter(r=>r.fecha>=s&&r.fecha<=t);}
+    if(period==="mes")return rows.filter(r=>r.fecha.slice(0,7)===mes);
+    if(period==="3m"){const d3=new Date();d3.setMonth(d3.getMonth()-3);return rows.filter(r=>r.fecha>=d3.toISOString().slice(0,10));}
+    return rows;
+  }
+
+  const metricLabel={util:"Utilidad",phys:"Premios pagados",caja:"Caja física"};
+  const metricColor={util:C.green,phys:C.orange,caja:C.blue};
+
+  // Totals per casino for selected period
+  const totals=Object.keys(META).map(cid=>{
+    const rows=filterRows(data[cid]||[]);
+    const total=rows.reduce((s,r)=>s+(r[metric]||0),0);
+    const periods=rows.length;
+    const avg=periods?Math.round(total/periods):0;
+    const best=rows.length?Math.max(...rows.map(r=>r[metric]||0)):0;
+    return{cid,total,periods,avg,best,rows};
+  }).sort((a,b)=>b.total-a.total);
+
+  const maxTotal=Math.max(...totals.map(t=>Math.abs(t.total)),1);
+
+  // Build unified timeline for line chart
+  const allDates=[...new Set(Object.values(data).flatMap(rows=>filterRows(rows).map(r=>r.fecha)))].sort();
+
+  // Radar chart data
+  const categories=["Utilidad","Premios","Períodos","Consistencia","Tendencia"];
+
+  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",background:C.bg}}>
+    <style>{ANIM_CSS}</style>
+    <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
+      <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"rgba(0,0,0,.35)",border:"1px solid rgba(255,255,255,.12)",borderRadius:99,cursor:"pointer",padding:"6px 14px 6px 10px",display:"flex",alignItems:"center",gap:4,margin:"10px 14px",backdropFilter:"blur(20px)"}}>
+        <Ico n="back"c={C.blue}s={18}/><span style={{...T.fn,color:C.blue,fontWeight:500}}>Inicio</span>
+      </button>
+    </div>
+
+    <div style={{paddingTop:50,paddingBottom:100}}>
+      {/* Header */}
+      <div style={{padding:"0 16px 16px",borderBottom:`1px solid ${C.sep}`}}>
+        <div style={{...T.lg,color:C.label,letterSpacing:-.5,marginBottom:4}}>Comparar Casinos</div>
+        <div style={{...T.s,color:C.label2}}>Análisis comparativo entre locales</div>
+      </div>
+
+      <div style={{padding:"16px"}}>
+        {/* Period selector */}
+        <div style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
+          {[["semana","7 días"],["mes","Mes"],["3m","3 meses"],["todo","Todo"]].map(([v,l])=>
+            <button key={v}onClick={()=>setPeriod(v)}className="btn-press"style={{flexShrink:0,background:period===v?C.indigo:"transparent",border:`1px solid ${period===v?C.indigo:C.sep}`,borderRadius:20,padding:"5px 14px",color:period===v?"#FFF":C.label2,cursor:"pointer",...T.fn,fontWeight:period===v?700:400}}>{l}</button>)}
+        </div>
+        {period==="mes"&&<div style={{background:C.bg2,borderRadius:12,padding:"8px 12px",marginBottom:14,border:`1px solid ${C.sep}`,display:"flex",gap:8,alignItems:"center"}}>
+          <span style={{...T.s,color:C.label2}}>Mes:</span>
+          <input type="month"value={mes}onChange={e=>setMes(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer"}}/>
+        </div>}
+
+        {/* Metric selector */}
+        <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:16,border:`1px solid ${C.sep}`}}>
+          {[["util","Utilidad"],["phys","Premios"],["caja","Caja"]].map(([v,l])=>
+            <button key={v}onClick={()=>setMetric(v)}className="btn-press"style={{flex:1,background:metric===v?`${metricColor[v]}22`:"transparent",border:metric===v?`1px solid ${metricColor[v]}33`:"1px solid transparent",borderRadius:12,padding:"8px",color:metric===v?metricColor[v]:C.label2,cursor:"pointer",...T.fn,fontWeight:metric===v?700:400,transition:"all .2s"}}>{l}</button>)}
+        </div>
+
+        {loading?<div style={{textAlign:"center",padding:40}}>
+          <div style={{...T.h,color:C.label2,marginBottom:8}}>Cargando datos...</div>
+          <div style={{display:"flex",gap:6,justifyContent:"center"}}>
+            {Object.keys(META).map((cid,i)=><div key={cid}style={{width:8,height:8,borderRadius:4,background:C[META[cid].c],animation:`pulse 1.2s ease ${i*.15}s infinite`}}/>)}
+          </div>
+        </div>:<>
+
+          {/* Chart type selector */}
+          <div style={{display:"flex",gap:6,marginBottom:12}}>
+            {[["barras","Barras"],["linea","Tendencia"],["ranking","Ranking"]].map(([v,l])=>
+              <button key={v}onClick={()=>setChartType(v)}className="btn-press"style={{flex:1,background:chartType===v?`${C.indigo}22`:"transparent",border:`1px solid ${chartType===v?C.indigo:C.sep}`,borderRadius:12,padding:"8px",...T.fn,color:chartType===v?C.indigo:C.label2,cursor:"pointer",fontWeight:chartType===v?700:400}}>{l}</button>)}
+          </div>
+
+          {/* BARRAS COMPARATIVO */}
+          {chartType==="barras"&&<div style={{background:"rgba(255,255,255,.03)",borderRadius:18,padding:"16px 14px",border:`1px solid ${C.sep}`,marginBottom:16}}>
+            <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600}}>{metricLabel[metric]} por casino</div>
+            {totals.map((t,i)=>{
+              const col=C[META[t.cid].c];
+              const pct=Math.abs(t.total)/maxTotal*100;
+              const isPos=t.total>=0;
+              return<div key={t.cid}className="fade-up"style={{marginBottom:14,animationDelay:`${i*.05}s`}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10}}>
+                    <CasinoAvatar cid={t.cid}size={32}/>
+                    <div>
+                      <div style={{...T.s,color:C.label,fontWeight:600}}>{META[t.cid].n}</div>
+                      <div style={{...T.cap,color:C.label2}}>{t.periods} períodos · prom {fmtE(t.avg)}</div>
+                    </div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{...T.h,color:isPos?C.green:C.red,fontWeight:700}}>{fmtE(t.total)}</div>
+                    <div style={{...T.cap,color:C.label3}}>mejor: {fmtE(t.best)}</div>
+                  </div>
+                </div>
+                <div style={{background:C.fill3,borderRadius:6,height:8,overflow:"hidden"}}>
+                  <div style={{height:"100%",background:`linear-gradient(90deg,${col}66,${col})`,borderRadius:6,width:`${pct}%`,transition:"width 1s cubic-bezier(.16,1,.3,1)",boxShadow:`0 0 10px ${col}44`}}/>
+                </div>
+              </div>;
+            })}
+          </div>}
+
+          {/* LÍNEA TENDENCIA COMPARATIVA */}
+          {chartType==="linea"&&<div style={{background:"rgba(255,255,255,.03)",borderRadius:18,padding:"16px 14px",border:`1px solid ${C.sep}`,marginBottom:16}}>
+            <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600}}>Tendencia comparativa — {metricLabel[metric]}</div>
+            {allDates.length<2?<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin suficientes datos</div>:<>
+              {/* Legend */}
+              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
+                {Object.keys(META).filter(cid=>selected.includes(cid)).map(cid=>{
+                  const col=C[META[cid].c];
+                  return<div key={cid}style={{display:"flex",alignItems:"center",gap:5,...T.cap,color:col,fontWeight:600}}>
+                    <div style={{width:16,height:3,borderRadius:2,background:col}}/>
+                    {META[cid].n.split(" ").pop()}
+                  </div>;
+                })}
+              </div>
+              {(()=>{
+                const H=200,W=380,PAD=48;
+                const allVals=Object.keys(META).filter(cid=>selected.includes(cid)).flatMap(cid=>(data[cid]||[]).filter(r=>allDates.includes(r.fecha)).map(r=>r[metric]||0));
+                const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);const range=maxV-minV||1;
+                const toX=i=>PAD+i*(W-PAD-8)/(allDates.length-1||1);
+                const toY=v=>H-((v-minV)/range)*(H-16)-8;
+                const[hov,setHov]=useState(null);
+                return<svg width="100%"viewBox={`0 0 ${W} ${H+28}`}style={{overflow:"visible",cursor:"crosshair"}}
+                  onMouseLeave={()=>setHov(null)}>
+                  {/* Grid */}
+                  {[0,.5,1].map(f=>{const y=H-f*(H-16)-8;return<g key={f}>
+                    <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/>
+                    <text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(minV+(maxV-minV)*f)}</text>
+                  </g>;})}
+                  {/* Lines per casino */}
+                  {Object.keys(META).filter(cid=>selected.includes(cid)).map(cid=>{
+                    const col=C[META[cid].c];
+                    const pts=allDates.map(fecha=>{const row=(data[cid]||[]).find(r=>r.fecha===fecha);return row?row[metric]:null;});
+                    const validPts=pts.map((v,i)=>v!=null?[toX(i),toY(v)]:null);
+                    // Build path segments (skip nulls)
+                    let pathD="";let inSeg=false;
+                    validPts.forEach((pt,i)=>{if(pt){if(!inSeg){pathD+=`M${pt[0]},${pt[1]}`;inSeg=true;}else{pathD+=`L${pt[0]},${pt[1]}`;}}else{inSeg=false;}});
+                    return<g key={cid}>
+                      <path d={pathD}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"opacity=".9"
+                        style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s ease forwards"}}/>
+                      {validPts.map((pt,i)=>pt&&<circle key={i}cx={pt[0]}cy={pt[1]}r={hov===i?5:2.5}fill={col}stroke={C.bg||"#080810"}strokeWidth="1.5"onMouseEnter={()=>setHov(i)}/>)}
+                    </g>;
+                  })}
+                  {/* X labels */}
+                  {allDates.filter((_,i)=>i%(Math.max(1,Math.ceil(allDates.length/6)))===0).map((d,i)=>
+                    <text key={i}x={toX(allDates.indexOf(d))}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>)}
+                  {/* Hover indicator */}
+                  {hov!=null&&<line x1={toX(hov)}y1={8}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1"strokeDasharray="3,3"/>}
+                </svg>;
+              })()}
+            </>}
+          </div>}
+
+          {/* RANKING */}
+          {chartType==="ranking"&&<div style={{marginBottom:16}}>
+            <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600,paddingLeft:4}}>Ranking por {metricLabel[metric]}</div>
+            {totals.map((t,i)=>{
+              const col=C[META[t.cid].c];const isPos=t.total>=0;
+              const medals=["🥇","🥈","🥉"];
+              return<div key={t.cid}className="fade-up"style={{background:i===0?`linear-gradient(135deg,${col}18,${col}08)`:"rgba(255,255,255,.03)",border:`1px solid ${i===0?col+"33":C.sep}`,borderRadius:18,padding:"16px",marginBottom:10,animationDelay:`${i*.06}s`,display:"flex",alignItems:"center",gap:14}}>
+                <div style={{fontSize:24,minWidth:32,textAlign:"center"}}>{medals[i]||<span style={{...T.h,color:C.label3}}>#{i+1}</span>}</div>
+                <CasinoAvatar cid={t.cid}size={42}/>
+                <div style={{flex:1}}>
+                  <div style={{...T.h,color:C.label}}>{META[t.cid].n}</div>
+                  <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
+                    <span style={{...T.fn,color:C.label2}}>{t.periods} períodos</span>
+                    <span style={{...T.fn,color:C.label2}}>prom {fmtE(t.avg)}</span>
+                    <span style={{...T.fn,color:C.label2}}>mejor {fmtE(t.best)}</span>
+                  </div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{...T.lg,color:isPos?C.green:C.red,fontWeight:700,fontSize:20}}>{fmtE(t.total)}</div>
+                  <div style={{...T.cap,color:col,marginTop:2,fontWeight:600}}>{i===0?"Líder":i===1?"2do":i===2?"3ro":`#${i+1}`}</div>
+                </div>
+              </div>;
+            })}
+          </div>}
+
+          {/* Summary stats */}
+          <div style={{background:"rgba(255,255,255,.03)",borderRadius:18,padding:"16px",border:`1px solid ${C.sep}`}}>
+            <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600}}>Resumen del período</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              {[
+                ["Total red",fmtE(totals.reduce((s,t)=>s+t.total,0)),C.green],
+                ["Promedio",fmtE(Math.round(totals.reduce((s,t)=>s+t.total,0)/totals.length)),C.blue],
+                ["Mejor local",META[totals[0]?.cid]?.n||"—",C[META[totals[0]?.cid]?.c]||C.label],
+                ["Peor local",META[totals[totals.length-1]?.cid]?.n||"—",C.red],
+              ].map(([lbl,val,col])=><div key={lbl}style={{background:C.fill3,borderRadius:12,padding:"10px 12px"}}>
+                <div style={{...T.cap,color:C.label3,marginBottom:3}}>{lbl}</div>
+                <div style={{...T.s,color:col,fontWeight:700}}>{val}</div>
+              </div>)}
+            </div>
+          </div>
+        </>}
+      </div>
+    </div>
+  </div>;
+}
+
 // ─── CASINO SHELL ─────────────────────────────────────────────────────────────────
 function Casino({cid,cont,setCont,apiKey,onBack,user}){
   const C=getC();const[tab,setTab]=useState("lectura");const m=META[cid];const color=C[m.c];
   return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg,position:"relative"}}>
     <style>{ANIM_CSS}</style>
-    <div style={{position:"absolute",top:0,left:0,right:0,height:200,background:`radial-gradient(ellipse 100% 100% at 50% -20%, ${color}18, transparent)`,pointerEvents:"none",zIndex:0}}/>
+    <div style={{position:"absolute",top:0,left:0,right:0,height:120,background:`radial-gradient(ellipse 80% 80% at 50% 0%, ${color}14, transparent)`,pointerEvents:"none",zIndex:0}}/>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
       <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"rgba(0,0,0,.35)",border:"1px solid rgba(255,255,255,.12)",borderRadius:99,cursor:"pointer",padding:"6px 14px 6px 10px",display:"flex",alignItems:"center",gap:4,margin:"10px 14px",backdropFilter:"blur(20px)"}}>
         <Ico n="back"c={C.blue}s={18}/><span style={{...T.fn,color:C.blue,fontWeight:500}}>Inicio</span>
@@ -1827,6 +2327,7 @@ export default function App(){
   if(sc==="login")return<div style={{...W}}><Login onAuth={auth}/></div>;
   if(sc==="admin"&&user==="Santiago")return<div style={{...W}}><AdminPanel onBack={()=>setSc("home")}user={user}/></div>;
   if(sc==="cfg")return<div style={{...W}}><Settings onBack={()=>setSc(cid?"casino":"home")}onOut={out}user={user}apiKey={apiKey}onAk={k=>{setAk(k);saveApiKey(k);}}theme={theme}setTheme={t=>{setTheme(t);_theme=THEMES[t];}}pending={pending}onAdmin={()=>setSc("admin")}/></div>;
+  if(sc==="comparar")return<div style={{...W}}><Comparar onBack={()=>setSc("home")}/></div>;
   if(sc==="casino"&&cid)return<div style={{...W}}><Casino cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}onBack={()=>setSc("home")}user={user}/></div>;
-  return<div style={{...W}}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}user={user}pending={pending}/></div>;
+  return<div style={{...W}}><Home onSelect={id=>{setCid(id);setSc("casino");}}onCfg={()=>setSc("cfg")}onComparar={()=>setSc("comparar")}user={user}pending={pending}/></div>;
 }
