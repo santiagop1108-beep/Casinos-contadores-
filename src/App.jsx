@@ -231,13 +231,18 @@ function saveReset(cid,maqId,fecha){
 
 function parseSheetDate(raw){
   if(!raw||typeof raw!=="string")return null;
-  const s=raw.trim();
-  const MMAP={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
+  // Normalize: remove extra spaces, handle "1 -marzo" -> "1-marzo"  
+  const s=raw.trim().replace(/\s*-\s*/g,"-").replace(/\s*\/\s*/g,"/");
+  const MMAP={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12,
+    enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
   const nowY=new Date().getFullYear();
-  // "3-ene" or "10-mar-25"
-  const m1=s.toLowerCase().match(/^(\d{1,2})[-/]([a-z]{3})(?:[-/](\d{2,4}))?$/);
+  // "3-ene", "10-mar-25", "1-marzo" (full month name)
+  const m1=s.toLowerCase().match(/^(\d{1,2})[-/]([a-záéíóú]+)(?:[-/](\d{2,4}))?$/);
   if(m1){
-    const day=parseInt(m1[1]),mon=MMAP[m1[2]];if(!mon)return null;
+    const day=parseInt(m1[1]);
+    // Try 3-letter abbreviation first, then full name
+    const monKey=m1[2].slice(0,3);
+    const mon=MMAP[m1[2]]||MMAP[monKey];if(!mon)return null;
     let year=nowY;if(m1[3]){year=parseInt(m1[3]);if(year<100)year+=2000;}else if(mon>new Date().getMonth()+2)year--;
     return`${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
   }
@@ -279,7 +284,9 @@ async function fetchBalanceFromSheets(cid){
     vikingos:["balance","Balance"],
   };
   const namesToTry=balNameOptions[cid]||["Balance"];
-  const TODAY=new Date().toISOString().slice(0,10);
+  // Use local date to avoid UTC timezone issues (Colombia = UTC-5)
+  const _now=new Date();
+  const TODAY=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
 
   for(const rawName of namesToTry){
     const sheetName=encodeURIComponent(rawName);
@@ -304,7 +311,10 @@ async function fetchBalanceFromSheets(cid){
         const phys=parseNum(row[1]);
         const util=parseNum(row[2]);
         if(phys==null||util==null)continue;
-        if(Math.abs(phys)>500000000||Math.abs(util)>500000000)continue;
+        // Skip rows with formula errors (huge values) or completely empty (both 0)
+        if(Math.abs(phys)>200000000||Math.abs(util)>200000000)continue;
+        if(phys===0&&util===0)continue;
+        // Skip future dates with no real data
         result.push({fecha,phys_total:phys,util_total:util});
       }
       result.sort((a,b)=>a.fecha.localeCompare(b.fecha));
