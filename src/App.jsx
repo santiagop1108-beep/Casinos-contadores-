@@ -394,7 +394,7 @@ function Login({onAuth}){
 
 // ─── COUNTERS ─────────────────────────────────────────────────────────────────
 function Counters({cid,cont,setCont,user}){
-  const C=getC();const m=META[cid];const d=D[cid];const mqs=d?.m||[];
+  const C=getC();const m=META[cid];const d=D[cid];const mqs=getMaqs(cid).filter(mq=>!mq.disabled);
   const[fecha,setFecha]=useState(today());const[inp,setInp]=useState({});
   const[sy,setSy]=useState(0);const[st,setSt]=useState(null);const[wrns,setWrns]=useState([]);
   const[editMode,setEditMode]=useState(false);const[premioAmor,setPremioAmor]=useState("");
@@ -510,7 +510,7 @@ function Counters({cid,cont,setCont,user}){
 
 // ─── CAMERA ───────────────────────────────────────────────────────────────────
 function Camera({cid,cont,setCont,apiKey}){
-  const C=getC();const m=META[cid];const d=D[cid];const mqs=d?.m||[];
+  const C=getC();const m=META[cid];const d=D[cid];const mqs=getMaqs(cid).filter(mq=>!mq.disabled);
   const[fecha,setFecha]=useState(today());const[queue,setQueue]=useState([]);
   const[driveStatus,setDriveStatus]=useState("");const[saved,setSaved]=useState(false);
   const fRef=useRef(null);
@@ -720,7 +720,9 @@ function Report({cid,cont}){
   const[sy,setSy]=useState(0);const[vista,setVista]=useState("balance");
   const[filtro,setFiltro]=useState("todo");const[mes,setMes]=useState(today().slice(0,7));
   const[desde,setDesde]=useState("");const[hasta,setHasta]=useState("");
-  const[chartTab,setChartTab]=useState("barras");
+  const[chartTab,setChartTab]=useState("barras");const[tableMode,setTableMode]=useState("byfecha");
+  const[sheetsData,setSheetsData]=useState([]);
+  useEffect(()=>{fetchSheetHist(cid).then(data=>setSheetsData(data)).catch(()=>{});},[cid]);
 
   function getBals(){
     const b={};
@@ -742,13 +744,28 @@ function Report({cid,cont}){
   const totPA=bals.reduce((s,b)=>s+(b.pa||0),0);
   const totCaja=totUtil+totPhys-totPA;
   const avg=bals.length?Math.round(totUtil/bals.length):0;
-  const mqs=d?.m||[];
+  const mqs=getMaqs(cid);
 
   const maqData=useMemo(()=>{
     const byMaq={};mqs.forEach(mq=>{byMaq[mq.id]={...mq,total:0,periods:0,history:[]};});
-    (cont[cid]||[]).filter(c=>bals.find(b=>b.fecha===c.f)).forEach(c=>{if(byMaq[c.i]){byMaq[c.i].total+=(c.u||0);byMaq[c.i].periods++;byMaq[c.i].history.push(c.u||0);}});
+    // Local readings
+    (cont[cid]||[]).filter(c=>bals.find(b=>b.fecha===c.f)).forEach(c=>{
+      if(byMaq[c.i]){byMaq[c.i].total+=(c.u||0);byMaq[c.i].periods++;byMaq[c.i].history.push(c.u||0);}
+    });
+    // Sheets readings - apply same date filter
+    const filteredSheets=sheetsData.filter(r=>{
+      const fecha=r[1];
+      if(filtro==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);return fecha>=d7.toISOString().slice(0,10)&&fecha<=today();}
+      if(filtro==="mes")return fecha.slice(0,7)===mes;
+      if(filtro==="custom"&&desde&&hasta)return fecha>=desde&&fecha<=hasta;
+      return true;
+    });
+    filteredSheets.forEach(r=>{
+      const[maqId,,,,, utilidad]=r;
+      if(byMaq[maqId]&&utilidad!=null){byMaq[maqId].total+=(utilidad||0);byMaq[maqId].periods++;byMaq[maqId].history.push(utilidad||0);}
+    });
     return Object.values(byMaq);
-  },[bals,cont,cid,mqs]);
+  },[bals,cont,cid,mqs,sheetsData,filtro,mes,desde,hasta]);
 
   const chartPts=useMemo(()=>[...bals].reverse().slice(-30).map(b=>({f:b.fecha.slice(5),util:b.util,phys:b.phys,caja:(b.util||0)+(b.phys||0)-(b.pa||0)})),[bals]);
   const top5=useMemo(()=>[...maqData].sort((a,b)=>b.total-a.total).slice(0,5),[maqData]);
@@ -844,7 +861,7 @@ function Report({cid,cont}){
 
   // ── Top 5 máquinas con sparklines ────────────────────────────────────
   function ChartTop5(){
-    if(!top5.filter(m=>m.periods>0).length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos locales</div>;
+    if(!top5.filter(m=>m.periods>0).length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos aún</div>;
     const maxTot=Math.max(...top5.map(m=>Math.abs(m.total)),1);
     return<div style={{padding:"4px 0"}}>
       {top5.filter(m=>m.periods>0).map((mq,i)=>{
@@ -971,32 +988,251 @@ function Report({cid,cont}){
 
 
 // ─── MACHINES ─────────────────────────────────────────────────────────────────
+const MAQ_KEY="cc_maq_overrides"; // { cid: [ {id,nombre,factor,disabled} ] }
+function loadMaqOverrides(){try{return JSON.parse(localStorage.getItem(MAQ_KEY)||"{}");}catch{return{};}}
+function saveMaqOverrides(data){try{localStorage.setItem(MAQ_KEY,JSON.stringify(data));}catch{}}
+function getMaqs(cid){
+  const overrides=loadMaqOverrides();
+  if(overrides[cid])return overrides[cid];
+  return D[cid]?.m||[];
+}
+
 function Machines({cid,cont}){
-  const C=getC();const m=META[cid];const d=D[cid];const mqs=d?.m||[];const[sy,setSy]=useState(0);
-  const getUlt=id=>{const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];if(loc)return{drop:loc.d,phys:loc.p,fecha:loc.f};const lr=d?.ul?.[id];return lr?{drop:lr.d,phys:lr.p,fecha:"Base"}:null;};
+  const C=getC();const m=META[cid];const color=C[m.c];
+  const[sy,setSy]=useState(0);
+  const[maqs,setMaqs]=useState(()=>getMaqs(cid));
+  const[editing,setEditing]=useState(null); // maq id being edited
+  const[adding,setAdding]=useState(false);
+  const[newMaq,setNewMaq]=useState({nombre:"",factor:10});
+  const[confirmDel,setConfirmDel]=useState(null);
+
+  function save(updated){
+    const overrides=loadMaqOverrides();
+    overrides[cid]=updated;
+    saveMaqOverrides(overrides);
+    setMaqs(updated);
+  }
+
+  function getUlt(id){
+    const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];
+    if(loc)return{drop:loc.d,phys:loc.p,fecha:loc.f};
+    const lr=D[cid]?.ul?.[id];
+    return lr?{drop:lr.d,phys:lr.p,fecha:"Base"}:null;
+  }
+
+  function addMaq(){
+    if(!newMaq.nombre.trim())return;
+    const words=newMaq.nombre.trim().split(" ");
+    const prefix=words.slice(0,-1).map(w=>w[0].toUpperCase()).join("");
+    const num=words[words.length-1];
+    const id=(prefix+num).replace(/[^A-Za-z0-9]/g,"")||("MQ"+Date.now());
+    const updated=[...maqs,{id,nombre:newMaq.nombre.trim(),factor:parseInt(newMaq.factor)||10}];
+    save(updated);
+    setNewMaq({nombre:"",factor:10});
+    setAdding(false);
+  }
+
+  function updateMaq(id,fields){
+    const updated=maqs.map(mq=>mq.id===id?{...mq,...fields}:mq);
+    save(updated);
+    setEditing(null);
+  }
+
+  function deleteMaq(id){
+    const updated=maqs.filter(mq=>mq.id!==id);
+    save(updated);
+    setConfirmDel(null);
+  }
+
+  function toggleDisabled(id){
+    const updated=maqs.map(mq=>mq.id===id?{...mq,disabled:!mq.disabled}:mq);
+    save(updated);
+  }
+
+  function moveUp(idx){
+    if(idx===0)return;
+    const updated=[...maqs];
+    [updated[idx-1],updated[idx]]=[updated[idx],updated[idx-1]];
+    save(updated);
+  }
+
+  function moveDown(idx){
+    if(idx===maqs.length-1)return;
+    const updated=[...maqs];
+    [updated[idx],updated[idx+1]]=[updated[idx+1],updated[idx]];
+    save(updated);
+  }
+
+  function resetToDefault(){
+    if(!confirm("¿Restaurar máquinas al estado original del Excel?"))return;
+    const overrides=loadMaqOverrides();
+    delete overrides[cid];
+    saveMaqOverrides(overrides);
+    setMaqs(D[cid]?.m||[]);
+  }
+
+  const inp={background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:8,padding:"8px 10px",color:C.label,...T.s,outline:"none",boxSizing:"border-box"};
+
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",background:C.bg}}>
     <style>{ANIM_CSS}</style>
-    <Nav title="Máquinas"sub={`${m.n} · ${mqs.length} máqs`}sy={sy}/>
+    <Nav title="Máquinas"sub={`${m.n} · ${maqs.filter(mq=>!mq.disabled).length} activas`}sy={sy}
+      right={[{icon:"sync",fn:resetToDefault}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
-      <Sec hdr={`${mqs.length} máquinas`}>
-        {mqs.map((mq,i)=>{
-          const lr=getUlt(mq.id);const col=maqC(mq.factor,C);const histCount=(cont[cid]||[]).filter(c=>c.i===mq.id).length;
-          return<div key={mq.id}style={{display:"flex",alignItems:"center",padding:"11px 14px",borderBottom:i<mqs.length-1?`0.5px solid ${C.sep}`:"none",animation:`fadeSlideUp .25s ease ${i*.025}s both`}}>
-            <MaqIcon factor={mq.factor}nombre={mq.nombre}size={34}/>
-            <div style={{flex:1,marginLeft:10,minWidth:0}}>
-              <div style={{...T.b,color:C.label}}>{mq.nombre}</div>
-              <div style={{...T.fn,color:C.label2,marginTop:2}}>{lr?`IN: ${lr.drop?.toLocaleString()} · OUT: ${lr.phys?.toLocaleString()} · ${fmtF(lr.fecha)}`:"Sin lecturas"}</div>
-              {histCount>0&&<div style={{...T.cap,color:C.label3,marginTop:1}}>{histCount} lecturas locales</div>}
-            </div>
-            <div style={{background:`${col}18`,borderRadius:10,padding:"4px 10px",flexShrink:0,border:`1px solid ${col}33`}}>
-              <span style={{...T.fn,color:col,fontWeight:700}}>×{mq.factor}</span>
-            </div>
+
+      {/* Stats bar */}
+      <div style={{display:"flex",gap:8,marginBottom:14}}>
+        {[
+          ["Total",maqs.length,C.label],
+          ["Activas",maqs.filter(m=>!m.disabled).length,C.green],
+          ["Pausadas",maqs.filter(m=>m.disabled).length,C.orange],
+        ].map(([lbl,val,col])=><div key={lbl}style={{flex:1,background:C.bg2,borderRadius:12,padding:"10px",textAlign:"center",border:`1px solid ${C.sep}`}}>
+          <div style={{...T.lg,color:col,fontSize:22,fontWeight:700}}>{val}</div>
+          <div style={{...T.cap,color:C.label2,marginTop:2}}>{lbl}</div>
+        </div>)}
+      </div>
+
+      {/* Machine list */}
+      <div style={{background:C.bg2,borderRadius:16,overflow:"hidden",border:`1px solid ${C.sep}`,marginBottom:14}}>
+        {maqs.map((mq,idx)=>{
+          const lr=getUlt(mq.id);
+          const col=maqC(mq.factor,C);
+          const isEditing=editing===mq.id;
+          return<div key={mq.id}style={{borderBottom:idx<maqs.length-1?`0.5px solid ${C.sep}`:"none",opacity:mq.disabled?.5:1,animation:`fadeSlideUp .25s ease ${idx*.025}s both`}}>
+            {!isEditing?
+              <div style={{padding:"10px 12px"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  {/* Reorder buttons */}
+                  <div style={{display:"flex",flexDirection:"column",gap:2,flexShrink:0}}>
+                    <button onClick={()=>moveUp(idx)}disabled={idx===0}style={{background:"transparent",border:"none",cursor:idx===0?"default":"pointer",padding:2,opacity:idx===0?.3:1}}>
+                      <svg width="12"height="12"viewBox="0 0 24 24"fill="none"stroke={C.label2}strokeWidth="2.5"strokeLinecap="round"><polyline points="18 15 12 9 6 15"/></svg>
+                    </button>
+                    <button onClick={()=>moveDown(idx)}disabled={idx===maqs.length-1}style={{background:"transparent",border:"none",cursor:idx===maqs.length-1?"default":"pointer",padding:2,opacity:idx===maqs.length-1?.3:1}}>
+                      <svg width="12"height="12"viewBox="0 0 24 24"fill="none"stroke={C.label2}strokeWidth="2.5"strokeLinecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    </button>
+                  </div>
+                  <MaqIcon factor={mq.factor}nombre={mq.nombre}size={34}/>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <span style={{...T.h,color:mq.disabled?C.label2:C.label}}>{mq.nombre}</span>
+                      {mq.disabled&&<span style={{...T.cap,color:C.orange,background:`${C.orange}18`,borderRadius:20,padding:"1px 7px"}}>Pausada</span>}
+                    </div>
+                    <div style={{...T.fn,color:C.label2,marginTop:1}}>
+                      <span style={{color:col,fontWeight:600}}>×{mq.factor}</span>
+                      {lr&&<span style={{marginLeft:8}}>IN: {lr.drop?.toLocaleString()} · {fmtF(lr.fecha)}</span>}
+                    </div>
+                  </div>
+                  {/* Action buttons */}
+                  <div style={{display:"flex",gap:6,flexShrink:0}}>
+                    <button onClick={()=>setEditing(mq.id)}style={{background:`${C.blue}18`,border:"none",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                      <Ico n="edit"c={C.blue}s={15}/>
+                    </button>
+                    <button onClick={()=>toggleDisabled(mq.id)}style={{background:`${mq.disabled?C.green:C.orange}18`,border:"none",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                      {mq.disabled
+                        ?<svg width="15"height="15"viewBox="0 0 24 24"fill="none"stroke={C.green}strokeWidth="2"strokeLinecap="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12"cy="12"r="3"/></svg>
+                        :<svg width="15"height="15"viewBox="0 0 24 24"fill="none"stroke={C.orange}strokeWidth="2"strokeLinecap="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1"y1="1"x2="23"y2="23"/></svg>
+                      }
+                    </button>
+                    <button onClick={()=>setConfirmDel(mq.id)}style={{background:`${C.red}18`,border:"none",borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+                      <Ico n="trash"c={C.red}s={15}/>
+                    </button>
+                  </div>
+                </div>
+                {/* Confirm delete */}
+                {confirmDel===mq.id&&<div style={{marginTop:10,background:`${C.red}12`,borderRadius:10,padding:"10px 12px",border:`1px solid ${C.red}33`}}>
+                  <div style={{...T.s,color:C.red,marginBottom:8}}>¿Eliminar "{mq.nombre}" permanentemente?</div>
+                  <div style={{display:"flex",gap:8}}>
+                    <button onClick={()=>deleteMaq(mq.id)}style={{flex:1,background:C.red,border:"none",borderRadius:8,padding:"8px",...T.s,color:"#FFF",cursor:"pointer",fontWeight:600}}>Eliminar</button>
+                    <button onClick={()=>setConfirmDel(null)}style={{flex:1,background:C.fill3,border:"none",borderRadius:8,padding:"8px",...T.s,color:C.label,cursor:"pointer"}}>Cancelar</button>
+                  </div>
+                </div>}
+              </div>
+            :
+              // Edit form
+              <div style={{padding:"12px 14px",background:C.bg3,animation:"fadeIn .2s ease both"}}>
+                <div style={{...T.h,color:C.label,marginBottom:10}}>Editar máquina</div>
+                <div style={{marginBottom:8}}>
+                  <div style={{...T.cap,color:C.label2,marginBottom:4}}>Nombre</div>
+                  <EditMaqField mq={mq} field="nombre" inp={inp} onSave={updateMaq} onCancel={()=>setEditing(null)}/>
+                </div>
+                <div style={{marginBottom:10}}>
+                  <div style={{...T.cap,color:C.label2,marginBottom:4}}>Factor</div>
+                  <FactorSelector mq={mq} color={color} onSave={updateMaq}/>
+                </div>
+                <button onClick={()=>setEditing(null)}style={{width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"8px",...T.s,color:C.label,cursor:"pointer"}}>Cancelar</button>
+              </div>
+            }
           </div>;
         })}
-      </Sec>
+      </div>
+
+      {/* Add machine */}
+      {!adding?
+        <button onClick={()=>setAdding(true)}style={{width:"100%",background:C.bg2,border:`1.5px dashed ${color}`,borderRadius:14,padding:"14px",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8,marginBottom:14}}>
+          <Ico n="plus"c={color}s={20}/>
+          <span style={{...T.h,color}}> Agregar máquina</span>
+        </button>
+      :
+        <div style={{background:C.bg2,borderRadius:14,padding:"14px",border:`1px solid ${C.sep}`,marginBottom:14,animation:"scaleIn .2s ease both"}}>
+          <div style={{...T.h,color:C.label,marginBottom:12}}>Nueva máquina</div>
+          <div style={{marginBottom:10}}>
+            <div style={{...T.cap,color:C.label2,marginBottom:4}}>Nombre</div>
+            <input value={newMaq.nombre}onChange={e=>setNewMaq(p=>({...p,nombre:e.target.value}))}
+              placeholder="Ej: Multi 21, Poker 8..."autoFocus
+              style={{...inp,width:"100%"}}
+              onKeyDown={e=>e.key==="Enter"&&addMaq()}/>
+          </div>
+          <div style={{marginBottom:12}}>
+            <div style={{...T.cap,color:C.label2,marginBottom:6}}>Factor de multiplicación</div>
+            <div style={{display:"flex",gap:8}}>
+              {[1,10,50].map(f=><button key={f}onClick={()=>setNewMaq(p=>({...p,factor:f}))}
+                style={{flex:1,background:newMaq.factor===f?color:C.fill3,border:"none",borderRadius:10,padding:"10px",...T.h,color:newMaq.factor===f?"#000":C.label2,cursor:"pointer",transition:"all .15s"}}>
+                ×{f}
+              </button>)}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={addMaq}disabled={!newMaq.nombre.trim()}
+              style={{flex:2,background:newMaq.nombre.trim()?color:C.fill3,border:"none",borderRadius:10,padding:"11px",...T.h,color:newMaq.nombre.trim()?"#000":C.label2,cursor:newMaq.nombre.trim()?"pointer":"default"}}>
+              Agregar
+            </button>
+            <button onClick={()=>{setAdding(false);setNewMaq({nombre:"",factor:10});}}
+              style={{flex:1,background:C.fill3,border:"none",borderRadius:10,padding:"11px",...T.h,color:C.label,cursor:"pointer"}}>
+              Cancelar
+            </button>
+          </div>
+        </div>
+      }
+
+      {/* Reset note */}
+      <div style={{...T.cap,color:C.label3,textAlign:"center",padding:"0 20px"}}>
+        El ícono ↺ arriba restaura las máquinas al estado original del Excel
+      </div>
     </div>
   </div>;
 }
+
+// Sub-components for Machines
+function EditMaqField({mq,field,inp,onSave,onCancel}){
+  const[val,setVal]=useState(mq[field]);
+  return<div style={{display:"flex",gap:8}}>
+    <input value={val}onChange={e=>setVal(e.target.value)}style={{...inp,flex:1}}
+      onKeyDown={e=>{if(e.key==="Enter")onSave(mq.id,{[field]:val});if(e.key==="Escape")onCancel();}}autoFocus/>
+    <button onClick={()=>onSave(mq.id,{[field]:val})}style={{background:getC().blue,border:"none",borderRadius:8,padding:"0 12px",cursor:"pointer"}}>
+      <Ico n="check"c="#FFF"s={16}/>
+    </button>
+  </div>;
+}
+function FactorSelector({mq,color,onSave}){
+  const C=getC();
+  const[val,setVal]=useState(mq.factor);
+  return<div style={{display:"flex",gap:8}}>
+    {[1,10,50].map(f=><button key={f}onClick={()=>{setVal(f);onSave(mq.id,{factor:f});}}
+      style={{flex:1,background:val===f?color:C.fill3,border:"none",borderRadius:10,padding:"9px",...T.h,color:val===f?"#000":C.label2,cursor:"pointer",transition:"all .15s"}}>
+      ×{f}
+    </button>)}
+  </div>;
+}
+
 
 // ─── ADMIN PANEL ──────────────────────────────────────────────────────────────
 function AdminPanel({onBack,user}){
