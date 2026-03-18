@@ -1,107 +1,32 @@
-/* eslint-disable */
 import{useState,useEffect,useRef,useCallback,useMemo}from"react";
 
 // ─── CSS ANIMATIONS ───────────────────────────────────────────────────────────
 const ANIM_CSS=`
-*{-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
+@keyframes fadeSlideUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeSlideIn{from{opacity:0;transform:translateX(-12px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes scaleIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes countUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes barGrow{from{transform:scaleY(0);transform-origin:bottom}to{transform:scaleY(1);transform-origin:bottom}}
+@keyframes lineDrawIn{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
+@keyframes slideRight{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+.anim-fadeSlideUp{animation:fadeSlideUp .35s cubic-bezier(.4,0,.2,1) both}
+.anim-fadeIn{animation:fadeIn .25s ease both}
+.anim-scaleIn{animation:scaleIn .3s cubic-bezier(.4,0,.2,1) both}
+.anim-pulse{animation:pulse 1.5s ease infinite}
+.lg{background:rgba(255,255,255,.08);backdrop-filter:blur(40px) saturate(200%) brightness(1.1);-webkit-backdrop-filter:blur(40px) saturate(200%) brightness(1.1);border:1px solid rgba(255,255,255,.18);box-shadow:0 2px 4px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.25)}
+.lg-dark{background:rgba(0,0,0,.35);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid rgba(255,255,255,.1);box-shadow:0 4px 16px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.12)}
+.lg-card{background:rgba(255,255,255,.06);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 32px rgba(0,0,0,.2);border-radius:18px}
 
-/* ── Keyframes ─────────────────────────────────────── */
-@keyframes fadeUp{0%{opacity:0;transform:translateY(18px) scale(.97)}100%{opacity:1;transform:none}}
-@keyframes fadeIn{0%{opacity:0}100%{opacity:1}}
-@keyframes scaleIn{0%{opacity:0;transform:scale(.9)}100%{opacity:1;transform:scale(1)}}
-@keyframes slideUp{0%{transform:translateY(100%)}100%{transform:translateY(0)}}
-@keyframes slideDown{0%{transform:translateY(-100%)}100%{transform:translateY(0)}}
-@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
-@keyframes barGrow{0%{transform:scaleY(0);transform-origin:bottom}100%{transform:scaleY(1);transform-origin:bottom}}
-@keyframes lineIn{0%{stroke-dashoffset:3000}100%{stroke-dashoffset:0}}
-@keyframes countUp{0%{opacity:0;transform:translateY(8px)}100%{opacity:1;transform:none}}
-@keyframes ripple{0%{transform:scale(0);opacity:.5}100%{transform:scale(2.5);opacity:0}}
-@keyframes glow{0%,100%{box-shadow:0 0 20px var(--glow,rgba(61,142,255,.25))}50%{box-shadow:0 0 40px var(--glow,rgba(61,142,255,.5))}}
-@keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-@keyframes fadeSlideUp{0%{opacity:0;transform:translateY(12px)}100%{opacity:1;transform:none}}
-@keyframes orb{0%{transform:scale(1) translate(0,0)}33%{transform:scale(1.08) translate(8px,-6px)}66%{transform:scale(.95) translate(-6px,4px)}100%{transform:scale(1) translate(0,0)}}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* ── Utility classes ────────────────────────────────── */
-.fade-up{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) both}
-.fade-up-1{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .07s both}
-.fade-up-2{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .14s both}
-.fade-up-3{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .21s both}
-.fade-up-4{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .28s both}
-.fade-up-5{animation:fadeUp .5s cubic-bezier(.16,1,.3,1) .35s both}
-.scale-in{animation:scaleIn .35s cubic-bezier(.16,1,.3,1) both}
-.fade-in{animation:fadeIn .3s ease both}
-
-/* ── Glass morphism ─────────────────────────────────── */
-.glass{background:rgba(255,255,255,.06);backdrop-filter:blur(28px) saturate(200%);-webkit-backdrop-filter:blur(28px) saturate(200%);border:1px solid rgba(255,255,255,.12)}
-.glass-dark{background:rgba(0,0,0,.45);backdrop-filter:blur(28px) saturate(200%);-webkit-backdrop-filter:blur(28px) saturate(200%);border:1px solid rgba(255,255,255,.08)}
-
-/* ── Press interaction ──────────────────────────────── */
-.btn-press{transition:transform .12s cubic-bezier(.16,1,.3,1),opacity .12s;cursor:pointer}
-.btn-press:active{transform:scale(.93);opacity:.8}
-
-/* ── Scrollbar hide ─────────────────────────────────── */
-*::-webkit-scrollbar{width:0;height:0}
-
-/* ── Noise texture overlay ──────────────────────────── */
-.noise::after{content:"";position:absolute;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");pointer-events:none;border-radius:inherit}
 `;
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const THEMES={
-  dark:{
-    bg:"#080810",
-    bg2:"rgba(255,255,255,.04)",
-    bg3:"rgba(255,255,255,.07)",
-    bg4:"rgba(255,255,255,.10)",
-    card:"rgba(255,255,255,.05)",
-    label:"rgba(255,255,255,.95)",
-    label2:"rgba(255,255,255,.5)",
-    label3:"rgba(255,255,255,.2)",
-    sep:"rgba(255,255,255,.08)",
-    fill3:"rgba(255,255,255,.06)",
-    fill4:"rgba(255,255,255,.04)",
-    blue:"#3D8EFF",
-    green:"#2ED573",
-    red:"#FF4757",
-    orange:"#FFA502",
-    yellow:"#FFD32A",
-    purple:"#A55EEA",
-    indigo:"#7C6DFA",
-    pink:"#FF6B9D",
-    teal:"#00CEC9",
-    navBg:"rgba(8,8,16,.85)",
-    shadow:"0 32px 64px rgba(0,0,0,.6)",
-    shadowSm:"0 8px 24px rgba(0,0,0,.4)",
-  },
-  light:{
-    bg:"#F0F4FF",
-    bg2:"rgba(255,255,255,.9)",
-    bg3:"rgba(255,255,255,.6)",
-    bg4:"rgba(255,255,255,.4)",
-    card:"rgba(255,255,255,.95)",
-    label:"rgba(0,0,20,.9)",
-    label2:"rgba(0,0,20,.5)",
-    label3:"rgba(0,0,20,.25)",
-    sep:"rgba(0,0,20,.08)",
-    fill3:"rgba(0,0,20,.05)",
-    fill4:"rgba(0,0,20,.03)",
-    blue:"#2979FF",
-    green:"#00C853",
-    red:"#FF1744",
-    orange:"#FF6D00",
-    yellow:"#FFD600",
-    purple:"#AA00FF",
-    indigo:"#3D5AFE",
-    pink:"#F50057",
-    teal:"#00BFA5",
-    navBg:"rgba(240,244,255,.85)",
-    shadow:"0 32px 64px rgba(0,0,60,.12)",
-    shadowSm:"0 8px 24px rgba(0,0,60,.08)",
-  },
+  dark:{bg:"#0A0A0F",bg2:"#13131A",bg3:"#1C1C26",bg4:"#242430",card:"#13131A",label:"#F0F0FF",label2:"rgba(220,220,255,.55)",label3:"rgba(200,200,255,.25)",sep:"rgba(100,100,140,.3)",fill3:"rgba(120,120,160,.18)",fill4:"rgba(100,100,140,.12)",blue:"#3D8EFF",green:"#2ED573",red:"#FF4757",orange:"#FFA502",yellow:"#FFD32A",purple:"#A55EEA",indigo:"#6C5CE7",pink:"#FD79A8",teal:"#00CEC9",navBg:"rgba(10,10,15,.94)"},
+  light:{bg:"#F0F0F8",bg2:"#FFFFFF",bg3:"#F0F0F8",bg4:"#E4E4F0",card:"#FFFFFF",label:"#0A0A1A",label2:"rgba(30,30,80,.55)",label3:"rgba(30,30,80,.28)",sep:"rgba(80,80,120,.18)",fill3:"rgba(100,100,150,.1)",fill4:"rgba(80,80,120,.07)",blue:"#2979FF",green:"#00C853",red:"#FF1744",orange:"#FF6D00",yellow:"#FFD600",purple:"#AA00FF",indigo:"#3D5AFE",pink:"#F50057",teal:"#00BFA5",navBg:"rgba(240,240,248,.94)"},
 };
-
 let _theme=THEMES.dark;
 const getC=()=>_theme;
 
@@ -140,7 +65,7 @@ const COL_MAP={
 const _sheetsCache={};
 
 async function fetchSheetHist(cid){
-  if(META[cid]?.sim)return[]; // simulation casino - no sheets
+  if(META[cid]?.sim)return[];
   if(_sheetsCache[cid])return _sheetsCache[cid];
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
@@ -238,18 +163,13 @@ function saveReset(cid,maqId,fecha){
 
 function parseSheetDate(raw){
   if(!raw||typeof raw!=="string")return null;
-  // Normalize: remove extra spaces, handle "1 -marzo" -> "1-marzo"  
-  const s=raw.trim().replace(/\s*-\s*/g,"-").replace(/\s*\/\s*/g,"/");
-  const MMAP={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12,
-    enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
+  const s=raw.trim();
+  const MMAP={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
   const nowY=new Date().getFullYear();
-  // "3-ene", "10-mar-25", "1-marzo" (full month name)
-  const m1=s.toLowerCase().match(/^(\d{1,2})[-/]([a-záéíóú]+)(?:[-/](\d{2,4}))?$/);
+  // "3-ene" or "10-mar-25"
+  const m1=s.toLowerCase().match(/^(\d{1,2})[-/]([a-z]{3})(?:[-/](\d{2,4}))?$/);
   if(m1){
-    const day=parseInt(m1[1]);
-    // Try 3-letter abbreviation first, then full name
-    const monKey=m1[2].slice(0,3);
-    const mon=MMAP[m1[2]]||MMAP[monKey];if(!mon)return null;
+    const day=parseInt(m1[1]),mon=MMAP[m1[2]];if(!mon)return null;
     let year=nowY;if(m1[3]){year=parseInt(m1[3]);if(year<100)year+=2000;}else if(mon>new Date().getMonth()+2)year--;
     return`${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
   }
@@ -274,109 +194,37 @@ function parseNum(v){
 }
 
 
-// Cache para balance desde Sheets
+
 const _balanceCache={};
-
-
-// ── OCR→SHEETS PIPELINE (inactivo — activar cuando OCR esté listo) ───────────
-// Esta función escribirá lecturas OCR directamente a la hoja de cada máquina
-// Requiere OAuth2 para escritura (solo lectura con API key no alcanza)
-/*
-async function writeOCRToSheets(cid, items, fecha){
-  const sheetId = SHEET_IDS[cid];
-  if(!sheetId || META[cid]?.sim) return; // skip simulation
-  
-  // OAuth2 token requerido para escritura
-  const token = await getOAuthToken(); // implementar con Google Identity Services
-  
-  for(const item of items){
-    const maqNombre = item.n;
-    const COL = COL_MAP[cid]?.[maqNombre] || {p:5, u:6};
-    
-    // Append row: [fecha, inAcum, outAcum, ?, ?, premios, utilidad, ...]
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(maqNombre)}!A:H:append?valueInputOption=USER_ENTERED&key=${GAPI_KEY}`;
-    
-    const row = [fecha, item.d, item.p, '', '', item.pp/item.fc, item.u/item.fc, ''];
-    await fetch(url, {
-      method:'POST',
-      headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-      body: JSON.stringify({values:[row]})
-    });
-  }
-}
-*/
-
 async function fetchBalanceFromSheets(cid){
-  if(META[cid]?.sim)return null; // simulation casino - no sheets
+  if(META[cid]?.sim)return null;
   if(_balanceCache[cid])return _balanceCache[cid];
-  const sheetId=SHEET_IDS[cid];
-  if(!sheetId)return null;
-
-  // Try multiple possible sheet name formats
-  const balNameOptions={
-    faraon:["Balance"],
-    hugo:["Balance"],
-    obrero:["Balance"],
-    playarica:[" Balance","Balance","balance"],
-    vikingos:["balance","Balance"],
-  };
-  const namesToTry=balNameOptions[cid]||["Balance"];
-  // Use local date to avoid UTC timezone issues (Colombia = UTC-5)
-  const _now=new Date();
-  const TODAY=`${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
-
+  const sheetId=SHEET_IDS[cid];if(!sheetId)return null;
+  const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],playarica:[" Balance","Balance"],vikingos:["balance","Balance"]};
+  const namesToTry=balNames[cid]||["Balance"];
+  const n=new Date();const TODAY=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");
   for(const rawName of namesToTry){
-    const sheetName=encodeURIComponent(rawName);
-    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:C?key=${GAPI_KEY}`;
     try{
-      const r=await fetch(url);
-      if(!r.ok){console.warn(`Balance ${cid}/${rawName}: HTTP ${r.status}`);continue;}
-      const data=await r.json();
-      if(data.error){console.warn(`Balance ${cid}/${rawName}:`,data.error.message);continue;}
-      const rows=data.values||[];
-      if(!rows.length){console.warn(`Balance ${cid}/${rawName}: empty`);continue;}
+      const r=await fetch("https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values/"+encodeURIComponent(rawName)+"!A:C?key="+GAPI_KEY);
+      if(!r.ok)continue;const data=await r.json();if(data.error)continue;
+      const rows=data.values||[];if(!rows.length)continue;
       const result=[];
       for(const row of rows){
-        // Try both date formats: "3-ene" and datetime string and ISO
         let fecha=parseSheetDate(row[0]);
-        // Also handle raw date serial or ISO string from Sheets
-        if(!fecha&&row[0]){
-          const s=String(row[0]).trim();
-          if(/^\d{4}-\d{2}-\d{2}/.test(s))fecha=s.slice(0,10);
-        }
+        if(!fecha&&row[0]){const s=String(row[0]).trim();if(s.match(/^[0-9]{4}/))fecha=s.slice(0,10);}
         if(!fecha||fecha>TODAY)continue;
-        const phys=parseNum(row[1]);
-        const util=parseNum(row[2]);
-        if(phys==null||util==null)continue;
-        // Skip rows with formula errors (huge values) or completely empty (both 0)
-        if(Math.abs(phys)>200000000||Math.abs(util)>200000000)continue;
-        if(phys===0&&util===0)continue;
-        // Skip future dates with no real data
+        const phys=parseNum(row[1]),util=parseNum(row[2]);
+        if(phys==null||util==null||Math.abs(phys)>200000000||Math.abs(util)>200000000||phys===0&&util===0)continue;
         result.push({fecha,phys_total:phys,util_total:util});
       }
       result.sort((a,b)=>a.fecha.localeCompare(b.fecha));
-      if(result.length>0){
-        console.log(`Balance ${cid}/${rawName}: ${result.length} rows OK`);
-        _balanceCache[cid]=result;
-        return result;
-      }
-    }catch(e){
-      console.warn(`Balance ${cid}/${rawName} error:`,e.message);
-    }
+      if(result.length>0){_balanceCache[cid]=result;return result;}
+    }catch(e){}
   }
-  console.warn(`Balance ${cid}: all attempts failed - using hardcoded data`);
-  // Return hardcoded data as fallback so we don't cache null
-  const fallback=(D[cid]?.b||[]).map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}));
-  return fallback.length ? fallback : null;
+  const fb=(D[cid]?.b||[]).map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}));
+  return fb.length?fb:null;
 }
-
-
-// Invalidate caches when needed
-function invalidateSheetsCaches(cid){
-  delete _sheetsCache[cid];
-  delete _balanceCache[cid];
-}
-
+function invalidateSheetsCaches(cid){delete _sheetsCache[cid];delete _balanceCache[cid];}
 
 const META={
   obrero:{n:"Casino Obrero",e:"building",c:"indigo",liq:"3-4 días"},
@@ -520,33 +368,22 @@ function Row({ic,icC,lbl,sub,right,arr=true,fn,del,last,noBorder}){
   </div>;
 }
 function Nav({title,sub,right=[],sy=0,large=true,back,onBack}){
-  const C=getC();const scrolled=sy>30;
-  return<div style={{position:"sticky",top:0,zIndex:50,transition:"background .25s,backdrop-filter .25s,border .25s",
-    background:scrolled?C.navBg:"transparent",
-    backdropFilter:scrolled?"blur(24px) saturate(180%)":"none",
-    WebkitBackdropFilter:scrolled?"blur(24px) saturate(180%)":"none",
-    borderBottom:scrolled?`0.5px solid ${C.sep}`:"none"}}>
-    <div style={{display:"flex",alignItems:"center",minHeight:44,padding:"8px 10px 6px",position:"relative"}}>
-      {onBack&&<button onClick={onBack}className="btn-press"style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 8px",flexShrink:0}}>
-        <Ico n="back"c={C.blue}s={20}/><span style={{...T.b,color:C.blue,fontWeight:500}}>{back||"Atrás"}</span>
+  const C=getC();const col=large&&sy>48;
+  return<div style={{position:"sticky",top:0,zIndex:50,background:col?C.navBg:"transparent",backdropFilter:col?"blur(24px) saturate(180%)":"none",borderBottom:col?`0.5px solid ${C.sep}`:"none",transition:"all .2s"}}>
+    <div style={{display:"flex",alignItems:"center",height:44,padding:"0 8px",position:"relative"}}>
+      {onBack&&<button onClick={onBack}style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 8px"}}>
+        <Ico n="back"c={C.blue}s={20}/><span style={{...T.b,color:C.blue}}>{back||"Atrás"}</span>
       </button>}
-      {/* Center title - always visible when scrolled or not large */}
-      <div style={{position:"absolute",left:0,right:0,top:0,bottom:0,display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}>
-        <span style={{...T.h,color:C.label,transition:"opacity .2s",opacity:(!large||scrolled)?1:0,whiteSpace:"nowrap"}}>{title}</span>
-      </div>
+      {(!large||col)&&<span style={{...T.h,color:C.label,position:"absolute",left:"50%",transform:"translateX(-50%)",whiteSpace:"nowrap"}}>{title}</span>}
       <div style={{flex:1}}/>
-      <div style={{display:"flex",gap:6,flexShrink:0}}>
-        {right.map((r,i)=><button key={i}onClick={r.fn}className="btn-press"style={{background:"rgba(255,255,255,.08)",border:"1px solid rgba(255,255,255,.1)",borderRadius:99,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>{typeof r.icon==="string"?<Ico n={r.icon}c={C.label2}s={17}/>:r.icon}</button>)}
-      </div>
+      {right.map((r,i)=><button key={i}onClick={r.fn}style={{background:C.fill3,border:"none",borderRadius:99,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",marginLeft:4,transition:"background .15s"}}>{typeof r.icon==="string"?<Ico n={r.icon}c={C.label}s={17}/>:r.icon}</button>)}
     </div>
-    {/* Large title - only shows when NOT scrolled, collapses smoothly */}
-    {large&&<div style={{overflow:"hidden",maxHeight:scrolled?"0px":"60px",transition:"max-height .3s cubic-bezier(.16,1,.3,1),opacity .2s",opacity:scrolled?0:1,padding:scrolled?"0 20px":"0 20px 10px"}}>
-      <div style={{...T.lg,color:C.label,fontSize:26,fontWeight:700,letterSpacing:-.3}}>{title}</div>
-      {sub&&<div style={{...T.fn,color:C.label2,marginTop:1}}>{sub}</div>}
+    {large&&<div style={{padding:"0 18px 14px",opacity:col?0:1,transition:"opacity .2s",pointerEvents:col?"none":"auto"}}>
+      <div style={{...T.lg,color:C.label}}>{title}</div>
+      {sub&&<div style={{...T.s,color:C.label2,marginTop:2}}>{sub}</div>}
     </div>}
   </div>;
 }
-
 function Tabs({tab,setTab,color}){
   const C=getC();
   const ts=[{id:"lectura",lbl:"Contadores",icon:"counters"},{id:"camara",lbl:"Cámara",icon:"camera"},{id:"reporte",lbl:"Reporte",icon:"report"},{id:"maquinas",lbl:"Máquinas",icon:"machines"}];
@@ -582,25 +419,6 @@ function Sparkline({data,color,height=32,width=80}){
   </svg>;
 }
 
-
-function StatCard({label,value,color,sub,icon,delay=0}){
-  const C=getC();
-  return<div className="fade-up"style={{background:C.bg2,borderRadius:18,padding:"14px 16px",border:`1px solid ${C.sep}`,flex:1,backdropFilter:"blur(20px)",position:"relative",overflow:"hidden",animationDelay:`${delay}s`}}>
-    <div style={{position:"absolute",top:-20,right:-20,width:80,height:80,borderRadius:40,background:`${color}08`,pointerEvents:"none"}}/>
-    {icon&&<div style={{width:28,height:28,borderRadius:8,background:`${color}15`,display:"flex",alignItems:"center",justifyContent:"center",marginBottom:8,border:`1px solid ${color}22`}}><Ico n={icon}c={color}s={14}/></div>}
-    <div style={{...T.cap,color:C.label2,marginBottom:4,letterSpacing:.8,textTransform:"uppercase"}}>{label}</div>
-    <AnimNumber value={value}style={{...T.lg,color,fontWeight:700,fontSize:20,display:"block",letterSpacing:-.3}}/>
-    {sub&&<div style={{...T.cap,color:C.label3,marginTop:4}}>{sub}</div>}
-  </div>;
-}
-
-
-function CasinoAvatar({cid,size=40}){
-  const C=getC();const m=META[cid];const col=C[m.c];
-  return<div style={{width:size,height:size,borderRadius:size*.26,background:`linear-gradient(145deg,${col}44,${col}99)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:`1px solid ${col}55`,boxShadow:`0 6px 20px ${col}44`}}>
-    <Ico n={m.e}c="#FFF"s={size*.55}/>
-  </div>;
-}
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
 function Login({onAuth}){
@@ -787,14 +605,17 @@ function Camera({cid,cont,setCont,apiKey}){
   async function analyzePhoto(blob,idx){
     setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"analyzing"}:x));
     try{
-      const mq_list=mqs.map(q=>`${q.id}:${q.nombre}(x${q.factor})`).join(", ");
-      const prompt=`Eres experto en contadores de maquinas tragamonedas.\nMaquinas: ${mq_list}\nLee numero de maquina, DROP=TOTAL IN, PHYS=TOTAL OUT.\nResponde SOLO JSON: {"num_maquina":N,"maq_id":"ID","drop":N,"phys":N,"yield":N,"confianza":"alta|media|baja","nota":"breve"}`;
-      const b64=await new Promise((ok,rej)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(",")[1]);r.onerror=rej;r.readAsDataURL(blob);});
-      const rsp=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:300,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]}]})});
-      const data=await rsp.json();if(data.error)throw new Error(data.error.message);
-      const parsed=JSON.parse((data.content?.[0]?.text||"").replace(/```json|```/g,"").trim());
-      const mq=mqs.find(q=>q.id===parsed.maq_id)||mqs.find(q=>q.nombre.toLowerCase().includes(String(parsed.num_maquina)));
-      setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"done",result:parsed,maqId:mq?.id||"",eDrop:String(parsed.drop||""),ePhys:String(parsed.phys||""),eYield:parsed.yield?String(parsed.yield):"",err:null}:x));
+      const mq_list=mqs.map(q=>"- ID:"+q.id+" | "+q.nombre+" | "+(q.factor===50?"POKER":q.factor===1?"ESPECIAL":"MULTI")).join("\n");
+      const prompt="Experto en contadores de tragamonedas colombianas.\nMAQUINAS:\n"+mq_list+"\n\nIDENTIFICA la maquina (numero en esquina sup-der) y EXTRAE contadores.\nMULTI(SHORT STATISTICS): total_in=TOTAL IN, total_out=TOTAL OUT, jackpot=null\nPOKER(COINS IN etc): total_in=DROP, total_out=PHYSICAL COINS OUT, jackpot=JACKPOTS\nJSON sin markdown: {maq_numero,maq_id_asignado,tipo,total_in,total_out,jackpot,confianza,notas}";
+      const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(",")[1]);fr.readAsDataURL(blob);});
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:300,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]}]})});
+      const data=await res.json();
+      const parsed=JSON.parse((data.content?.[0]?.text||"{}").replace(/```json|```/g,"").trim());
+      let assignedId=parsed.maq_id_asignado;
+      if(!assignedId&&parsed.maq_numero){const num=String(parsed.maq_numero);const found=mqs.find(m=>m.nombre.split(" ").pop()===num);if(found)assignedId=found.id;}
+      setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"done",maqId:assignedId||"",eDrop:String(parsed.total_in||""),ePhys:String(parsed.total_out||""),eJack:parsed.jackpot!=null?String(parsed.jackpot):"",confianza:parsed.confianza||"media",maqDetectado:parsed.tipo||"",notas:parsed.notas||""}:x));
     }catch(e){setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"error",err:e.message}:x));}
   }
   async function addPhotos(files){
@@ -815,11 +636,6 @@ function Camera({cid,cont,setCont,apiKey}){
       items.push({i:mq.id,n:mq.nombre,fc:mq.factor,f:fecha,d:drop,p:phys,y:yld,u:util,pp,src:"ocr"});
     }
     setCont(p=>{const n={...p,[cid]:[...(p[cid]||[]).filter(c=>!items.find(x=>x.i===c.i&&x.f===c.f)),...items]};saveCont(n);return n;});
-    // ── OCR→SHEETS PIPELINE (preparado, inactivo) ────────────────────────────
-    // Cuando esté listo: descomentar writeOCRToSheets(cid, items, fecha)
-    // La función escribirá cada lectura a la hoja correspondiente via Sheets API OAuth2
-    // await writeOCRToSheets(cid, items, fecha);
-    // ─────────────────────────────────────────────────────────────────────────
     if(GDClientId()&&GDFolderId()){setDriveStatus("Subiendo fotos...");for(const x of valid){const mq=mqs.find(q=>q.id===x.maqId);try{await uploadPhoto(x.blob,m.n,fecha,mq?.nombre||x.maqId);}catch(e){console.warn(e);}}setDriveStatus("✓ Fotos en Drive");setTimeout(()=>setDriveStatus(""),3000);}
     setSaved(true);setTimeout(()=>{setQueue([]);setSaved(false);},2500);
   }
@@ -997,32 +813,12 @@ function Report({cid,cont}){
   const[desde,setDesde]=useState("");const[hasta,setHasta]=useState("");
   const[chartTab,setChartTab]=useState("barras");const[tableMode,setTableMode]=useState("byfecha");
   const[sheetsData,setSheetsData]=useState([]);
-  const[liveBalance,setLiveBalance]=useState(null); // null=loading, []=no data, [...]=data
-  const[balLoading,setBalLoading]=useState(true);
-
-  useEffect(()=>{
-    setSheetsData([]);
-    setLiveBalance(null);
-    setBalLoading(true);
-    // Load both in parallel
-    Promise.all([
-      fetchSheetHist(cid).catch(()=>[]),
-      fetchBalanceFromSheets(cid).catch(()=>null)
-    ]).then(([hist,bal])=>{
-      setSheetsData(hist||[]);
-      // bal=null means complete failure, bal=[] means sheets returned empty
-      // bal=[...] means success (either live or fallback hardcoded)
-      setLiveBalance(bal);
-      setBalLoading(false);
-    });
-  },[cid]);
+  useEffect(()=>{fetchSheetHist(cid).then(data=>setSheetsData(data)).catch(()=>{});},[cid]);
 
   function getBals(){
     const b={};
-    // Use live Sheets balance if available, otherwise fallback to hardcoded D
     const baseData=(liveBalance&&liveBalance.length>0)?liveBalance:(d?.b||[]);
-    baseData.forEach(bl=>{b[bl.fecha]={fecha:bl.fecha,util:bl.util_total,phys:bl.phys_total,pa:0,nota:null,src:liveBalance&&liveBalance.length>0?"sheets":"local"};});
-    // Overlay local manual entries
+    baseData.forEach(bl=>{b[bl.fecha]={fecha:bl.fecha,util:bl.util_total,phys:bl.phys_total,pa:0,nota:null};});
     (cont[cid]||[]).forEach(c=>{if(c.u==null)return;if(!b[c.f])b[c.f]={fecha:c.f,util:0,phys:0,pa:0,nota:c.nota||null};
       b[c.f].util+=(c.u||0);b[c.f].phys+=(c.pp||0);if(c.pa)b[c.f].pa=(b[c.f].pa||0)+c.pa;if(c.nota)b[c.f].nota=c.nota;});
     return Object.values(b).sort((a,b)=>b.fecha.localeCompare(a.fecha));
@@ -1066,367 +862,123 @@ function Report({cid,cont}){
   const chartPts=useMemo(()=>[...bals].reverse().slice(-30).map(b=>({f:b.fecha.slice(5),util:b.util,phys:b.phys,caja:(b.util||0)+(b.phys||0)-(b.pa||0)})),[bals]);
   const top5=useMemo(()=>[...maqData].sort((a,b)=>b.total-a.total).slice(0,5),[maqData]);
 
-  // ── GRÁFICOS PREMIUM v2 ──────────────────────────────────────────────────────
-
-  // ── Tooltip flotante grande ──────────────────────────────────────────────────
-  function BigTooltip({x,y,data,color,visible}){
-    if(!visible||!data)return null;
-    const C=getC();
-    const isPos=data.util>=0;
-    return<div style={{
-      position:"absolute",left:Math.min(x,window.innerWidth-180),top:Math.max(y-110,8),
-      background:"rgba(12,12,24,.96)",border:`1px solid ${isPos?C.green:C.red}44`,
-      borderRadius:16,padding:"12px 16px",minWidth:160,pointerEvents:"none",
-      boxShadow:`0 8px 32px rgba(0,0,0,.6), 0 0 0 1px ${isPos?C.green:C.red}22`,
-      backdropFilter:"blur(20px)",zIndex:100,animation:"fadeIn .1s ease both"
-    }}>
-      <div style={{...T.cap,color:C.label2,marginBottom:6,letterSpacing:.8}}>{data.f}</div>
-      <div style={{...T.lg,color:isPos?C.green:C.red,fontSize:24,fontWeight:700,letterSpacing:-1,marginBottom:8}}>{fmtE(data.util)}</div>
-      <div style={{display:"flex",flexDirection:"column",gap:4}}>
-        <div style={{display:"flex",justifyContent:"space-between",gap:16}}>
-          <span style={{...T.cap,color:C.label3}}>Premios</span>
-          <span style={{...T.fn,color:C.orange,fontWeight:600}}>{fmtE(data.phys)}</span>
-        </div>
-        <div style={{display:"flex",justifyContent:"space-between",gap:16}}>
-          <span style={{...T.cap,color:C.label3}}>Caja física</span>
-          <span style={{...T.fn,color:color,fontWeight:600}}>{fmtE((data.util||0)+(data.phys||0))}</span>
-        </div>
-        {data.pa>0&&<div style={{display:"flex",justifyContent:"space-between",gap:16}}>
-          <span style={{...T.cap,color:C.label3}}>Premio Amor</span>
-          <span style={{...T.fn,color:C.yellow,fontWeight:600}}>{fmtE(data.pa)}</span>
-        </div>}
-      </div>
-    </div>;
-  }
-
-  // ── Gráfico de barras con zoom/scroll ────────────────────────────────────────
-  function ChartBarras({expanded=false}){
-    const C=getC();
-    const allPts=[...bals].reverse().map(b=>({
-      f:b.fecha.slice(5),fecha:b.fecha,util:b.util,phys:b.phys,
-      caja:(b.util||0)+(b.phys||0)-(b.pa||0),pa:b.pa||0
-    }));
-    const[zoom,setZoom]=useState(expanded?allPts.length:Math.min(30,allPts.length));
-    const[offset,setOffset]=useState(0);
-    const[hov,setHov]=useState(null);
-    const[tooltip,setTooltip]=useState({x:0,y:0,data:null,visible:false});
-    const[expandChart,setExpandChart]=useState(false);
-    const containerRef=useRef(null);
-
-    const pts=allPts.slice(Math.max(0,allPts.length-zoom-offset),allPts.length-offset);
+  // ── Gráfico de barras mejorado ─────────────────────────────────────────
+  function ChartBarras(){
+    const pts=chartPts;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
     const maxV=Math.max(...pts.map(p=>Math.max(Math.abs(p.util),p.caja||0)),1);
-    const H=expanded?260:150;
-    const PAD=40;
-
-    function handleMouseMove(e,i,p){
-      const rect=containerRef.current?.getBoundingClientRect();
-      if(!rect)return;
-      setTooltip({x:e.clientX-rect.left,y:e.clientY-rect.top,data:p,visible:true});
-      setHov(i);
-    }
-
-    function handleWheel(e){
-      e.preventDefault();
-      if(e.ctrlKey||e.metaKey){
-        // Zoom
-        setZoom(z=>Math.max(5,Math.min(allPts.length,z+Math.sign(e.deltaY)*3)));
-      } else {
-        // Scroll
-        setOffset(o=>Math.max(0,Math.min(allPts.length-zoom,o+Math.sign(e.deltaY)*3)));
-      }
-    }
-
-    const chartContent=<div ref={containerRef}style={{position:"relative",userSelect:"none"}}
-      onWheel={handleWheel}onMouseLeave={()=>{setHov(null);setTooltip(t=>({...t,visible:false}));}}>
-      <BigTooltip x={tooltip.x}y={tooltip.y}data={tooltip.data}color={color}visible={tooltip.visible}/>
-      <svg width="100%"viewBox={`0 0 400 ${H+50}`}style={{overflow:"visible",cursor:"crosshair"}}>
-        <defs>
-          <linearGradient id="gPos"x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={C.green}stopOpacity=".95"/><stop offset="100%"stopColor={C.green}stopOpacity=".5"/></linearGradient>
-          <linearGradient id="gNeg"x1="0"y1="0"x2="0"y2="1"><stop offset="0%"stopColor={C.red}stopOpacity=".5"/><stop offset="100%"stopColor={C.red}stopOpacity=".95"/></linearGradient>
-          <filter id="glow"><feGaussianBlur stdDeviation="4"result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        </defs>
-        {/* Grid lines */}
-        {[0,.25,.5,.75,1].map(f=>{
-          const y=H-f*(H-10)-5;
-          return<g key={f}>
-            <line x1={PAD}y1={y}x2={400-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>
-            <text x={PAD-4}y={y+4}fontSize="8"fill={C.label3}textAnchor="end">{fmt(maxV*f)}</text>
+    const W=360,H=140,pad=10;const bw=Math.max(3,Math.floor((W-pad*2)/pts.length)-3);
+    const[hovered,setHovered]=useState(null);
+    return<div>
+      <svg width="100%"viewBox={`0 0 ${W} ${H+36}`}style={{overflow:"visible"}}>
+        {pts.map((p,i)=>{
+          const x=pad+i*((W-pad*2)/pts.length);
+          const hUtil=Math.max(2,Math.abs(p.util)/maxV*(H-10));
+          const hCaja=Math.max(2,(p.caja||0)/maxV*(H-10));
+          const isPos=p.util>=0;
+          const barYUtil=isPos?H-hUtil:H;
+          return<g key={i}onMouseEnter={()=>setHovered(i)}onMouseLeave={()=>setHovered(null)}>
+            {/* Caja bar (lighter, behind) */}
+            <rect x={x+bw/4}y={H-hCaja}width={bw/2}height={hCaja}fill={color}opacity=".25"rx="1"/>
+            {/* Util bar */}
+            <rect x={x}y={barYUtil}width={bw}height={hUtil}fill={isPos?C.green:C.red}opacity={hovered===i?.95:.75}rx="2"
+              style={{transformOrigin:`${x+bw/2}px ${H}px`,animation:`barGrow .5s ease ${i*.02}s both`}}/>
+            {i%(Math.ceil(pts.length/8))===0&&<text x={x+bw/2}y={H+12}fontSize="7.5"fill={C.label2}textAnchor="middle">{p.f}</text>}
+            {hovered===i&&<>
+              <rect x={Math.min(x-2,W-80)}y={barYUtil-26}width={78}height={22}fill={C.bg3}rx="4"/>
+              <text x={Math.min(x+bw/2,W-40)}y={barYUtil-11}fontSize="8"fill={isPos?C.green:C.red}textAnchor="middle"fontWeight="600">{fmt(p.util)}</text>
+            </>}
           </g>;
         })}
-        {/* Caja bars */}
-        {pts.map((p,i)=>{
-          const W=(400-PAD-8)/pts.length;
-          const x=PAD+i*W+W*.1;
-          const h=Math.max(2,(p.caja||0)/maxV*(H-10));
-          return<rect key={i}x={x}y={H-h}width={W*.8}height={h}fill={color}opacity=".15"rx="2"/>;
-        })}
-        {/* Util bars */}
-        {pts.map((p,i)=>{
-          const W=(400-PAD-8)/pts.length;
-          const x=PAD+i*W+W*.15;
-          const h=Math.max(2,Math.abs(p.util)/maxV*(H-10));
-          const barY=p.util>=0?H-h:H;
-          const isHov=hov===i;
-          return<g key={i}onMouseMove={e=>handleMouseMove(e,i,p)}onTouchStart={()=>setHov(i)}>
-            <rect x={x}y={barY}width={W*.7}height={h}
-              fill={p.util>=0?"url(#gPos)":"url(#gNeg)"}rx="3"
-              filter={isHov?"url(#glow)":"none"}
-              opacity={hov!==null&&!isHov?.35:1}
-              style={{transformOrigin:`${x+W*.35}px ${H}px`,animation:`barGrow .5s cubic-bezier(.16,1,.3,1) ${i*.01}s both`,transition:"opacity .1s,filter .1s"}}/>
-            {/* X label */}
-            {(i%(Math.max(1,Math.ceil(pts.length/8)))===0)&&
-              <text x={x+W*.35}y={H+14}fontSize="7.5"fill={C.label3}textAnchor="middle"transform={`rotate(-30,${x+W*.35},${H+14})`}>{p.f}</text>}
-          </g>;
-        })}
-        <line x1={PAD}y1={H}x2={400-8}y2={H}stroke={C.sep}strokeWidth="1"/>
+        <line x1={pad}y1={H}x2={W-pad}y2={H}stroke={C.sep}strokeWidth="1"/>
+        <text x={pad}y={H-maxV/maxV*(H-10)+8}fontSize="8"fill={C.label3}>{fmt(maxV)}</text>
       </svg>
-      {/* Zoom/scroll controls */}
-      <div style={{display:"flex",alignItems:"center",gap:8,marginTop:8,flexWrap:"wrap"}}>
-        <div style={{display:"flex",gap:4}}>
-          {[7,14,30,allPts.length].map(n=><button key={n}onClick={()=>{setZoom(Math.min(n,allPts.length));setOffset(0);}}
-            style={{background:zoom===Math.min(n,allPts.length)&&offset===0?color:C.fill3,border:"none",borderRadius:8,padding:"4px 10px",...T.cap,color:zoom===Math.min(n,allPts.length)&&offset===0?"#000":C.label2,cursor:"pointer",fontWeight:600}}>
-            {n===allPts.length?"Todo":`${n}d`}
-          </button>)}
-        </div>
-        <div style={{flex:1}}/>
-        <div style={{...T.cap,color:C.label3}}>⌘+scroll=zoom · scroll=navegar</div>
-      </div>
-      {/* Scroll bar visual */}
-      {allPts.length>zoom&&<div style={{background:C.fill3,borderRadius:4,height:3,marginTop:6,position:"relative"}}>
-        <div style={{background:color,borderRadius:4,height:"100%",position:"absolute",
-          left:`${(offset/(allPts.length-zoom))*100*(1-zoom/allPts.length)}%`,
-          width:`${(zoom/allPts.length)*100}%`,transition:"all .1s"}}/>
-      </div>}
-      {/* Legend */}
-      <div style={{display:"flex",gap:14,justifyContent:"center",marginTop:10,flexWrap:"wrap"}}>
-        {[[C.green,"Utilidad"],[C.red,"Pérdida"],[`${color}60`,"Caja física"]].map(([col,lbl])=>
-          <div key={lbl}style={{display:"flex",alignItems:"center",gap:5,...T.cap,color:C.label2}}>
+      <div style={{display:"flex",gap:12,justifyContent:"center",marginTop:4}}>
+        {[[C.green,"Utilidad"],[C.red,"Pérdida"],[color+"66","Caja física"]].map(([col,lbl])=>
+          <div key={lbl}style={{display:"flex",alignItems:"center",gap:4,...T.cap,color:C.label2}}>
             <div style={{width:10,height:10,borderRadius:3,background:col}}/>
             {lbl}
-          </div>)}
+          </div>
+        )}
       </div>
-    </div>;
-
-    return<div>
-      {chartContent}
-      {!expanded&&<button onClick={()=>setExpandChart(true)}className="btn-press"
-        style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:10,...T.fn,color:C.label2,cursor:"pointer"}}>
-        ⤢ Pantalla completa
-      </button>}
-      {expandChart&&<ChartModal title="Utilidad por período"onClose={()=>setExpandChart(false)}>
-        <ChartBarras expanded={true}/>
-      </ChartModal>}
     </div>;
   }
 
-  // ── Gráfico de línea interactivo ─────────────────────────────────────────────
-  function ChartLinea({expanded=false}){
-    const C=getC();
-    const allPts=[...bals].reverse().map(b=>({
-      f:b.fecha.slice(5),fecha:b.fecha,util:b.util,phys:b.phys,
-      caja:(b.util||0)+(b.phys||0)-(b.pa||0),pa:b.pa||0
-    }));
-    const[series,setSeries]=useState(["util"]);
+  // ── Gráfico de línea (tendencia) ──────────────────────────────────────
+  function ChartLinea(){
+    const pts=chartPts;if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
+    const vals=pts.map(p=>p.util);
+    const min=Math.min(...vals),max=Math.max(...vals);const range=max-min||1;
+    const W=360,H=120,pad=20;
+    const toX=i=>pad+i*(W-pad*2)/(pts.length-1);
+    const toY=v=>H-((v-min)/range)*(H-10)-5;
+    // Build path
+    const linePts=pts.map((p,i)=>`${toX(i)},${toY(p.util)}`).join(" ");
+    // Area fill
+    const areaPath=`M${toX(0)},${H} `+pts.map((p,i)=>`L${toX(i)},${toY(p.util)}`).join(" ")+` L${toX(pts.length-1)},${H} Z`;
+    const trend=vals.length>1?(vals[vals.length-1]-vals[0])>=0:true;
+    const trendColor=trend?C.green:C.red;
     const[hov,setHov]=useState(null);
-    const[expandChart,setExpandChart]=useState(false);
-    const containerRef=useRef(null);
-    const[tooltip,setTooltip]=useState({x:0,y:0,data:null,visible:false});
-    const pts=allPts;
-    if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
-
-    const seriesDef=[
-      {key:"util",label:"Utilidad",color:C.green},
-      {key:"phys",label:"Premios",color:C.orange},
-      {key:"caja",label:"Caja física",color:color},
-    ];
-
-    const allVals=pts.flatMap(p=>series.map(s=>p[s]||0));
-    const minV=Math.min(...allVals),maxV=Math.max(...allVals);const range=maxV-minV||1;
-    const H=expanded?280:150,W=400,PAD=44;
-    const toX=i=>PAD+i*(W-PAD-8)/(pts.length-1);
-    const toY=v=>H-((v-minV)/range)*(H-16)-8;
-    const avgUtil=Math.round(pts.reduce((s,p)=>s+(p.util||0),0)/pts.length);
-
-    function handleSvgMove(e){
-      const rect=e.currentTarget.getBoundingClientRect();
-      const x=e.clientX-rect.left;
-      const svgW=rect.width;
-      const idx=Math.round((x-PAD*(svgW/W))/((svgW-PAD*(svgW/W)-8*(svgW/W))/(pts.length-1)));
-      const clamped=Math.max(0,Math.min(pts.length-1,idx));
-      setHov(clamped);
-      const contRect=containerRef.current?.getBoundingClientRect();
-      if(contRect)setTooltip({x:e.clientX-contRect.left,y:e.clientY-contRect.top,data:pts[clamped],visible:true});
-    }
-
-    const id=`ln-${Math.random().toString(36).slice(2,6)}`;
-    const chartContent=<div ref={containerRef}style={{position:"relative"}}
-      onMouseLeave={()=>{setHov(null);setTooltip(t=>({...t,visible:false}));}}>
-      <BigTooltip x={tooltip.x}y={tooltip.y}data={tooltip.data}color={color}visible={tooltip.visible}/>
-      {/* Series toggles */}
-      <div style={{display:"flex",gap:8,marginBottom:10,flexWrap:"wrap"}}>
-        {seriesDef.map(s=><button key={s.key}onClick={()=>setSeries(prev=>prev.includes(s.key)?prev.filter(x=>x!==s.key):[...prev,s.key])}
-          style={{display:"flex",alignItems:"center",gap:5,background:series.includes(s.key)?`${s.color}20`:C.fill3,border:`1px solid ${series.includes(s.key)?s.color:C.sep}`,borderRadius:20,padding:"4px 12px",cursor:"pointer",...T.cap,color:series.includes(s.key)?s.color:C.label2,fontWeight:600}}>
-          <div style={{width:8,height:8,borderRadius:4,background:series.includes(s.key)?s.color:C.label3}}/>
-          {s.label}
-        </button>)}
-      </div>
-      <svg width="100%"viewBox={`0 0 ${W} ${H+30}`}style={{overflow:"visible",cursor:"crosshair"}}
-        onMouseMove={handleSvgMove}>
-        <defs>
-          {seriesDef.map(s=><linearGradient key={s.key}id={`${id}-${s.key}`}x1="0"y1="0"x2="0"y2="1">
-            <stop offset="0%"stopColor={s.color}stopOpacity=".25"/>
-            <stop offset="100%"stopColor={s.color}stopOpacity="0"/>
-          </linearGradient>)}
-        </defs>
-        {/* Grid */}
-        {[0,.25,.5,.75,1].map(f=>{const y=H-((maxV-minV)*f/range*(H-16))-8+(minV/range*(H-16));return<g key={f}>
-          <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>
-          <text x={PAD-4}y={y+4}fontSize="7.5"fill={C.label3}textAnchor="end">{fmt(maxV-(maxV-minV)*f)}</text>
-        </g>;})}
-        {/* Average line */}
-        {series.includes("util")&&<>
-          <line x1={PAD}y1={toY(avgUtil)}x2={W-8}y2={toY(avgUtil)}stroke={C.label3}strokeWidth="1"strokeDasharray="5,4"/>
-          <text x={W-6}y={toY(avgUtil)-3}fontSize="7"fill={C.label3}textAnchor="end">prom</text>
-        </>}
-        {/* Areas + Lines */}
-        {seriesDef.filter(s=>series.includes(s.key)).map(s=>{
-          const pathD=pts.map((p,i)=>`${i===0?"M":"L"}${toX(i)},${toY(p[s.key]||0)}`).join(" ");
-          const areaD=`M${toX(0)},${H} `+pts.map((p,i)=>`L${toX(i)},${toY(p[s.key]||0)}`).join(" ")+` L${toX(pts.length-1)},${H} Z`;
-          return<g key={s.key}>
-            <path d={areaD}fill={`url(#${id}-${s.key})`}/>
-            <path d={pathD}fill="none"stroke={s.color}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"
-              style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s cubic-bezier(.16,1,.3,1) forwards"}}/>
-          </g>;
-        })}
-        {/* Hover line + dots */}
-        {hov!=null&&<>
-          <line x1={toX(hov)}y1={8}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1.5"strokeDasharray="4,3"/>
-          {seriesDef.filter(s=>series.includes(s.key)).map(s=>
-            <circle key={s.key}cx={toX(hov)}cy={toY(pts[hov][s.key]||0)}r="5"fill={s.color}stroke={C.bg||"#080810"}strokeWidth="2"
-              style={{filter:`drop-shadow(0 0 4px ${s.color})`}}/>)}
-        </>}
-        {/* X labels */}
-        {pts.filter((_,i)=>i%(Math.max(1,Math.ceil(pts.length/8)))===0).map((p,i)=>
-          <text key={i}x={toX(pts.indexOf(p))}y={H+18}fontSize="7.5"fill={C.label3}textAnchor="middle">{p.f}</text>)}
-      </svg>
-    </div>;
-
     return<div>
-      {chartContent}
-      {!expanded&&<button onClick={()=>setExpandChart(true)}className="btn-press"
-        style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:8,...T.fn,color:C.label2,cursor:"pointer"}}>
-        ⤢ Pantalla completa
-      </button>}
-      {expandChart&&<ChartModal title="Tendencia"onClose={()=>setExpandChart(false)}><ChartLinea expanded={true}/></ChartModal>}
-    </div>;
-  }
-
-  // ── Gráfico de área acumulada ─────────────────────────────────────────────────
-  function ChartArea(){
-    const C=getC();
-    const[expandChart,setExpandChart]=useState(false);
-    const pts=[...bals].reverse();
-    if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
-    // Cumulative sum
-    let cum=0;
-    const cumPts=pts.map(p=>{cum+=(p.util||0);return{f:p.fecha.slice(5),util:p.util,cum};});
-    const minC=Math.min(...cumPts.map(p=>p.cum)),maxC=Math.max(...cumPts.map(p=>p.cum));
-    const range=maxC-minC||1;
-    const H=150,W=400,PAD=50;
-    const toX=i=>PAD+i*(W-PAD-8)/(cumPts.length-1);
-    const toY=v=>H-((v-minC)/range)*(H-16)-8;
-    const finalIsPos=cumPts[cumPts.length-1]?.cum>=0;
-    const pathD=cumPts.map((p,i)=>`${i===0?"M":"L"}${toX(i)},${toY(p.cum)}`).join(" ");
-    const areaD=`M${toX(0)},${toY(0)} `+cumPts.map((p,i)=>`L${toX(i)},${toY(p.cum)}`).join(" ")+` L${toX(cumPts.length-1)},${toY(0)} Z`;
-    const id="ca-"+Math.random().toString(36).slice(2,6);
-    const zeroY=toY(0);
-
-    return<div>
-      <div style={{...T.cap,color:C.label2,marginBottom:8}}>Acumulado total del período seleccionado</div>
-      <div style={{...T.h,color:finalIsPos?C.green:C.red,fontSize:22,fontWeight:700,marginBottom:12}}>
-        {fmtE(cumPts[cumPts.length-1]?.cum||0)}
-      </div>
-      <svg width="100%"viewBox={`0 0 ${W} ${H+24}`}style={{overflow:"visible"}}>
+      <svg width="100%"viewBox={`0 0 ${W} ${H+28}`}style={{overflow:"visible"}}>
         <defs>
-          <linearGradient id={id}x1="0"y1="0"x2="0"y2="1">
-            <stop offset="0%"stopColor={finalIsPos?C.green:C.red}stopOpacity=".4"/>
-            <stop offset="100%"stopColor={finalIsPos?C.green:C.red}stopOpacity=".02"/>
+          <linearGradient id="areaGrad"x1="0"y1="0"x2="0"y2="1">
+            <stop offset="0%"stopColor={trendColor}stopOpacity=".3"/>
+            <stop offset="100%"stopColor={trendColor}stopOpacity="0"/>
           </linearGradient>
         </defs>
-        {[0,.25,.5,.75,1].map(f=>{const y=H-((maxC-minC)*f/range*(H-16))-8+(minC/range*(H-16));return<g key={f}>
-          <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/>
-          <text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(maxC-(maxC-minC)*f)}</text>
-        </g>;})}
-        {zeroY>8&&zeroY<H&&<line x1={PAD}y1={zeroY}x2={W-8}y2={zeroY}stroke={C.sep}strokeWidth="1.5"/>}
-        <path d={areaD}fill={`url(#${id})`}/>
-        <path d={pathD}fill="none"stroke={finalIsPos?C.green:C.red}strokeWidth="2.5"strokeLinecap="round"strokeLinejoin="round"
-          style={{strokeDasharray:4000,strokeDashoffset:4000,animation:"lineIn 1.4s cubic-bezier(.16,1,.3,1) forwards"}}/>
-        <circle cx={toX(cumPts.length-1)}cy={toY(cumPts[cumPts.length-1].cum)}r="5"fill={finalIsPos?C.green:C.red}stroke={C.bg||"#080810"}strokeWidth="2"
-          style={{filter:`drop-shadow(0 0 6px ${finalIsPos?C.green:C.red})`}}/>
-        {cumPts.filter((_,i)=>i%(Math.max(1,Math.ceil(cumPts.length/7)))===0).map((p,i)=>
-          <text key={i}x={toX(cumPts.findIndex(cp=>cp.f===p.f))}y={H+16}fontSize="7.5"fill={C.label3}textAnchor="middle">{p.f}</text>)}
+        {/* Grid lines */}
+        {[0,.25,.5,.75,1].map(f=>{const y=H-f*(H-10)-5;return<line key={f}x1={pad}y1={y}x2={W-pad}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>;})  }
+        {/* Area */}
+        <path d={areaPath}fill="url(#areaGrad)"/>
+        {/* Line */}
+        <polyline points={linePts}fill="none"stroke={trendColor}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"
+          style={{strokeDasharray:2000,strokeDashoffset:2000,animation:"lineDrawIn 1s ease .1s forwards"}}/>
+        {/* Points */}
+        {pts.map((p,i)=><circle key={i}cx={toX(i)}cy={toY(p.util)}r={hov===i?5:3}fill={p.util>=0?C.green:C.red}stroke={C.bg2}strokeWidth="2"
+          onMouseEnter={()=>setHov(i)}onMouseLeave={()=>setHov(null)}style={{cursor:"default",transition:"r .1s"}}/>)}
+        {/* X labels */}
+        {pts.filter((_,i)=>i%(Math.ceil(pts.length/6))===0).map((p,i)=><text key={i}x={toX(pts.findIndex(pt=>pt.f===p.f))}y={H+14}fontSize="8"fill={C.label2}textAnchor="middle">{p.f}</text>)}
+        {/* Hover tooltip */}
+        {hov!=null&&<>
+          <rect x={Math.min(toX(hov)-36,W-80)}y={toY(pts[hov].util)-26}width={72}height={20}fill={C.bg3}rx="4"/>
+          <text x={Math.min(toX(hov),W-40)}y={toY(pts[hov].util)-12}fontSize="8.5"fill={pts[hov].util>=0?C.green:C.red}textAnchor="middle"fontWeight="700">{fmt(pts[hov].util)}</text>
+        </>}
       </svg>
-      <button onClick={()=>setExpandChart(true)}className="btn-press"
-        style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:10,padding:"8px",marginTop:8,...T.fn,color:C.label2,cursor:"pointer"}}>
-        ⤢ Pantalla completa
-      </button>
-      {expandChart&&<ChartModal title="Acumulado"onClose={()=>setExpandChart(false)}><ChartArea/></ChartModal>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
+        <span style={{...T.cap,color:C.label2}}>Tendencia {trend?"↗ alcista":"↘ bajista"}</span>
+        <span style={{...T.fn,color:trendColor,fontWeight:600}}>{fmtE(vals[vals.length-1]-vals[0])}</span>
+      </div>
     </div>;
   }
 
-  // ── Top 5 máquinas ────────────────────────────────────────────────────────────
+  // ── Top 5 máquinas con sparklines ────────────────────────────────────
   function ChartTop5(){
-    const top=top5.filter(m=>m.periods>0);
-    if(!top.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30,lineHeight:1.6}}>
-      Sin datos — ingresa lecturas manuales<br/>o carga el historial desde Sheets
-    </div>;
-    const maxTot=Math.max(...top.map(m=>Math.abs(m.total)),1);
+    if(!top5.filter(m=>m.periods>0).length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos aún</div>;
+    const maxTot=Math.max(...top5.map(m=>Math.abs(m.total)),1);
     return<div style={{padding:"4px 0"}}>
-      {top.map((mq,i)=>{
-        const pct=Math.abs(mq.total)/maxTot*100;const col=maqC(mq.factor,C);const isPos=mq.total>=0;
-        return<div key={mq.id}style={{marginBottom:18,animation:`fadeUp .4s ease ${i*.07}s both`}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <MaqIcon factor={mq.factor}nombre={mq.nombre}size={32}/>
+      {top5.filter(m=>m.periods>0).map((mq,i)=>{
+        const pct=Math.abs(mq.total)/maxTot*100;const col=maqC(mq.factor,C);
+        return<div key={mq.id}style={{marginBottom:14,animation:`fadeSlideUp .3s ease ${i*.06}s both`}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <MaqIcon factor={mq.factor}nombre={mq.nombre}size={26}/>
               <div>
                 <div style={{...T.s,color:C.label,fontWeight:600}}>{mq.nombre}</div>
-                <div style={{...T.cap,color:C.label2,marginTop:1}}>
-                  {mq.periods} per · prom <span style={{color:col}}>{fmtE(mq.periods?Math.round(mq.total/mq.periods):0)}</span>
-                </div>
+                <div style={{...T.cap,color:C.label2}}>{mq.periods} períodos · prom {fmtE(mq.periods?Math.round(mq.total/mq.periods):0)}</div>
               </div>
             </div>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              {mq.history.length>1&&<Sparkline data={mq.history}color={col}height={32}width={60}/>}
-              <div style={{textAlign:"right"}}>
-                <div style={{...T.h,color:isPos?C.green:C.red,fontWeight:700,fontSize:16}}>{fmtE(mq.total)}</div>
-                <div style={{...T.cap,color:C.label3}}>{isPos?"↑ ganancia":"↓ pérdida"}</div>
-              </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              {mq.history.length>1&&<Sparkline data={mq.history}color={col}height={28}width={60}/>}
+              <span style={{...T.c,color:mq.total>=0?C.green:C.red,fontWeight:700,minWidth:64,textAlign:"right"}}>{fmtE(mq.total)}</span>
             </div>
           </div>
-          <div style={{background:C.fill3,borderRadius:6,height:6,overflow:"hidden",position:"relative"}}>
-            <div style={{height:"100%",background:`linear-gradient(90deg,${col}66,${col})`,borderRadius:6,transition:"width .9s cubic-bezier(.16,1,.3,1)",width:`${pct}%`,boxShadow:`0 0 8px ${col}44`}}/>
+          <div style={{background:C.fill3,borderRadius:6,height:6,overflow:"hidden"}}>
+            <div style={{width:`${pct}%`,height:"100%",background:`linear-gradient(90deg,${col}88,${col})`,borderRadius:6,animation:`slideRight .6s ease ${i*.06}s both`}}/>
           </div>
         </div>;
       })}
     </div>;
   }
-
-  // ── Modal de gráfico expandido ────────────────────────────────────────────────
-  function ChartModal({title,children,onClose}){
-    const C=getC();
-    useEffect(()=>{
-      document.body.style.overflow="hidden";
-      return()=>{document.body.style.overflow="";};
-    },[]);
-    return<div style={{position:"fixed",inset:0,background:"rgba(4,4,12,.95)",zIndex:600,display:"flex",flexDirection:"column",animation:"fadeIn .2s ease both",backdropFilter:"blur(10px)"}}>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"16px 20px",borderBottom:`1px solid ${C.sep}`}}>
-        <div style={{...T.h,color:C.label}}>{title}</div>
-        <button onClick={onClose}className="btn-press"style={{background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:99,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:C.label,...T.h}}>✕</button>
-      </div>
-      <div style={{flex:1,padding:"16px 16px 40px",overflowY:"auto"}}>{children}</div>
-    </div>;
-  }
-
 
   function exportExcel(){
     const XLSX=window.XLSX;if(!XLSX){const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";s.onload=exportExcel;document.head.appendChild(s);return;}
@@ -1456,9 +1008,9 @@ function Report({cid,cont}){
     <Nav title="Reporte"sub={m.n}sy={sy}right={[{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
       {/* Vista tabs */}
-      <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(10px)"}}>
+      <div style={{display:"flex",background:C.bg2,borderRadius:12,padding:3,marginBottom:12,border:`1px solid ${C.sep}`}}>
         {[["balance","Balance"],["tabla","Tabla"],["grafica","Gráfica"]].map(([v,l])=>
-          <button key={v}onClick={()=>setVista(v)}className="btn-press"style={{flex:1,background:vista===v?`${color}22`:"transparent",border:vista===v?`1px solid ${color}33`:"1px solid transparent",borderRadius:12,padding:"9px",color:vista===v?color:C.label2,cursor:"pointer",...T.s,fontWeight:vista===v?700:400,transition:"all .2s"}}>{l}</button>)}
+          <button key={v}onClick={()=>setVista(v)}style={{flex:1,background:vista===v?C.bg3:"transparent",border:"none",borderRadius:10,padding:"8px",color:vista===v?C.label:C.label2,cursor:"pointer",...T.s,fontWeight:vista===v?700:400,transition:"all .15s"}}>{l}</button>)}
       </div>
       {/* Filtros */}
       <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:2}}>
@@ -1471,26 +1023,18 @@ function Report({cid,cont}){
         <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{...T.fn,color:C.label2}}>Hasta</span><input type="date"value={hasta}onChange={e=>setHasta(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.fn}}/></div>
       </div>}
 
-      {/* KPI Hero */}
-      <div className="fade-up"style={{background:`linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,.02))`,borderRadius:24,padding:"20px",marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(20px)",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-30,right:-30,width:120,height:120,borderRadius:60,background:`${color}12`,pointerEvents:"none"}}/>
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
-          <div style={{...T.cap,color:C.label2,letterSpacing:1.2,textTransform:"uppercase"}}>Utilidad Total · {bals.length} períodos</div>
-          {balLoading&&<div style={{...T.cap,color:C.teal,background:`${C.teal}15`,borderRadius:20,padding:"1px 8px",border:`1px solid ${C.teal}33`,animation:"pulse 1s infinite"}}>↻ Cargando</div>}
-          {!balLoading&&liveBalance&&liveBalance.length>0&&<div style={{...T.cap,color:C.green,background:`${C.green}15`,borderRadius:20,padding:"1px 8px",border:`1px solid ${C.green}33`}}>● Live</div>}
-          {!balLoading&&(!liveBalance||liveBalance.length===0)&&<div style={{...T.cap,color:C.label3,background:C.fill3,borderRadius:20,padding:"1px 8px"}}>Sin conexión</div>}
-        </div>
-        <AnimNumber value={totUtil}style={{...T.lg,color:totUtil>=0?C.green:C.red,fontSize:38,fontWeight:700,letterSpacing:-1,display:"block",marginBottom:16}}/>
+      {/* KPI Cards */}
+      <div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:18,padding:18,marginBottom:14,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .35s ease both"}}>
+        <div style={{...T.cap,color:C.label2,marginBottom:4,letterSpacing:1}}>UTILIDAD TOTAL · {bals.length} PERÍODOS</div>
+        <AnimNumber value={totUtil}style={{...T.lg,color:C.label,fontSize:36,display:"block",marginBottom:14}}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-          {[["Premios",totPhys,C.orange,"trophy"],["Caja",totCaja,color,"report"],["Promedio",avg,C.blue,"chart"]].map(([lbl,val,col,ic],i)=>
-            <div key={i}className={`fade-up-${i+2}`}style={{background:`${col}10`,borderRadius:14,padding:"10px 12px",border:`1px solid ${col}20`}}>
-              <div style={{display:"flex",alignItems:"center",gap:4,marginBottom:4}}><Ico n={ic}c={col}s={11}/><span style={{...T.cap,color:col,letterSpacing:.5,fontWeight:600}}>{lbl}</span></div>
-              <AnimNumber value={val}style={{...T.c,color:col,fontWeight:700,display:"block",fontSize:14}}/>
+          {[["Premios",totPhys,C.orange],["Caja",totCaja,color],["Promedio",avg,C.blue]].map(([lbl,val,col],i)=>
+            <div key={i}style={{background:C.fill4,borderRadius:12,padding:"10px 10px",animation:`fadeSlideUp .35s ease ${.1+i*.05}s both`}}>
+              <div style={{...T.cap,color:C.label2,marginBottom:3}}>{lbl}</div>
+              <AnimNumber value={val}style={{...T.c,color:col,fontWeight:700,display:"block"}}/>
             </div>)}
         </div>
-        {totPA>0&&<div style={{...T.fn,color:C.yellow,marginTop:10,display:"flex",alignItems:"center",gap:6,background:`${C.yellow}10`,padding:"6px 10px",borderRadius:10,border:`1px solid ${C.yellow}20`}}>
-          <Ico n="trophy"c={C.yellow}s={13}/>Premio Amor: {fmtE(totPA)}
-        </div>}
+        {totPA>0&&<div style={{...T.fn,color:C.yellow,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Ico n="trophy"c={C.yellow}s={13}/>Premio Amor: {fmtE(totPA)}</div>}
       </div>
 
       {/* BALANCE */}
@@ -1517,14 +1061,16 @@ function Report({cid,cont}){
 
       {/* GRÁFICA */}
       {vista==="grafica"&&<>
-        <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:12,border:`1px solid ${C.sep}`,overflowX:"auto"}}>
-          {[["barras","Barras"],["linea","Líneas"],["area","Acumulado"],["top5","Top Máqs"]].map(([v,l])=>
-            <button key={v}onClick={()=>setChartTab(v)}className="btn-press"style={{flex:"0 0 auto",background:chartTab===v?`${color}22`:"transparent",border:chartTab===v?`1px solid ${color}33`:"1px solid transparent",borderRadius:12,padding:"8px 14px",color:chartTab===v?color:C.label2,cursor:"pointer",...T.fn,fontWeight:chartTab===v?700:400,transition:"all .2s",whiteSpace:"nowrap"}}>{l}</button>)}
+        <div style={{display:"flex",background:C.bg2,borderRadius:12,padding:3,marginBottom:12,border:`1px solid ${C.sep}`}}>
+          {[["barras","Barras"],["linea","Tendencia"],["top5","Top Máquinas"]].map(([v,l])=>
+            <button key={v}onClick={()=>setChartTab(v)}style={{flex:1,background:chartTab===v?C.bg3:"transparent",border:"none",borderRadius:10,padding:"8px",color:chartTab===v?C.label:C.label2,cursor:"pointer",...T.fn,fontWeight:chartTab===v?700:400,transition:"all .15s"}}>{l}</button>)}
         </div>
-        <div style={{background:"rgba(255,255,255,.03)",borderRadius:18,padding:"16px 14px 12px",border:`1px solid ${C.sep}`,backdropFilter:"blur(20px)"}}>
+        <div style={{background:C.bg2,borderRadius:16,padding:"16px 12px 10px",border:`1px solid ${C.sep}`,animation:"fadeSlideUp .3s ease both"}}>
+          <div style={{...T.fn,color:C.label2,marginBottom:10,paddingLeft:4,fontWeight:600}}>
+            {chartTab==="barras"?"Utilidad por período (últimos 30)":chartTab==="linea"?"Línea de tendencia":"Top 5 máquinas"}
+          </div>
           {chartTab==="barras"&&<ChartBarras/>}
           {chartTab==="linea"&&<ChartLinea/>}
-          {chartTab==="area"&&<ChartArea/>}
           {chartTab==="top5"&&<ChartTop5/>}
         </div>
       </>}
@@ -2035,100 +1581,60 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
   const C=getC();const[sy,setSy]=useState(0);
   const lastBal=cid=>{const d=D[cid];if(!d?.b?.length)return null;return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];};
   const total=Object.keys(META).filter(cid=>!META[cid].sim).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
-  const uColor=user==="Santiago"?C.indigo:user==="Eliza"?C.pink:C.teal;
-
-  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch",background:C.bg}}>
+  const allRecent=Object.keys(META).map(cid=>{const b=lastBal(cid);return{cid,util:b?.util_total||0};}).sort((a,b)=>b.util-a.util);
+  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
     <style>{ANIM_CSS}</style>
-    {/* Ambient background */}
-    <div style={{position:"fixed",top:0,left:0,right:0,height:320,pointerEvents:"none",zIndex:0,background:`radial-gradient(ellipse 80% 60% at 50% -10%, ${C.indigo}22, transparent)`}}/>
-
-    <Nav title="Casinos"sub={`Hola, ${user}`}sy={sy}right={[
-      {icon:<svg width="17"height="17"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><rect x="3"y="3"width="7"height="7"rx="1"/><rect x="14"y="3"width="7"height="7"rx="1"/><rect x="3"y="14"width="7"height="7"rx="1"/><rect x="14"y="14"width="7"height="7"rx="1"/></svg>,fn:onComparar},
-      ...(pending>0?[{icon:<div style={{position:"relative"}}><Ico n="sync"c={C.orange}s={17}/><div style={{position:"absolute",top:-5,right:-5}}><Badge n={pending}c={C.orange}/></div></div>,fn:()=>{}}]:[]),
+    <Nav title="Mis Casinos"sub={user}sy={sy}right={[
+      ...(pending>0?[{icon:<div style={{position:"relative"}}><Ico n="sync"c={C.orange}s={17}/><div style={{position:"absolute",top:-4,right:-4}}><Badge n={pending}c={C.orange}/></div></div>,fn:()=>{}}]:[]),
       {icon:"settings",fn:onCfg}
     ]}/>
-
-    <div style={{padding:"0 16px",paddingBottom:80,position:"relative",zIndex:1}}>
-
-      {/* Hero total */}
-      <div className="fade-up"style={{background:"linear-gradient(145deg, rgba(124,109,250,.18), rgba(61,142,255,.1), rgba(0,206,201,.06))",borderRadius:28,padding:"24px 20px",marginBottom:22,border:"1px solid rgba(124,109,250,.25)",backdropFilter:"blur(30px)",position:"relative",overflow:"hidden"}}>
-        {/* Ambient orbs */}
-        <div style={{position:"absolute",top:-40,right:-40,width:160,height:160,borderRadius:80,background:"radial-gradient(circle, rgba(124,109,250,.25), transparent)",filter:"blur(20px)",animation:"orb 8s ease infinite",pointerEvents:"none"}}/>
-        <div style={{position:"absolute",bottom:-30,left:-30,width:120,height:120,borderRadius:60,background:"radial-gradient(circle, rgba(61,142,255,.2), transparent)",filter:"blur(20px)",animation:"orb 10s ease infinite reverse",pointerEvents:"none"}}/>
-        <div style={{...T.cap,color:"rgba(255,255,255,.5)",letterSpacing:1.5,marginBottom:10,textTransform:"uppercase",fontSize:11}}>Resultado · Todos los locales</div>
-        <AnimNumber value={total}style={{...T.lg,color:"#FFF",fontSize:42,fontWeight:700,letterSpacing:-1.5,display:"block",marginBottom:20,textShadow:"0 2px 20px rgba(124,109,250,.4)"}}/>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          {Object.entries(META).filter(([cid,m])=>!m.sim).map(([cid,m],i)=>{
-            const b=lastBal(cid);const col=C[m.c];
-            return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press"
-              style={{background:`${col}14`,border:`1px solid ${col}28`,borderRadius:16,padding:"10px 13px",cursor:"pointer",textAlign:"left",flex:"1 0 auto",minWidth:80,backdropFilter:"blur(10px)",transition:"all .2s"}}
-              onMouseEnter={e=>{e.currentTarget.style.background=`${col}28`;e.currentTarget.style.transform="translateY(-2px)";}}
-              onMouseLeave={e=>{e.currentTarget.style.background=`${col}14`;e.currentTarget.style.transform="";}}>
-              <div style={{display:"flex",alignItems:"center",gap:5,marginBottom:4}}>
-                <Ico n={m.e}c={col}s={13}/>
-                <span style={{...T.cap,color:col,fontWeight:700,letterSpacing:.6,fontSize:10}}>{m.n.split(" ").pop().slice(0,7).toUpperCase()}</span>
+    <div style={{padding:"0 14px",paddingBottom:60}}>
+      {/* Hero KPI */}
+      <div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:20,padding:20,marginBottom:20,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .4s ease both",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-20,right:-20,width:120,height:120,borderRadius:60,background:`${C[allRecent[0]?.cid?META[allRecent[0].cid]?.c:"indigo"]||C.indigo}18`,pointerEvents:"none"}}/>
+        <div style={{...T.cap,color:C.label2,marginBottom:4,letterSpacing:1}}>ÚLTIMO PERÍODO — TODOS</div>
+        <AnimNumber value={total}style={{...T.lg,color:C.label,fontSize:38,display:"block",marginBottom:16}}/>
+        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
+          {Object.entries(META).map(([cid,m],i)=>{const b=lastBal(cid);const col=C[m.c];
+            return<div key={cid}onClick={()=>onSelect(cid)}style={{flex:"1 0 auto",background:C.fill3,borderRadius:12,padding:"8px 10px",cursor:"pointer",border:`1px solid ${C.sep}`,transition:"transform .15s",animation:`fadeSlideUp .4s ease ${.1+i*.05}s both`}}
+              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}onMouseLeave={e=>e.currentTarget.style.transform=""}>
+              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
+                <Ico n={m.e}c={col}s={14}/>
+                <span style={{...T.cap,color:C.label2}}>{m.n.split(" ").pop()}</span>
               </div>
-              <div style={{fontSize:13,fontWeight:700,color:b?.util_total>=0?C.green:C.red}}>{fmt(b?.util_total)}</div>
-            </button>;
+              <div style={{...T.s,color:b?.util_total>=0?C.green:C.red,fontWeight:700}}>{fmt(b?.util_total)}</div>
+            </div>;
           })}
         </div>
       </div>
-      {/* Casino cards */}
-      <div style={{...T.cap,color:C.label2,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600}}>Locales</div>
-      <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:20}}>
-        {Object.entries(META).filter(([cid,m])=>!m.sim).map(([cid,m],i)=>{
-          const b=lastBal(cid);const dd=D[cid];const col=C[m.c];
-          const isPos=b?.util_total>=0;
-          return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press fade-up"
-            style={{background:C.bg2,border:`1px solid ${C.sep}`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",backdropFilter:"blur(20px)",animationDelay:`${.1+i*.05}s`,transition:"border-color .2s,box-shadow .2s"}}
-            onMouseEnter={e=>{e.currentTarget.style.borderColor=`${col}44`;e.currentTarget.style.boxShadow=`0 8px 32px ${col}18`;}}
-            onMouseLeave={e=>{e.currentTarget.style.borderColor=C.sep;e.currentTarget.style.boxShadow="none";}}>
-            <CasinoAvatar cid={cid}size={50}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{...T.h,color:C.label,marginBottom:3}}>{m.n}</div>
-              <div style={{...T.fn,color:C.label2}}>
-                {dd?.m?.length||0} máqs
-                <span style={{margin:"0 6px",opacity:.4}}>·</span>
-                {m.liq}
-                {b&&<><span style={{margin:"0 6px",opacity:.4}}>·</span><span style={{color:C.label3}}>{b.fecha.slice(5)}</span></>}
-              </div>
-            </div>
-            <div style={{textAlign:"right"}}>
-              {b&&<div style={{...T.h,color:isPos?C.green:C.red,fontWeight:700}}>{fmt(b.util_total)}</div>}
-              <div style={{...T.cap,color:isPos?`${C.green}66`:`${C.red}66`,marginTop:2}}>{isPos?"↑":"↓"} {m.liq}</div>
-            </div>
-            <Ico n="chevron"c={C.label3}s={16}/>
-          </button>;
+      {/* Casino list */}
+      <Sec hdr="Locales"delay={.15}>
+        {Object.entries(META).map(([cid,m],i,a)=>{const b=lastBal(cid);const dd=D[cid];const col=C[m.c];
+          return<Row key={cid}ic={m.e}icC={col}lbl={m.n}sub={`${dd?.m?.length||0} máqs · ${m.liq}${b?` · ${b.fecha.slice(5)}`:""}`}
+            right={b?<span style={{...T.c,color:b.util_total>=0?C.green:C.red,fontWeight:700}}>{fmt(b.util_total)}</span>:null}
+            fn={()=>onSelect(cid)}last={i===a.length-1}/>;
         })}
-      </div>
-
-      {/* Quick access daily */}
-      <div style={{...T.cap,color:C.label2,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600}}>Liquidación diaria</div>
-      <div style={{display:"flex",gap:10,marginBottom:20}}>
+      </Sec>
+      <Sec hdr="Liquidación diaria"delay={.2}>
         {["vikingos","faraon"].map((cid,i)=>{const m=META[cid];const b=lastBal(cid);const col=C[m.c];
-          return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press fade-up"
-            style={{flex:1,background:`linear-gradient(135deg,${col}18,${col}08)`,border:`1px solid ${col}25`,borderRadius:20,padding:"14px",cursor:"pointer",textAlign:"left",animationDelay:`${.35+i*.06}s`}}>
-            <CasinoAvatar cid={cid}size={36}/>
-            <div style={{marginTop:10,...T.h,color:C.label}}>{m.n}</div>
-            <div style={{...T.fn,color:C.label2,marginTop:2}}>Última: {b?.fecha||"—"}</div>
-          </button>;
+          return<Row key={cid}ic={m.e}icC={col}lbl={`Ingresar hoy — ${m.n}`}sub={`Última: ${b?.fecha||"—"}`}fn={()=>onSelect(cid)}last={i===1}/>;
         })}
-      </div>
-      {/* Simulation casino */}
-      <div style={{...T.cap,color:C.teal,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600,display:"flex",alignItems:"center",gap:8}}>
+      </Sec>
+      {/* Simulation / OCR Lab */}
+      <div style={{...T.cap,color:C.teal,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600,display:"flex",alignItems:"center",gap:8,marginTop:4}}>
         <div style={{width:6,height:6,borderRadius:3,background:C.teal,animation:"pulse 1.5s infinite"}}/>
         Laboratorio OCR
       </div>
       <button onClick={()=>onSelect("simulacion")}className="btn-press fade-up"
-        style={{width:"100%",background:`linear-gradient(135deg,${C.teal}12,${C.teal}06)`,border:`2px dashed ${C.teal}33`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",animationDelay:".4s"}}>
-        <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(145deg,${C.teal}33,${C.teal}66)`,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.teal}44`}}>
+        style={{width:"100%",background:`linear-gradient(135deg,${C.teal}12,${C.teal}06)`,border:`2px dashed ${C.teal}33`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",animationDelay:".4s",marginBottom:8}}>
+        <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(145deg,${C.teal}33,${C.teal}66)`,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.teal}44`,flexShrink:0}}>
           <Ico n="slot"c={C.teal}s={24}/>
         </div>
         <div style={{flex:1}}>
           <div style={{...T.h,color:C.teal}}>Casino Simulación</div>
           <div style={{...T.fn,color:C.label2,marginTop:3}}>Entorno de pruebas OCR · Desconectado de Sheets</div>
         </div>
-        <div style={{background:`${C.teal}15`,borderRadius:20,padding:"3px 10px",border:`1px solid ${C.teal}25`}}>
+        <div style={{background:`${C.teal}15`,borderRadius:20,padding:"3px 10px",border:`1px solid ${C.teal}25`,flexShrink:0}}>
           <span style={{...T.cap,color:C.teal,fontWeight:700}}>TEST</span>
         </div>
       </button>
@@ -2137,251 +1643,127 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
 }
 
 
-// ─── COMPARAR CASINOS ────────────────────────────────────────────────────────
+// ─── COMPARAR CASINOS ─────────────────────────────────────────────────────────
 function CompararLineChart({allDates,data,selected,metric,C}){
   const[hov,setHov]=useState(null);
   const H=200,W=380,PAD=48;
-  const activeCids=Object.keys(META).filter(cid=>selected.includes(cid));
+  const activeCids=Object.keys(META).filter(cid=>!META[cid].sim);
   const allVals=activeCids.flatMap(cid=>(data[cid]||[]).filter(r=>allDates.includes(r.fecha)).map(r=>r[metric]||0)).filter(v=>isFinite(v));
-  if(!allVals.length||allDates.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin suficientes datos para mostrar tendencia</div>;
+  if(!allVals.length||allDates.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
   const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);const range=maxV-minV||1;
   const toX=i=>PAD+i*(W-PAD-8)/(allDates.length-1||1);
   const toY=v=>H-((v-minV)/range)*(H-16)-8;
-  return<svg width="100%"viewBox={`0 0 ${W} ${H+28}`}style={{overflow:"visible",cursor:"crosshair"}}
-    onMouseLeave={()=>setHov(null)}>
-    {[0,.5,1].map(f=>{const y=H-f*(H-16)-8;return<g key={f}>
-      <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/>
-      <text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(minV+(maxV-minV)*f)}</text>
-    </g>;})}
-    {Object.keys(META).filter(cid=>selected.includes(cid)).map(cid=>{
+  return<svg width="100%"viewBox={"0 0 "+W+" "+(H+28)}style={{overflow:"visible"}}onMouseLeave={()=>setHov(null)}>
+    {[0,.5,1].map(f=>{const y=H-f*(H-16)-8;return<g key={f}><line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/><text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(minV+(maxV-minV)*f)}</text></g>;})}
+    {activeCids.map(cid=>{
       const col=C[META[cid].c];
       const pts=allDates.map(fecha=>{const row=(data[cid]||[]).find(r=>r.fecha===fecha);return row?row[metric]:null;});
-      let pathD="";let inSeg=false;
-      pts.forEach((v,i)=>{if(v!=null&&isFinite(toX(i))&&isFinite(toY(v))){if(!inSeg){pathD+=`M${toX(i)},${toY(v)}`;inSeg=true;}else{pathD+=`L${toX(i)},${toY(v)}`;}}else{inSeg=false;}});
-      return<g key={cid}>
-        <path d={pathD}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"opacity=".9"
-          style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s ease forwards"}}/>
-        {pts.map((v,i)=>v!=null&&<circle key={i}cx={toX(i)}cy={toY(v)}r={hov===i?5:2.5}fill={col}stroke="rgba(8,8,16,.9)"strokeWidth="1.5"
-          onMouseEnter={()=>setHov(i)}/>)}
-      </g>;
+      let d2="";let seg=false;
+      pts.forEach((v,i)=>{if(v!=null&&isFinite(toX(i))&&isFinite(toY(v))){if(!seg){d2+="M"+toX(i)+","+toY(v);seg=true;}else d2+="L"+toX(i)+","+toY(v);}else seg=false;});
+      return<g key={cid}><path d={d2}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s ease forwards"}}/>{pts.map((v,i)=>v!=null&&<circle key={i}cx={toX(i)}cy={toY(v)}r={hov===i?5:2.5}fill={col}stroke="#080810"strokeWidth="1.5"onMouseEnter={()=>setHov(i)}/>)}</g>;
     })}
-    {allDates.filter((_,i)=>i%(Math.max(1,Math.ceil(allDates.length/6)))===0).map((d,i)=>
-      <text key={i}x={toX(allDates.indexOf(d))}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>)}
+    {allDates.filter((_,i)=>i%Math.max(1,Math.ceil(allDates.length/6))===0).map((d,i)=><text key={i}x={toX(allDates.indexOf(d))}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>)}
     {hov!=null&&<line x1={toX(hov)}y1={8}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1"strokeDasharray="3,3"/>}
   </svg>;
 }
 
 function Comparar({onBack}){
   const C=getC();
-  const[selected,setSelected]=useState(Object.keys(META));
-  const[metric,setMetric]=useState("util"); // util | phys | caja
-  const[period,setPeriod]=useState("mes");
-  const[mes,setMes]=useState(today().slice(0,7));
-  const[data,setData]=useState({}); // { cid: [{fecha,util,phys,caja}] }
-  const[loading,setLoading]=useState(true);
-  const[chartType,setChartType]=useState("barras"); // barras | linea | radar
-  const[sy,setSy]=useState(0);
-
+  const[metric,setMetric]=useState("util");const[period,setPeriod]=useState("mes");
+  const[mes,setMes]=useState(today().slice(0,7));const[data,setData]=useState({});
+  const[loading,setLoading]=useState(true);const[chartType,setChartType]=useState("barras");
+  const metricLabel={util:"Utilidad",phys:"Premios",caja:"Caja"};
+  const metricColor={util:C.green,phys:C.orange,caja:C.blue};
   useEffect(()=>{
     setLoading(true);
-    Promise.all(Object.keys(META).map(cid=>
-      fetchBalanceFromSheets(cid)
-        .then(bal=>[cid,bal&&bal.length>0?bal:D[cid]?.b?.map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}))||[]])
-        .catch(()=>[cid,D[cid]?.b?.map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}))||[]])
+    Promise.all(Object.keys(META).filter(k=>!META[k].sim).map(cid=>
+      fetchBalanceFromSheets(cid).then(bal=>[cid,bal||[]]).catch(()=>[cid,(D[cid]?.b||[]).map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}))])
     )).then(results=>{
-      const d={};
-      results.forEach(([cid,rows])=>{
-        d[cid]=rows.map(r=>({
-          fecha:r.fecha,
-          util:r.util_total||0,
-          phys:r.phys_total||0,
-          caja:(r.util_total||0)+(r.phys_total||0),
-        }));
-      });
-      setData(d);
-      setLoading(false);
+      const d={};results.forEach(([cid,rows])=>{d[cid]=rows.map(r=>({fecha:r.fecha,util:r.util_total||0,phys:r.phys_total||0,caja:(r.util_total||0)+(r.phys_total||0)}));});
+      setData(d);setLoading(false);
     });
   },[]);
-
   function filterRows(rows){
-    if(!rows)return[];
-    const t=today();
-    if(period==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);const s=d7.toISOString().slice(0,10);return rows.filter(r=>r.fecha>=s&&r.fecha<=t);}
+    if(!rows)return[];const t=today();
+    if(period==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);return rows.filter(r=>r.fecha>=d7.toISOString().slice(0,10)&&r.fecha<=t);}
     if(period==="mes")return rows.filter(r=>r.fecha.slice(0,7)===mes);
     if(period==="3m"){const d3=new Date();d3.setMonth(d3.getMonth()-3);return rows.filter(r=>r.fecha>=d3.toISOString().slice(0,10));}
     return rows;
   }
-
-  const metricLabel={util:"Utilidad",phys:"Premios pagados",caja:"Caja física"};
-  const metricColor={util:C.green,phys:C.orange,caja:C.blue};
-
-  // Totals per casino for selected period
-  const totals=Object.keys(META).map(cid=>{
+  const totals=Object.keys(META).filter(k=>!META[k].sim).map(cid=>{
     const rows=filterRows(data[cid]||[]);
     const total=rows.reduce((s,r)=>s+(r[metric]||0),0);
-    const periods=rows.length;
-    const avg=periods?Math.round(total/periods):0;
-    const best=rows.length?Math.max(...rows.map(r=>r[metric]||0)):0;
-    return{cid,total,periods,avg,best,rows};
+    return{cid,total,periods:rows.length,avg:rows.length?Math.round(total/rows.length):0,best:rows.length?Math.max(...rows.map(r=>r[metric]||0)):0};
   }).sort((a,b)=>b.total-a.total);
-
   const maxTotal=Math.max(...totals.map(t=>Math.abs(t.total)),1);
-
-  // Build unified timeline for line chart
   const allDates=[...new Set(Object.values(data).flatMap(rows=>filterRows(rows).map(r=>r.fecha)))].sort();
-
-  // Radar chart data
-  const categories=["Utilidad","Premios","Períodos","Consistencia","Tendencia"];
-
-  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",background:C.bg}}>
+  return<div style={{height:"100%",overflowY:"auto",background:C.bg}}>
     <style>{ANIM_CSS}</style>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
-      <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"rgba(0,0,0,.35)",border:"1px solid rgba(255,255,255,.12)",borderRadius:99,cursor:"pointer",padding:"6px 14px 6px 10px",display:"flex",alignItems:"center",gap:4,margin:"10px 14px",backdropFilter:"blur(20px)"}}>
+      <button onClick={onBack}className="btn-press lg-dark"style={{pointerEvents:"auto",borderRadius:99,cursor:"pointer",padding:"6px 14px 6px 10px",display:"flex",alignItems:"center",gap:4,margin:"10px 14px"}}>
         <Ico n="back"c={C.blue}s={18}/><span style={{...T.fn,color:C.blue,fontWeight:500}}>Inicio</span>
       </button>
     </div>
-
-    <div style={{paddingTop:50,paddingBottom:100}}>
-      {/* Header */}
-      <div style={{padding:"0 16px 16px",borderBottom:`1px solid ${C.sep}`}}>
-        <div style={{...T.lg,color:C.label,letterSpacing:-.5,marginBottom:4}}>Comparar Casinos</div>
-        <div style={{...T.s,color:C.label2}}>Análisis comparativo entre locales</div>
+    <div style={{paddingTop:56,paddingBottom:100,padding:"56px 16px 100px"}}>
+      <div style={{...T.lg,color:C.label,letterSpacing:-.5,marginBottom:4}}>Comparar Casinos</div>
+      <div style={{...T.s,color:C.label2,marginBottom:16}}>Análisis comparativo</div>
+      <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto"}}>
+        {[["semana","7d"],["mes","Mes"],["3m","3m"],["todo","Todo"]].map(([v,l])=>
+          <button key={v}onClick={()=>setPeriod(v)}className="btn-press"style={{flexShrink:0,background:period===v?C.indigo:"transparent",border:"1px solid "+(period===v?C.indigo:C.sep),borderRadius:20,padding:"5px 14px",color:period===v?"#FFF":C.label2,cursor:"pointer",...T.fn,fontWeight:period===v?700:400}}>{l}</button>)}
       </div>
-
-      <div style={{padding:"16px"}}>
-        {/* Period selector */}
-        <div style={{display:"flex",gap:6,marginBottom:14,overflowX:"auto",paddingBottom:2}}>
-          {[["semana","7 días"],["mes","Mes"],["3m","3 meses"],["todo","Todo"]].map(([v,l])=>
-            <button key={v}onClick={()=>setPeriod(v)}className="btn-press"style={{flexShrink:0,background:period===v?C.indigo:"transparent",border:`1px solid ${period===v?C.indigo:C.sep}`,borderRadius:20,padding:"5px 14px",color:period===v?"#FFF":C.label2,cursor:"pointer",...T.fn,fontWeight:period===v?700:400}}>{l}</button>)}
+      {period==="mes"&&<input type="month"value={mes}onChange={e=>setMes(e.target.value)}style={{background:C.bg2,border:"1px solid "+C.sep,borderRadius:10,padding:"8px 12px",color:C.blue,...T.s,marginBottom:12,display:"block"}}/>}
+      <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:14,border:"1px solid "+C.sep}}>
+        {[["util","Utilidad"],["phys","Premios"],["caja","Caja"]].map(([v,l])=>
+          <button key={v}onClick={()=>setMetric(v)}className="btn-press"style={{flex:1,background:metric===v?metricColor[v]+"22":"transparent",border:metric===v?"1px solid "+metricColor[v]+"33":"1px solid transparent",borderRadius:12,padding:"8px",color:metric===v?metricColor[v]:C.label2,cursor:"pointer",...T.fn,fontWeight:metric===v?700:400}}>{l}</button>)}
+      </div>
+      {loading?<div style={{textAlign:"center",padding:40,...T.h,color:C.label2}}>Cargando...</div>:<>
+        <div style={{display:"flex",gap:6,marginBottom:12}}>
+          {[["barras","Barras"],["linea","Tendencia"],["ranking","Ranking"]].map(([v,l])=>
+            <button key={v}onClick={()=>setChartType(v)}className="btn-press"style={{flex:1,background:chartType===v?C.indigo+"22":"transparent",border:"1px solid "+(chartType===v?C.indigo:C.sep),borderRadius:12,padding:"8px",...T.fn,color:chartType===v?C.indigo:C.label2,cursor:"pointer",fontWeight:chartType===v?700:400}}>{l}</button>)}
         </div>
-        {period==="mes"&&<div style={{background:C.bg2,borderRadius:12,padding:"8px 12px",marginBottom:14,border:`1px solid ${C.sep}`,display:"flex",gap:8,alignItems:"center"}}>
-          <span style={{...T.s,color:C.label2}}>Mes:</span>
-          <input type="month"value={mes}onChange={e=>setMes(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer"}}/>
-        </div>}
-
-        {/* Metric selector */}
-        <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:16,border:`1px solid ${C.sep}`}}>
-          {[["util","Utilidad"],["phys","Premios"],["caja","Caja"]].map(([v,l])=>
-            <button key={v}onClick={()=>setMetric(v)}className="btn-press"style={{flex:1,background:metric===v?`${metricColor[v]}22`:"transparent",border:metric===v?`1px solid ${metricColor[v]}33`:"1px solid transparent",borderRadius:12,padding:"8px",color:metric===v?metricColor[v]:C.label2,cursor:"pointer",...T.fn,fontWeight:metric===v?700:400,transition:"all .2s"}}>{l}</button>)}
-        </div>
-
-        {loading?<div style={{textAlign:"center",padding:40}}>
-          <div style={{...T.h,color:C.label2,marginBottom:8}}>Cargando datos...</div>
-          <div style={{display:"flex",gap:6,justifyContent:"center"}}>
-            {Object.keys(META).map((cid,i)=><div key={cid}style={{width:8,height:8,borderRadius:4,background:C[META[cid].c],animation:`pulse 1.2s ease ${i*.15}s infinite`}}/>)}
-          </div>
-        </div>:<>
-
-          {/* Chart type selector */}
-          <div style={{display:"flex",gap:6,marginBottom:12}}>
-            {[["barras","Barras"],["linea","Tendencia"],["ranking","Ranking"]].map(([v,l])=>
-              <button key={v}onClick={()=>setChartType(v)}className="btn-press"style={{flex:1,background:chartType===v?`${C.indigo}22`:"transparent",border:`1px solid ${chartType===v?C.indigo:C.sep}`,borderRadius:12,padding:"8px",...T.fn,color:chartType===v?C.indigo:C.label2,cursor:"pointer",fontWeight:chartType===v?700:400}}>{l}</button>)}
-          </div>
-
-          {/* BARRAS COMPARATIVO */}
-          {chartType==="barras"&&<div style={{background:"rgba(255,255,255,.03)",borderRadius:18,padding:"16px 14px",border:`1px solid ${C.sep}`,marginBottom:16}}>
-            <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600}}>{metricLabel[metric]} por casino</div>
-            {totals.map((t,i)=>{
-              const col=C[META[t.cid].c];
-              const pct=Math.abs(t.total)/maxTotal*100;
-              const isPos=t.total>=0;
-              return<div key={t.cid}className="fade-up"style={{marginBottom:14,animationDelay:`${i*.05}s`}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
-                  <div style={{display:"flex",alignItems:"center",gap:10}}>
-                    <CasinoAvatar cid={t.cid}size={32}/>
-                    <div>
-                      <div style={{...T.s,color:C.label,fontWeight:600}}>{META[t.cid].n}</div>
-                      <div style={{...T.cap,color:C.label2}}>{t.periods} períodos · prom {fmtE(t.avg)}</div>
-                    </div>
-                  </div>
-                  <div style={{textAlign:"right"}}>
-                    <div style={{...T.h,color:isPos?C.green:C.red,fontWeight:700}}>{fmtE(t.total)}</div>
-                    <div style={{...T.cap,color:C.label3}}>mejor: {fmtE(t.best)}</div>
-                  </div>
-                </div>
-                <div style={{background:C.fill3,borderRadius:6,height:8,overflow:"hidden"}}>
-                  <div style={{height:"100%",background:`linear-gradient(90deg,${col}66,${col})`,borderRadius:6,width:`${pct}%`,transition:"width 1s cubic-bezier(.16,1,.3,1)",boxShadow:`0 0 10px ${col}44`}}/>
-                </div>
-              </div>;
-            })}
-          </div>}
-
-          {/* LÍNEA TENDENCIA COMPARATIVA */}
-          {chartType==="linea"&&<div style={{background:"rgba(255,255,255,.03)",borderRadius:18,padding:"16px 14px",border:`1px solid ${C.sep}`,marginBottom:16}}>
-            <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600}}>Tendencia comparativa — {metricLabel[metric]}</div>
-            {allDates.length<2?<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin suficientes datos</div>:<>
-              {/* Legend */}
-              <div style={{display:"flex",gap:10,flexWrap:"wrap",marginBottom:10}}>
-                {Object.keys(META).filter(cid=>selected.includes(cid)).map(cid=>{
-                  const col=C[META[cid].c];
-                  return<div key={cid}style={{display:"flex",alignItems:"center",gap:5,...T.cap,color:col,fontWeight:600}}>
-                    <div style={{width:16,height:3,borderRadius:2,background:col}}/>
-                    {META[cid].n.split(" ").pop()}
-                  </div>;
-                })}
+        {chartType==="barras"&&<div className="lg-card"style={{padding:"16px 14px",marginBottom:14}}>
+          <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600}}>{metricLabel[metric]}</div>
+          {totals.map((t,i)=>{const col=C[META[t.cid].c];const isPos=t.total>=0;return<div key={t.cid}style={{marginBottom:14}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <CasinoAvatar cid={t.cid}size={32}/>
+                <div><div style={{...T.s,color:C.label,fontWeight:600}}>{META[t.cid].n}</div><div style={{...T.cap,color:C.label2}}>{t.periods} per</div></div>
               </div>
-              <CompararLineChart allDates={allDates} data={data} selected={selected} metric={metric} C={C}/>
-            </>}
-          </div>}
-
-          {/* RANKING */}
-          {chartType==="ranking"&&<div style={{marginBottom:16}}>
-            <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600,paddingLeft:4}}>Ranking por {metricLabel[metric]}</div>
-            {totals.map((t,i)=>{
-              const col=C[META[t.cid].c];const isPos=t.total>=0;
-              const medals=["🥇","🥈","🥉"];
-              return<div key={t.cid}className="fade-up"style={{background:i===0?`linear-gradient(135deg,${col}18,${col}08)`:"rgba(255,255,255,.03)",border:`1px solid ${i===0?col+"33":C.sep}`,borderRadius:18,padding:"16px",marginBottom:10,animationDelay:`${i*.06}s`,display:"flex",alignItems:"center",gap:14}}>
-                <div style={{fontSize:24,minWidth:32,textAlign:"center"}}>{medals[i]||<span style={{...T.h,color:C.label3}}>#{i+1}</span>}</div>
-                <CasinoAvatar cid={t.cid}size={42}/>
-                <div style={{flex:1}}>
-                  <div style={{...T.h,color:C.label}}>{META[t.cid].n}</div>
-                  <div style={{display:"flex",gap:12,marginTop:4,flexWrap:"wrap"}}>
-                    <span style={{...T.fn,color:C.label2}}>{t.periods} períodos</span>
-                    <span style={{...T.fn,color:C.label2}}>prom {fmtE(t.avg)}</span>
-                    <span style={{...T.fn,color:C.label2}}>mejor {fmtE(t.best)}</span>
-                  </div>
-                </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{...T.lg,color:isPos?C.green:C.red,fontWeight:700,fontSize:20}}>{fmtE(t.total)}</div>
-                  <div style={{...T.cap,color:col,marginTop:2,fontWeight:600}}>{i===0?"Líder":i===1?"2do":i===2?"3ro":`#${i+1}`}</div>
-                </div>
-              </div>;
-            })}
-          </div>}
-
-          {/* Summary stats */}
-          <div style={{background:"rgba(255,255,255,.03)",borderRadius:18,padding:"16px",border:`1px solid ${C.sep}`}}>
-            <div style={{...T.fn,color:C.label2,marginBottom:12,fontWeight:600}}>Resumen del período</div>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
-              {[
-                ["Total red",fmtE(totals.reduce((s,t)=>s+t.total,0)),C.green],
-                ["Promedio",fmtE(Math.round(totals.reduce((s,t)=>s+t.total,0)/totals.length)),C.blue],
-                ["Mejor local",META[totals[0]?.cid]?.n||"—",C[META[totals[0]?.cid]?.c]||C.label],
-                ["Peor local",META[totals[totals.length-1]?.cid]?.n||"—",C.red],
-              ].map(([lbl,val,col])=><div key={lbl}style={{background:C.fill3,borderRadius:12,padding:"10px 12px"}}>
-                <div style={{...T.cap,color:C.label3,marginBottom:3}}>{lbl}</div>
-                <div style={{...T.s,color:col,fontWeight:700}}>{val}</div>
-              </div>)}
+              <div style={{...T.h,color:isPos?C.green:C.red,fontWeight:700}}>{fmtE(t.total)}</div>
             </div>
+            <div style={{background:C.fill3,borderRadius:6,height:8}}><div style={{height:"100%",background:"linear-gradient(90deg,"+col+"66,"+col+")",borderRadius:6,width:Math.abs(t.total)/maxTotal*100+"%",transition:"width 1s"}}/></div>
+          </div>;})}
+        </div>}
+        {chartType==="linea"&&<div className="lg-card"style={{padding:"16px 14px",marginBottom:14}}>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
+            {Object.keys(META).filter(k=>!META[k].sim).map(cid=>{const col=C[META[cid].c];return<div key={cid}style={{display:"flex",alignItems:"center",gap:5,...T.cap,color:col,fontWeight:600}}><div style={{width:16,height:3,borderRadius:2,background:col}}/>{META[cid].n.split(" ").pop()}</div>;})}
           </div>
-        </>}
-      </div>
+          <CompararLineChart allDates={allDates}data={data}selected={Object.keys(META).filter(k=>!META[k].sim)}metric={metric}C={C}/>
+        </div>}
+        {chartType==="ranking"&&<div style={{marginBottom:14}}>
+          {totals.map((t,i)=>{const col=C[META[t.cid].c];const medals=["🥇","🥈","🥉"];
+            return<div key={t.cid}className="lg-card"style={{padding:"14px",marginBottom:10,display:"flex",alignItems:"center",gap:12,border:"1px solid "+(i===0?col+"33":C.sep)}}>
+              <div style={{fontSize:22}}>{medals[i]||"#"+(i+1)}</div><CasinoAvatar cid={t.cid}size={38}/>
+              <div style={{flex:1}}><div style={{...T.h,color:C.label}}>{META[t.cid].n}</div><div style={{...T.fn,color:C.label2}}>prom {fmtE(t.avg)}</div></div>
+              <div style={{...T.h,color:t.total>=0?C.green:C.red,fontWeight:700,fontSize:18}}>{fmtE(t.total)}</div>
+            </div>;})}
+        </div>}
+      </>}
     </div>
   </div>;
 }
 
-// ─── CASINO SHELL ─────────────────────────────────────────────────────────────────
+// ─── CASINO SHELL ─────────────────────────────────────────────────────────────
 function Casino({cid,cont,setCont,apiKey,onBack,user}){
   const C=getC();const[tab,setTab]=useState("lectura");const m=META[cid];const color=C[m.c];
-  return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg,position:"relative"}}>
+  return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg}}>
     <style>{ANIM_CSS}</style>
-    <div style={{position:"absolute",top:0,left:0,right:0,height:120,background:`radial-gradient(ellipse 80% 80% at 50% 0%, ${color}14, transparent)`,pointerEvents:"none",zIndex:0}}/>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
-      <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"rgba(0,0,0,.35)",border:"1px solid rgba(255,255,255,.12)",borderRadius:99,cursor:"pointer",padding:"6px 14px 6px 10px",display:"flex",alignItems:"center",gap:4,margin:"10px 14px",backdropFilter:"blur(20px)"}}>
-        <Ico n="back"c={C.blue}s={18}/><span style={{...T.fn,color:C.blue,fontWeight:500}}>Inicio</span>
+      <button onClick={onBack}style={{pointerEvents:"auto",background:"transparent",border:"none",color:C.blue,cursor:"pointer",padding:"10px 14px",display:"flex",alignItems:"center",gap:4}}>
+        <Ico n="back"c={C.blue}s={18}/><span style={{...T.b,color:C.blue}}>Inicio</span>
       </button>
     </div>
-    <div style={{flex:1,overflow:"hidden",paddingTop:50,position:"relative",zIndex:1,animation:"fadeIn .2s ease both"}}>
+    <div style={{flex:1,overflow:"hidden",paddingTop:44,animation:"fadeIn .25s ease both"}}>
       {tab==="lectura"&&<Counters cid={cid}cont={cont}setCont={setCont}user={user}/>}
       {tab==="camara"&&<Camera cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}user={user}/>}
       {tab==="reporte"&&<Report cid={cid}cont={cont}/>}
