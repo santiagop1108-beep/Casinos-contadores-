@@ -109,15 +109,26 @@ async function fetchSheetHist(cid){
 
 function parseSheetDate(raw){
   if(!raw||typeof raw!=="string")return null;
+  const s=raw.trim();
   const MMAP={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
-  const m=raw.trim().toLowerCase().match(/^(\d{1,2})[-/]([a-z]{3})(?:[-/](\d{2,4}))?$/);
-  if(!m)return null;
-  const day=parseInt(m[1]),mon=MMAP[m[2]];
-  if(!mon)return null;
-  let year=new Date().getFullYear();
-  if(m[3]){year=parseInt(m[3]);if(year<100)year+=2000;}
-  else if(mon>new Date().getMonth()+2)year--;
-  return`${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+  const nowY=new Date().getFullYear();
+  // "3-ene" or "10-mar-25"
+  const m1=s.toLowerCase().match(/^(\d{1,2})[-/]([a-z]{3})(?:[-/](\d{2,4}))?$/);
+  if(m1){
+    const day=parseInt(m1[1]),mon=MMAP[m1[2]];if(!mon)return null;
+    let year=nowY;if(m1[3]){year=parseInt(m1[3]);if(year<100)year+=2000;}else if(mon>new Date().getMonth()+2)year--;
+    return`${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+  }
+  // "03/01" (dd/mm) or "03/01/2026" (dd/mm/yyyy) - Playa Rica format
+  const m2=s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
+  if(m2){
+    const day=parseInt(m2[1]),mon=parseInt(m2[2]);
+    let year=nowY;if(m2[3]){year=parseInt(m2[3]);if(year<100)year+=2000;}else if(mon>new Date().getMonth()+2)year--;
+    return`${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+  }
+  // ISO "2026-01-03"
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  return null;
 }
 function parseNum(v){
   if(v==null||v==="")return null;
