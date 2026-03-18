@@ -47,7 +47,16 @@ const SHEET_IDS={
   faraon:"1uW97FYebdr3-sjSHRebiYKCWaE1m5ZEeBzsrCGLTM6U",
 };
 
-// Cache en memoria para no recargar en cada render
+// Columnas exactas por máquina extraídas de las fórmulas del Balance
+// { cid: { maqNombre: { p: colIdx_premios, u: colIdx_utilidad } } }
+const COL_MAP={
+  "faraon":{"WMS 20":{"p":4,"u":5},"Multi 15":{"p":5,"u":6},"Multi 2":{"p":5,"u":6},"Stand Alone 12":{"p":4,"u":5},"Multi 8":{"p":5,"u":6},"Multi 1":{"p":5,"u":6},"Poker 5":{"p":6,"u":7},"Multi 7":{"p":5,"u":6},"Clon 17":{"p":5,"u":6},"Multi 11":{"p":5,"u":6},"Aristocrat 13":{"p":5,"u":6},"Multi 6":{"p":5,"u":6},"Multi 9":{"p":5,"u":6},"Multi 14":{"p":5,"u":6},"WMS 16":{"p":4,"u":5},"Poker 4":{"p":6,"u":7},"Multi 10":{"p":5,"u":6},"Poker 3":{"p":6,"u":7},"Multi 19":{"p":5,"u":6},"Multi 18":{"p":5,"u":6}},
+  "hugo":{"Gaminator 1":{"p":5,"u":6},"Poker 6":{"p":6,"u":7},"Multi 4":{"p":5,"u":6},"Gaminator 2":{"p":5,"u":6},"Multi 3":{"p":5,"u":6},"Poker 7":{"p":6,"u":7},"Multi 10":{"p":5,"u":6},"Multi 11":{"p":5,"u":6},"multi 5":{"p":5,"u":6},"Multi 9":{"p":5,"u":6},"Multi 8":{"p":5,"u":6}},
+  "obrero":{"Multi 16":{"p":5,"u":6},"Multi 13":{"p":5,"u":6},"Jungle Wild 4":{"p":4,"u":5},"Multi 15":{"p":5,"u":6},"Multi 2":{"p":5,"u":6},"Multi 8":{"p":5,"u":6},"Multi 12":{"p":5,"u":6},"Maq 1":{"p":4,"u":5},"Multi 7":{"p":5,"u":6},"Multi 11":{"p":5,"u":6},"Multi 6":{"p":5,"u":6},"Multi 9":{"p":5,"u":6},"Multi 20":{"p":5,"u":6},"Duende 18":{"p":4,"u":5},"Multi 14":{"p":5,"u":6},"Multi 10":{"p":5,"u":6},"Poker 3":{"p":6,"u":7},"Multi 19":{"p":5,"u":6},"Multi 5":{"p":5,"u":6},"Multi 17":{"p":5,"u":6}},
+  "playarica":{"Poker 15":{"p":6,"u":7},"Poker 10":{"p":6,"u":7},"Dolphin 12":{"p":5,"u":6},"Poker 5":{"p":6,"u":7},"Poker 4":{"p":6,"u":7},"gaminator 9":{"p":5,"u":6},"Multi 7":{"p":5,"u":6},"novomaty 14":{"p":5,"u":6},"Poker 3":{"p":6,"u":7},"Poker 16":{"p":6,"u":7},"Poker 1":{"p":6,"u":7},"Poker 11":{"p":6,"u":7},"Multi 6":{"p":5,"u":6},"Gaminator 13":{"p":5,"u":6},"multy 8":{"p":5,"u":6},"Poker 2":{"p":6,"u":7}},
+  "vikingos":{"Maq 14":{"p":4,"u":5},"Multi 16":{"p":5,"u":6},"Multi 13":{"p":5,"u":6},"Poker 1":{"p":6,"u":7},"Multi 15":{"p":5,"u":6},"Poker 18":{"p":6,"u":7},"WMS 19":{"p":4,"u":5},"Poker 2":{"p":6,"u":7},"Gaminator 17":{"p":5,"u":6},"Multi 3":{"p":5,"u":6},"Multi 8":{"p":5,"u":6},"Multi 12":{"p":5,"u":6},"Multi 4":{"p":5,"u":6},"Multi 7":{"p":5,"u":6},"Jungle 20":{"p":5,"u":6},"Multi 6":{"p":5,"u":6},"Bailarin 11":{"p":5,"u":6},"Multi 9":{"p":5,"u":6},"Multi 10":{"p":5,"u":6},"Multi 5":{"p":5,"u":6}},
+};
+
 const _sheetsCache={};
 
 async function fetchSheetHist(cid){
@@ -55,7 +64,9 @@ async function fetchSheetHist(cid){
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
   const mqs=D[cid]?.m||[];
+  const cidColMap=COL_MAP[cid]||{};
   const results=[];
+
   for(const mq of mqs){
     const sheetName=encodeURIComponent(mq.nombre);
     const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:H?key=${GAPI_KEY}`;
@@ -64,22 +75,23 @@ async function fetchSheetHist(cid){
       if(!r.ok)continue;
       const data=await r.json();
       const rows=data.values||[];
-      // Detectar si primera fila es encabezado
-      const startIdx=(rows.length>0&&isNaN(parseFloat(rows[0][1])))?1:0;
+      // Detectar si primera fila es encabezado (no fecha)
+      const startIdx=(rows.length>0&&!parseSheetDate(rows[0][0]))?1:0;
+      // Obtener índices correctos para esta máquina
+      const maqCols=cidColMap[mq.nombre]||{};
+      const pIdx=maqCols.p!=null?maqCols.p:5; // default F
+      const uIdx=maqCols.u!=null?maqCols.u:6; // default G
       let prevIn=null,prevOut=null;
       for(let i=startIdx;i<rows.length;i++){
         const row=rows[i];
-        // Parsear fecha formato "3-ene" o "10-mar"
         const fecha=parseSheetDate(row[0]);
         if(!fecha)continue;
         const inAcum=parseNum(row[1]);
         const outAcum=parseNum(row[2]);
         if(inAcum==null||outAcum==null||inAcum===0)continue;
-        // Col D (idx 3) = premios período, Col E (idx 4) = utilidad período
-        // Structure: A=fecha, B=IN_acum, C=OUT_acum, D=premios, E=utilidad
-        let premios=parseNum(row[3]);
-        let utilidad=parseNum(row[4]);
-        // Si no hay utilidad explícita, calcular desde diferencia acumulados
+        let premios=parseNum(row[pIdx]);
+        let utilidad=parseNum(row[uIdx]);
+        // Fallback: calcular desde diferencia si no hay datos de período
         if(utilidad==null&&prevIn!=null&&inAcum>prevIn){
           const inPer=inAcum-prevIn;
           const outPer=outAcum-prevOut;
@@ -109,14 +121,8 @@ function parseSheetDate(raw){
 }
 function parseNum(v){
   if(v==null||v==="")return null;
-  // Handle Colombian format: "4.827.000" or "$4.827.000" or "4,827,000"
   let s=String(v).replace(/[$\s]/g,"").trim();
-  // If dots are thousand separators (e.g. "4.827.000"), remove them
-  // Detect: if there are multiple dots OR dot followed by 3 digits at end
-  if(/\.\d{3}(\.|$)/.test(s)||/^\d{1,3}(\.\d{3})+$/.test(s)){
-    s=s.replace(/\./g,""); // remove thousand-separator dots
-  }
-  // Handle commas as thousand separators
+  if(/\.\d{3}(\.|$)/.test(s)||/^-?\d{1,3}(\.\d{3})+$/.test(s)){s=s.replace(/\./g,"");}
   s=s.replace(/,/g,"");
   const n=parseFloat(s);
   return isNaN(n)?null:Math.round(n);
