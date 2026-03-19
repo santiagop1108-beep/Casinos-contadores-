@@ -84,9 +84,14 @@ async function fetchSheetHist(cid){
     const sheetName=encodeURIComponent(mq.nombre);
     const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:H?key=${GAPI_KEY}`;
     try{
-      const r=await fetch(url);
-      if(!r.ok)continue;
+      // Retry up to 2 times on failure
+      let r=null;
+      for(let attempt=0;attempt<2;attempt++){
+        try{r=await fetch(url);if(r.ok)break;}catch(fe){if(attempt===1)throw fe;await new Promise(res=>setTimeout(res,500));}
+      }
+      if(!r||!r.ok)continue;
       const data=await r.json();
+      if(data.error){console.warn("Sheets error for "+mq.nombre+":",data.error.message);continue;}
       const rows=data.values||[];
       const startIdx=(rows.length>0&&!parseSheetDate(rows[0][0]))?1:0;
       const maqCols=cidColMap[mq.nombre]||{};
@@ -223,8 +228,12 @@ async function fetchBalanceFromSheets(cid){
 
   for(const rawName of namesToTry){
     try{
-      const r=await fetch("https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values/"+encodeURIComponent(rawName)+"!A:C?key="+GAPI_KEY);
-      if(!r.ok)continue;
+      let r=null;
+      for(let attempt=0;attempt<2;attempt++){
+        try{r=await fetch("https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values/"+encodeURIComponent(rawName)+"!A:C?key="+GAPI_KEY);if(r.ok)break;}
+        catch(fe){if(attempt===1)throw fe;await new Promise(res=>setTimeout(res,500));}
+      }
+      if(!r||!r.ok)continue;
       const data=await r.json();if(data.error)continue;
       const rows=data.values||[];if(!rows.length)continue;
       const result=[];
@@ -817,6 +826,8 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
 
   useEffect(()=>{
     setLoading(true);setError(null);setPagina(0);
+    // Timeout fallback: if takes more than 15s, show error
+    const timeout=setTimeout(()=>{setLoading(false);setError("Tiempo de espera agotado. Verifica tu conexión y que los Sheets sean públicos.");},15000);
     fetchSheetHist(cid)
       .then(data=>{setRows(data);setLoading(false);})
       .catch(e=>{setError(e.message);setLoading(false);});
@@ -837,9 +848,9 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
   const totalPages=Math.ceil(filtered.length/PAGE);
 
   if(loading)return<div style={{background:C.bg2,borderRadius:14,padding:24,textAlign:"center",border:`1px solid ${C.sep}`}}>
-    <div style={{...T.h,color:C.label2,marginBottom:8}}>Cargando datos de Sheets...</div>
-    <div style={{...T.fn,color:C.label3}}>Esto puede tomar unos segundos</div>
-    <div style={{marginTop:12,display:"flex",gap:4,justifyContent:"center"}}>
+    <div style={{...T.h,color:C.label2,marginBottom:8}}>Cargando historial...</div>
+    <div style={{...T.fn,color:C.label3,marginBottom:12}}>Consultando {getMaqs(cid).filter(m=>!m.disabled).length} máquinas en Sheets</div>
+    <div style={{display:"flex",gap:4,justifyContent:"center"}}>
       {[0,1,2].map(i=><div key={i}style={{width:8,height:8,borderRadius:4,background:color,animation:`pulse 1.2s ease ${i*.2}s infinite`}}/>)}
     </div>
   </div>;
