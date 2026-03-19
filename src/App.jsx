@@ -70,8 +70,7 @@ const _sheetsCacheTime={};
 
 async function fetchSheetHist(cid){
   if(META[cid]?.sim)return[];
-  // Always fetch fresh - no cache so new readings appear immediately
-  if(_sheetsCache[cid])return _sheetsCache[cid]; // keep for same session only
+  // No persistent cache - always fetch fresh from Sheets
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
   const mqs=getMaqs(cid);
@@ -146,7 +145,6 @@ async function fetchSheetHist(cid){
       }
     }catch(e){console.warn(`Sheets ${cid}/${mq.nombre}:`,e.message);}
   }
-  _sheetsCache[cid]=results;
   return results;
 }
 
@@ -251,10 +249,9 @@ async function fetchBalanceFromSheets(cid){
       }
     }catch(e){console.warn("Balance "+cid+":"+e.message);}
   }
-  // Fallback to hardcoded data
-  console.warn("Balance "+cid+": using hardcoded fallback");
-  const fb=(D[cid]?.b||[]).map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}));
-  return fb.length?fb:null;
+  // Don't silently fall back to hardcoded - return null so UI shows loading/error
+  console.warn("Balance "+cid+": Sheets fetch failed, returning null");
+  return null;
 }
 
 
@@ -1018,8 +1015,10 @@ function Report({cid,cont}){
     });
   },[cid]);
 
+  const usingFallback=!balLoading&&(!liveBalance||liveBalance.length===0);
   function getBals(){
     const b={};
+    // Use Sheets data if available, fallback to hardcoded only when Sheets fails
     const baseData=(liveBalance&&liveBalance.length>0)?liveBalance:(d?.b||[]);
     baseData.forEach(bl=>{b[bl.fecha]={fecha:bl.fecha,util:bl.util_total,phys:bl.phys_total,pa:0,nota:null};});
     (cont[cid]||[]).forEach(c=>{if(c.u==null)return;if(!b[c.f])b[c.f]={fecha:c.f,util:0,phys:0,pa:0,nota:c.nota||null};
@@ -1705,16 +1704,23 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
     Object.keys(META).filter(k=>!META[k].sim).forEach(cid=>{
       fetchBalanceFromSheets(cid).then(rows=>{
         if(rows&&rows.length){
-          const last=[...rows].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
-          setLiveBals(prev=>({...prev,[cid]:last}));
+          const sorted=[...rows].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+          // Store latest period with full data
+          setLiveBals(prev=>({...prev,[cid]:{
+            fecha:sorted[0].fecha,
+            util_total:sorted[0].util_total,
+            phys_total:sorted[0].phys_total
+          }}));
         }
       }).catch(()=>{});
     });
   },[]);
   const lastBal=cid=>{
+    // Prefer live Sheets data, fall back to hardcoded
     if(liveBals[cid])return liveBals[cid];
     const d=D[cid];if(!d?.b?.length)return null;
-    return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+    const sorted=[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha));
+    return sorted[0]||null;
   };
   const total=Object.keys(META).filter(cid=>!META[cid].sim).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
   const uCol=user==="Santiago"?C.indigo:user==="Eliza"?C.pink:C.teal;
