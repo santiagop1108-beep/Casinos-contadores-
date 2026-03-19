@@ -20,6 +20,9 @@ const ANIM_CSS=`
 .lg-dark{background:rgba(0,0,0,.35);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid rgba(255,255,255,.1);box-shadow:0 4px 16px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.12)}
 .lg-card{background:rgba(255,255,255,.06);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 32px rgba(0,0,0,.2);border-radius:18px}
 @media(prefers-color-scheme:light){.lg{background:rgba(255,255,255,.75);border-color:rgba(0,0,0,.08)}.lg-card{background:rgba(255,255,255,.85);border-color:rgba(0,0,0,.08)}}
+[data-theme="light"] .lg-card{background:rgba(255,255,255,.92)!important;border-color:rgba(0,0,0,.1)!important;box-shadow:0 2px 16px rgba(0,0,0,.07)!important}
+[data-theme="light"] .lg{background:rgba(255,255,255,.82)!important;border-color:rgba(0,0,0,.08)!important}
+[data-theme="dark"] .lg-card{background:rgba(255,255,255,.06)!important;border-color:rgba(255,255,255,.14)!important}
 
 @keyframes lineIn{to{stroke-dashoffset:0}}
 
@@ -331,7 +334,7 @@ const ICONS={
 const Ico=({n,c,s})=>(ICONS[n]?ICONS[n](c,s):<span style={{fontSize:s||18,color:c}}>•</span>);
 
 // ─── UTILS ────────────────────────────────────────────────────────────────────
-const fmt=n=>{if(n==null||isNaN(n))return"—";const a=Math.abs(n),s=n<0?"-":"";if(a>=1e6)return s+"$"+(a/1e6).toFixed(1)+"M";if(a>=1e3)return s+"$"+(a/1e3).toFixed(0)+"K";return s+"$"+a.toLocaleString();};
+const fmt=n=>{if(n==null||isNaN(n))return"—";const a=Math.abs(n),s=n<0?"-":"";if(a>=1e6)return s+"$"+(a/1e6).toFixed(1)+"M";if(a>=1e3)return s+"$"+(a/1e3).toFixed(0)+"K";return s+"$"+a.toLocaleString("es-CO");};
 const fmtE=n=>{if(n==null||isNaN(n))return"—";const s=n<0?"-":"";return s+"$"+Math.abs(Math.round(n)).toLocaleString("es-CO");};
 const today=()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");};
 const MESES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
@@ -860,7 +863,7 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
   const filtered=useMemo(()=>{
     return rows.filter(r=>{
       const fecha=r[1];
-      if(filtro==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);return fecha>=d7.toISOString().slice(0,10)&&fecha<=new Date().toISOString().slice(0,10);}
+      if(filtro==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);const d7s=d7.getFullYear()+"-"+String(d7.getMonth()+1).padStart(2,"0")+"-"+String(d7.getDate()).padStart(2,"0");return fecha>=d7s&&fecha<=today();}
       if(filtro==="mes")return fecha.slice(0,7)===mes;
       if(filtro==="custom"&&desde&&hasta)return fecha>=desde&&fecha<=hasta;
       return true;
@@ -948,7 +951,7 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
 
 // ─── REPORT ───────────────────────────────────────────────────────────────────
 function ChartBarras({chartPts,C,color,bals,fmtE}){
-    const[cbHov,setCbHov]=useState(null);const[cbExp,setCbExp]=useState(false);
+    const[cbHov,setCbHov]=useState(null);
     const pts=chartPts;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
     const maxV=Math.max(...pts.map(p=>Math.max(Math.abs(p.util),p.caja||0)),1);
     const W=360,H=140,pad=10;const bw=Math.max(3,Math.floor((W-pad*2)/pts.length)-3);
@@ -987,7 +990,7 @@ function ChartBarras({chartPts,C,color,bals,fmtE}){
     </div>;
   }
 function ChartLinea({chartPts,C,color,bals}){
-    const[clHov,setClHov]=useState(null);const[clExp,setClExp]=useState(false);
+    const[clHov,setClHov]=useState(null);
     const pts=chartPts;if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
     const vals=pts.map(p=>p.util);
     const min=Math.min(...vals),max=Math.max(...vals);const range=max-min||1;
@@ -1032,7 +1035,7 @@ function ChartLinea({chartPts,C,color,bals}){
       </div>
     </div>;
   }
-function ChartMaquinas({sheetsData,filtro,mes,desde,hasta,color,C}){
+function ChartMaquinas({sheetsData,filtro,mes,desde,hasta,color,C,cid}){
   // Aggregate by machine from sheetsData
   const maqMap={};
   const now=new Date();const today=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
@@ -1043,7 +1046,8 @@ function ChartMaquinas({sheetsData,filtro,mes,desde,hasta,color,C}){
     else if(filtro==="mes")ok=fecha.slice(0,7)===mes;
     else if(filtro==="custom")ok=(!desde||fecha>=desde)&&(!hasta||fecha<=hasta);
     if(!ok||utilidad==null)return;
-    if(!maqMap[maqId])maqMap[maqId]={id:maqId,total:0,count:0};
+    const maqRef=getMaqs(cid||"").find(m=>m.id===maqId);
+  if(!maqMap[maqId])maqMap[maqId]={id:maqId,nombre:maqRef?.nombre||maqId,total:0,count:0};
     maqMap[maqId].total+=utilidad;
     maqMap[maqId].count++;
   });
@@ -1057,7 +1061,7 @@ function ChartMaquinas({sheetsData,filtro,mes,desde,hasta,color,C}){
       const barColor=isPos?C.green:C.red;
       return<div key={m.id}style={{marginBottom:10,animationDelay:i*.03+"s"}}className="fade-up">
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-          <span style={{...T.fn,color:C.label,fontSize:12}}>{m.id}</span>
+          <span style={{...T.fn,color:C.label,fontSize:12}}>{m.nombre||m.id}</span>
           <span style={{...T.fn,color:isPos?C.green:C.red,fontWeight:600,fontSize:12}}>{fmtE(m.total)}</span>
         </div>
         <div style={{background:C.fill3,borderRadius:4,height:6,overflow:"hidden"}}>
@@ -1203,7 +1207,7 @@ function Report({cid,cont}){
       {icon:"sync",fn:()=>{invalidateSheetsCaches(cid);setLiveBalance(null);setBalLoading(true);Promise.all([fetchSheetHist(cid).catch(()=>[]),fetchBalanceFromSheets(cid).catch(()=>null)]).then(([hist,bal])=>{setSheetsData(hist||[]);setLiveBalance(bal);setBalLoading(false);});}},{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
       {/* Vista tabs */}
-      <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(10px)"}}>
+      <div style={{display:"flex",background:C.fill3,borderRadius:14,padding:3,marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(10px)"}}>
         {[["balance","Balance"],["tabla","Tabla"],["grafica","Gráfica"]].map(([v,l])=>
           <button key={v}onClick={()=>setVista(v)}className="btn-press"style={{flex:1,background:vista===v?`${color}22`:"transparent",border:vista===v?`1px solid ${color}33`:"1px solid transparent",borderRadius:12,padding:"9px",color:vista===v?color:C.label2,cursor:"pointer",...T.s,fontWeight:vista===v?700:400,transition:"all .2s"}}>{l}</button>)}
       </div>
@@ -1277,7 +1281,7 @@ function Report({cid,cont}){
           </div>
           {chartTab==="barras"&&<ChartBarras chartPts={chartPts}C={C}color={color}bals={bals}fmtE={fmtE}/>}
           {chartTab==="linea"&&<ChartLinea chartPts={chartPts}C={C}color={color}bals={bals}/>}
-          {chartTab==="maquinas"&&<div style={{padding:"0 2px"}}><ChartMaquinas sheetsData={sheetsData}filtro={filtro}mes={mes}desde={desde}hasta={hasta}color={color}C={C}/></div>}
+          {chartTab==="maquinas"&&<div style={{padding:"0 2px"}}><ChartMaquinas sheetsData={sheetsData}filtro={filtro}mes={mes}desde={desde}hasta={hasta}color={color}C={C}cid={cid}/></div>}
         {chartTab==="top5"&&<ChartTop5/>}
         </div>
       </>}
@@ -1826,10 +1830,10 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
     <div style={{padding:"0 14px",paddingBottom:90,position:"relative",zIndex:1}}>
 
       {/* Hero */}
-      <div className="fade-up"style={{background:"linear-gradient(145deg, rgba(124,109,250,.18), rgba(61,142,255,.1), rgba(0,206,201,.05))",borderRadius:26,padding:"22px 18px",marginBottom:20,border:"1px solid rgba(124,109,250,.2)",backdropFilter:"blur(30px)",position:"relative",overflow:"hidden"}}>
+      <div className="fade-up"style={{background:`linear-gradient(145deg, ${C.indigo}22, ${C.blue}14, ${C.teal}08)`,borderRadius:26,padding:"22px 18px",marginBottom:20,border:`1px solid ${C.indigo}28`,backdropFilter:"blur(30px)",position:"relative",overflow:"hidden"}}>
         <div style={{position:"absolute",top:-50,right:-50,width:180,height:180,borderRadius:90,background:`radial-gradient(circle,${C.indigo}22,transparent)`,filter:"blur(20px)",animation:"orb 8s ease infinite",pointerEvents:"none"}}/>
-        <div style={{...T.cap,color:"rgba(255,255,255,.45)",letterSpacing:1.5,marginBottom:8,textTransform:"uppercase",fontSize:11}}>Último período · Red completa</div>
-        <AnimNumber value={total}style={{...T.lg,color:"#FFF",fontSize:40,fontWeight:700,letterSpacing:-1.5,display:"block",marginBottom:18,textShadow:`0 2px 20px ${C.indigo}55`}}/>
+        <div style={{...T.cap,color:C.label2,letterSpacing:1.5,marginBottom:8,textTransform:"uppercase",fontSize:11}}>Último período · Red completa</div>
+        <AnimNumber value={total}style={{...T.lg,color:C.label,fontSize:40,fontWeight:700,letterSpacing:-1.5,display:"block",marginBottom:18,textShadow:`0 2px 20px ${C.indigo}55`}}/>
         <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
           {Object.entries(META).filter(([cid,m])=>!m.sim).map(([cid,m])=>{
             const b=lastBal(cid);const col=C[m.c];const isPos=(b?.util_total||0)>=0;
@@ -1837,7 +1841,7 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
               style={{background:`${col}14`,border:`1px solid ${col}25`,borderRadius:14,padding:"9px 11px",cursor:"pointer",textAlign:"left",flex:"1 0 auto",minWidth:76,backdropFilter:"blur(10px)",transition:"all .2s"}}
               onMouseEnter={e=>{e.currentTarget.style.background=`${col}28`;e.currentTarget.style.transform="translateY(-2px)";}}
               onMouseLeave={e=>{e.currentTarget.style.background=`${col}14`;e.currentTarget.style.transform="";}}>
-              <div style={{fontSize:10,fontWeight:700,letterSpacing:.5,color:"rgba(0,0,0,.7)",marginBottom:3}}>{m.n.split(" ").pop().slice(0,7).toUpperCase()}</div>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:.5,color:C.label2,marginBottom:3}}>{m.n.split(" ").pop().slice(0,7).toUpperCase()}</div>
               <div style={{fontSize:13,fontWeight:700,color:isPos?"#00873A":"#C0392B"}}>{fmt(b?.util_total)}</div>
             </button>;
           })}
@@ -2023,7 +2027,7 @@ function Comparar({onBack}){
         <button onClick={()=>{const[y,m]=mes.split("-");const nm=parseInt(m)+1;setMes(nm===13?`${parseInt(y)+1}-01`:`${y}-${String(nm).padStart(2,"0")}`);}}
           style={{background:C.fill3,border:"1px solid "+C.sep,borderRadius:10,padding:"6px 12px",color:C.label,cursor:"pointer",...T.s}}>›</button>
       </div>}
-      <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:14,border:"1px solid "+C.sep}}>
+      <div style={{display:"flex",background:C.fill3,borderRadius:14,padding:3,marginBottom:14,border:"1px solid "+C.sep}}>
         {[["util","Utilidad"],["phys","Premios"],["caja","Caja"]].map(([v,l])=>
           <button key={v}onClick={()=>setMetric(v)}className="btn-press"style={{flex:1,background:metric===v?metricColor[v]+"22":"transparent",border:metric===v?"1px solid "+metricColor[v]+"33":"1px solid transparent",borderRadius:12,padding:"8px",color:metric===v?metricColor[v]:C.label2,cursor:"pointer",...T.fn,fontWeight:metric===v?700:400}}>{l}</button>)}
       </div>
@@ -2138,6 +2142,7 @@ export default function App(){
   function out(){saveLog({action:"logout",target:user});setUser(null);setSc("login");}
 
   const W={width:"100%",maxWidth:430,margin:"0 auto",height:"100dvh",overflow:"hidden",background:C.bg,boxShadow:"0 0 80px rgba(0,0,0,.6)"};
+  useEffect(()=>{document.documentElement.setAttribute("data-theme",theme);},[theme]);
   if(sc==="boot")return<div style={{...W,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{animation:"pulse 1s ease infinite"}}><Ico n="slot"c={C.indigo}s={52}/></div></div>;
   if(sc==="login")return<div style={{...W}}><Login onAuth={auth}/></div>;
   if(sc==="admin"&&user==="Santiago")return<div style={{...W}}><AdminPanel onBack={()=>setSc("home")}user={user}/></div>;
