@@ -616,7 +616,16 @@ function Counters({cid,cont,setCont,user}){
       </div>
     </div>;
   }
-  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+  const pullRef=useRef(null);const[pullDy,setPullDy]=useState(0);const[pullActive,setPullActive]=useState(false);
+  function doPullRefresh(){invalidateSheetsCaches(cid);setBalLoading(true);setSheetsData([]);setLiveBalance(null);Promise.all([fetchSheetHist(cid).catch(()=>[]),fetchBalanceFromSheets(cid).catch(()=>null)]).then(([h,b])=>{setSheetsData(h||[]);setLiveBalance(b);setBalLoading(false);});}
+  return<div ref={pullRef}onScroll={e=>setSy(e.target.scrollTop)}
+    onTouchStart={e=>{pullRef.current._py=e.touches[0].clientY;}}
+    onTouchMove={e=>{if((pullRef.current?.scrollTop||0)>2)return;const dy=e.touches[0].clientY-(pullRef.current._py||0);if(dy>0){setPullDy(Math.min(dy*.35,56));setPullActive(dy>70);}}}
+    onTouchEnd={()=>{if(pullActive)doPullRefresh();setPullDy(0);setPullActive(false);}}
+    style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+    <div style={{height:pullDy,display:"flex",alignItems:"flex-end",justifyContent:"center",overflow:"hidden",transition:pullDy===0?"height .25s":"none",paddingBottom:6}}>
+      {pullDy>8&&<span style={{...T.cap,color:C.label2,display:"flex",gap:5,alignItems:"center"}}><span style={{display:"inline-block",transform:`rotate(${pullActive?180:Math.min(pullDy*4,160)}deg)`,transition:"transform .15s"}}>↓</span>{pullActive?"Suelta para actualizar":"Jala para actualizar"}</span>}
+    </div>
     <style>{ANIM_CSS}</style>
     <Nav title="Contadores"sub={m.n}sy={sy}right={[{icon:editMode?"check":"edit",fn:()=>setEditMode(!editMode)}]}/>
     <div style={{padding:"10px 14px",paddingBottom:120}}>
@@ -984,6 +993,42 @@ function ChartLinea({chartPts,C,color,bals}){
       </div>
     </div>;
   }
+function ChartMaquinas({sheetsData,filtro,mes,desde,hasta,color,C}){
+  // Aggregate by machine from sheetsData
+  const maqMap={};
+  const now=new Date();const today=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+  sheetsData.forEach(([maqId,fecha,,,,utilidad,])=>{
+    let ok=false;
+    if(filtro==="todo")ok=true;
+    else if(filtro==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);ok=fecha>=d7.toISOString().slice(0,10)&&fecha<=today;}
+    else if(filtro==="mes")ok=fecha.slice(0,7)===mes;
+    else if(filtro==="custom")ok=(!desde||fecha>=desde)&&(!hasta||fecha<=hasta);
+    if(!ok||utilidad==null)return;
+    if(!maqMap[maqId])maqMap[maqId]={id:maqId,total:0,count:0};
+    maqMap[maqId].total+=utilidad;
+    maqMap[maqId].count++;
+  });
+  const maqs=Object.values(maqMap).sort((a,b)=>b.total-a.total);
+  if(!maqs.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos de máquinas</div>;
+  const maxV=Math.max(...maqs.map(m=>Math.abs(m.total)),1);
+  return<div style={{padding:"4px 0"}}>
+    {maqs.map((m,i)=>{
+      const pct=Math.abs(m.total)/maxV*100;
+      const isPos=m.total>=0;
+      const barColor=isPos?C.green:C.red;
+      return<div key={m.id}style={{marginBottom:10,animationDelay:i*.03+"s"}}className="fade-up">
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+          <span style={{...T.fn,color:C.label,fontSize:12}}>{m.id}</span>
+          <span style={{...T.fn,color:isPos?C.green:C.red,fontWeight:600,fontSize:12}}>{fmtE(m.total)}</span>
+        </div>
+        <div style={{background:C.fill3,borderRadius:4,height:6,overflow:"hidden"}}>
+          <div style={{height:"100%",background:barColor,borderRadius:4,width:pct+"%",transition:"width .6s cubic-bezier(.16,1,.3,1)"}}/>
+        </div>
+      </div>;
+    })}
+  </div>;
+}
+
 function Report({cid,cont}){
   const C=getC();const m=META[cid];const d=D[cid];const color=C[m.c];
   const[sy,setSy]=useState(0);const[vista,setVista]=useState("balance");
@@ -1002,6 +1047,7 @@ function Report({cid,cont}){
       setSheetsData(hist||[]);
       setLiveBalance(bal);
       setBalLoading(false);
+      if(bal&&bal.length){const last=[...bal].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];saveLog({action:"balance_loaded",target:cid,detail:last.fecha});}
     });
   },[cid]);
 
@@ -1152,7 +1198,15 @@ function Report({cid,cont}){
         {bals.length===0&&<div style={{padding:16,...T.s,color:C.label2,textAlign:"center"}}>Sin períodos</div>}
         {bals.map((b,i)=><div key={b.fecha}style={{padding:"11px 14px",borderBottom:i<bals.length-1?`0.5px solid ${C.sep}`:"none",animation:`fadeSlideUp .25s ease ${i*.02}s both`}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:3}}>
-            <span style={{...T.c,color:C.label,fontWeight:600}}>{fmtF(b.fecha)}</span>
+            <div style={{display:"flex",alignItems:"center",gap:6}}>
+              <span style={{...T.c,color:C.label,fontWeight:600}}>{fmtF(b.fecha)}</span>
+              {(()=>{
+                const avg=bals.length?bals.reduce((s,x)=>s+(x.util||0),0)/bals.length:0;
+                if(avg>0&&b.util<avg*0.5)return<span style={{...T.cap,color:C.red,background:`${C.red}18`,borderRadius:20,padding:"1px 7px",fontSize:10}}>↓ Bajo</span>;
+                if(b.util>avg*1.5)return<span style={{...T.cap,color:C.green,background:`${C.green}18`,borderRadius:20,padding:"1px 7px",fontSize:10}}>↑ Alto</span>;
+                return null;
+              })()}
+            </div>
             <span style={{...T.c,color:(b.util||0)>=0?C.green:C.red,fontWeight:700}}>{fmtE(b.util)}</span>
           </div>
           <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
@@ -1172,7 +1226,7 @@ function Report({cid,cont}){
       {/* GRÁFICA */}
       {vista==="grafica"&&<>
         <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:12,border:`1px solid ${C.sep}`,overflowX:"auto"}}>
-          {[["barras","Barras"],["linea","Líneas"],["top5","Top Máqs"]].map(([v,l])=>
+          {[["barras","Barras"],["linea","Líneas"],["top5","Top Máqs"],["maquinas","Por Máquina"]].map(([v,l])=>
             <button key={v}onClick={()=>setChartTab(v)}className="btn-press"style={{flex:"0 0 auto",background:chartTab===v?`${color}22`:"transparent",border:chartTab===v?`1px solid ${color}33`:"1px solid transparent",borderRadius:12,padding:"8px 16px",color:chartTab===v?color:C.label2,cursor:"pointer",...T.fn,fontWeight:chartTab===v?700:400,whiteSpace:"nowrap"}}>{l}</button>)}
         </div>
         <div style={{background:C.bg2,borderRadius:16,padding:"16px 12px 10px",border:`1px solid ${C.sep}`,animation:"fadeSlideUp .3s ease both"}}>
@@ -1181,7 +1235,8 @@ function Report({cid,cont}){
           </div>
           {chartTab==="barras"&&<ChartBarras chartPts={chartPts}C={C}color={color}bals={bals}fmtE={fmtE}/>}
           {chartTab==="linea"&&<ChartLinea chartPts={chartPts}C={C}color={color}bals={bals}/>}
-          {chartTab==="top5"&&<ChartTop5/>}
+          {chartTab==="maquinas"&&<div style={{padding:"0 2px"}}><ChartMaquinas sheetsData={sheetsData}filtro={filtro}mes={mes}desde={desde}hasta={hasta}color={color}C={C}/></div>}
+        {chartTab==="top5"&&<ChartTop5/>}
         </div>
       </>}
     </div>
@@ -1971,6 +2026,7 @@ function Comparar({onBack}){
 // ─── CASINO SHELL ─────────────────────────────────────────────────────────────
 function Casino({cid,cont,setCont,apiKey,onBack,user}){
   const C=getC();const[tab,setTab]=useState("reporte");const m=META[cid];const color=C[m.c];
+  let _swipeX=0,_swipeY=0;
   return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg}}>
     <style>{ANIM_CSS}</style>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
@@ -1978,11 +2034,24 @@ function Casino({cid,cont,setCont,apiKey,onBack,user}){
         <Ico n="back"c={C.blue}s={18}/><span style={{...T.b,color:C.blue}}>Inicio</span>
       </button>
     </div>
-    <div style={{flex:1,overflow:"hidden",paddingTop:44,animation:"fadeIn .25s ease both"}}>
-      {tab==="lectura"&&<Counters cid={cid}cont={cont}setCont={setCont}user={user}/>}
-      {tab==="camara"&&<Camera cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}user={user}/>}
-      {tab==="reporte"&&<Report cid={cid}cont={cont}/>}
-      {tab==="maquinas"&&<Machines cid={cid}cont={cont}/>}
+    <div style={{flex:1,overflow:"hidden",paddingTop:44}}
+      onTouchStart={e=>{_swipeX=e.touches[0].clientX;_swipeY=e.touches[0].clientY;}}
+      onTouchEnd={e=>{
+        const TABS=["lectura","camara","reporte","maquinas"];
+        const dx=e.changedTouches[0].clientX-_swipeX;
+        const dy=Math.abs(e.changedTouches[0].clientY-_swipeY);
+        if(Math.abs(dx)>55&&dy<80){
+          const i=TABS.indexOf(tab);
+          if(dx<0&&i<TABS.length-1)setTab(TABS[i+1]);
+          else if(dx>0&&i>0)setTab(TABS[i-1]);
+        }
+      }}>
+      <div key={tab}style={{height:"100%",animation:"fadeIn .18s ease both"}}>
+        {tab==="lectura"&&<Counters cid={cid}cont={cont}setCont={setCont}user={user}/>}
+        {tab==="camara"&&<Camera cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}user={user}/>}
+        {tab==="reporte"&&<Report cid={cid}cont={cont}/>}
+        {tab==="maquinas"&&<Machines cid={cid}cont={cont}/>}
+      </div>
     </div>
     <Tabs tab={tab}setTab={setTab}color={color}/>
   </div>;
