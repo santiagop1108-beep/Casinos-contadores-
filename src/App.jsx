@@ -898,7 +898,19 @@ function Report({cid,cont}){
   const[desde,setDesde]=useState("");const[hasta,setHasta]=useState("");
   const[chartTab,setChartTab]=useState("barras");const[tableMode,setTableMode]=useState("byfecha");
   const[sheetsData,setSheetsData]=useState([]);
-  useEffect(()=>{fetchSheetHist(cid).then(data=>setSheetsData(data)).catch(()=>{});},[cid]);
+  const[liveBalance,setLiveBalance]=useState(null);
+  const[balLoading,setBalLoading]=useState(true);
+  useEffect(()=>{
+    setBalLoading(true);
+    Promise.all([
+      fetchSheetHist(cid).catch(()=>[]),
+      fetchBalanceFromSheets(cid).catch(()=>null)
+    ]).then(([hist,bal])=>{
+      setSheetsData(hist||[]);
+      setLiveBalance(bal);
+      setBalLoading(false);
+    });
+  },[cid]);
 
   function getBals(){
     const b={};
