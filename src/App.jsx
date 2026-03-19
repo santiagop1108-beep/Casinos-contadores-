@@ -19,13 +19,14 @@ const ANIM_CSS=`
 .lg{background:rgba(255,255,255,.08);backdrop-filter:blur(40px) saturate(200%) brightness(1.1);-webkit-backdrop-filter:blur(40px) saturate(200%) brightness(1.1);border:1px solid rgba(255,255,255,.18);box-shadow:0 2px 4px rgba(0,0,0,.12),0 8px 24px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.25)}
 .lg-dark{background:rgba(0,0,0,.35);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid rgba(255,255,255,.1);box-shadow:0 4px 16px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.12)}
 .lg-card{background:rgba(255,255,255,.06);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 32px rgba(0,0,0,.2);border-radius:18px}
+@media(prefers-color-scheme:light){.lg{background:rgba(255,255,255,.75);border-color:rgba(0,0,0,.08)}.lg-card{background:rgba(255,255,255,.85);border-color:rgba(0,0,0,.08)}}
 
 `;
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const THEMES={
   dark:{bg:"#0A0A0F",bg2:"#13131A",bg3:"#1C1C26",bg4:"#242430",card:"#13131A",label:"#F0F0FF",label2:"rgba(220,220,255,.55)",label3:"rgba(200,200,255,.25)",sep:"rgba(100,100,140,.3)",fill3:"rgba(120,120,160,.18)",fill4:"rgba(100,100,140,.12)",blue:"#3D8EFF",green:"#2ED573",red:"#FF4757",orange:"#FFA502",yellow:"#FFD32A",purple:"#A55EEA",indigo:"#6C5CE7",pink:"#FD79A8",teal:"#00CEC9",navBg:"rgba(10,10,15,.94)"},
-  light:{bg:"#F0F0F8",bg2:"#FFFFFF",bg3:"#F0F0F8",bg4:"#E4E4F0",card:"#FFFFFF",label:"#0A0A1A",label2:"rgba(30,30,80,.55)",label3:"rgba(30,30,80,.28)",sep:"rgba(80,80,120,.18)",fill3:"rgba(100,100,150,.1)",fill4:"rgba(80,80,120,.07)",blue:"#2979FF",green:"#00C853",red:"#FF1744",orange:"#FF6D00",yellow:"#FFD600",purple:"#AA00FF",indigo:"#3D5AFE",pink:"#F50057",teal:"#00BFA5",navBg:"rgba(240,240,248,.94)"},
+  light:{bg:"#F2F2F7",bg2:"#FFFFFF",bg3:"#EBEBF0",bg4:"#E0E0EA",card:"#FFFFFF",label:"#000000",label2:"rgba(0,0,0,.55)",label3:"rgba(0,0,0,.3)",sep:"rgba(0,0,0,.1)",fill3:"rgba(0,0,0,.06)",fill4:"rgba(0,0,0,.04)",blue:"#007AFF",green:"#34C759",red:"#FF3B30",orange:"#FF9500",yellow:"#FFCC00",purple:"#AF52DE",indigo:"#5856D6",pink:"#FF2D55",teal:"#30B0C7",navBg:"rgba(242,242,247,.92)",shadow:"0 2px 20px rgba(0,0,0,.08)",shadowSm:"0 1px 8px rgba(0,0,0,.06)"},
 };
 let _theme=THEMES.dark;
 const getC=()=>_theme;
@@ -238,38 +239,40 @@ const USERS=["Santiago","Eliza","Jessica"];
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const ICONS={
-  building:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><rect x="3"y="3"width="18"height="18"rx="2"/><path d="M9 3v18M15 3v18M3 9h18M3 15h18"/></svg>,
-  sword:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><polyline points="14.5 17.5 3 6 3 3 6 3 17.5 14.5"/><line x1="13"y1="19"x2="19"y2="13"/><line x1="16"y1="16"x2="20"y2="20"/><line x1="19"y1="21"x2="21"y2="19"/></svg>,
-  sun:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><circle cx="12"cy="12"r="5"/>{[0,45,90,135,180,225,270,315].map(d=><line key={d}x1="12"y1="2"x2="12"y2="4"stroke={c}strokeWidth="1.8"strokeLinecap="round"transform={`rotate(${d} 12 12)`}/>)}</svg>,
-  palmtree:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M13 8c0-2.76-2.46-5-5.5-5S2 5.24 2 8h11z"/><path d="M13 8c0-2.76 2.46-5 5.5-5S24 5.24 24 8H13z"/><path d="M13 8c0 4-2 6-5 9"/><path d="M13 8c0 4 2 6 5 9"/><line x1="13"y1="8"x2="13"y2="22"/></svg>,
-  clubs:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M17 12c2.2 0 4-1.8 4-4s-1.8-4-4-4c-.5 0-1 .1-1.4.3C14.7 2.9 13.4 2 12 2s-2.7.9-3.6 2.3C8 4.1 7.5 4 7 4 4.8 4 3 5.8 3 8s1.8 4 4 4c.4 0 .8-.1 1.2-.2L7 22h10l-1.2-10.2c.4.1.8.2 1.2.2z"/></svg>,
-  counters:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><rect x="3"y="3"width="7"height="7"rx="1"/><rect x="14"y="3"width="7"height="7"rx="1"/><rect x="3"y="14"width="7"height="7"rx="1"/><rect x="14"y="14"width="7"height="7"rx="1"/></svg>,
-  camera:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12"cy="13"r="4"/></svg>,
-  report:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16"y1="13"x2="8"y2="13"/><line x1="16"y1="17"x2="8"y2="17"/><polyline points="10 9 9 9 8 9"/></svg>,
-  machines:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><rect x="2"y="7"width="20"height="14"rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>,
-  settings:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><circle cx="12"cy="12"r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
-  faceid:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v4"/><path d="M15 3h4a2 2 0 0 1 2 2v4"/><path d="M9 21H5a2 2 0 0 1-2-2v-4"/><path d="M15 21h4a2 2 0 0 0 2-2v-4"/><circle cx="9"cy="10"r="1"fill={c}/><circle cx="15"cy="10"r="1"fill={c}/><path d="M9 15c.5 1 1.5 1.5 3 1.5s2.5-.5 3-1.5"/></svg>,
-  trash:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
-  edit:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
-  trophy:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><polyline points="8 21 12 21 16 21"/><line x1="12"y1="17"x2="12"y2="21"/><path d="M7 4H17l-1 7a5 5 0 0 1-10 0z"/><path d="M5 9H3a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h2"/><path d="M19 9h2a1 1 0 0 0 1-1V5a1 1 0 0 0-1-1h-2"/></svg>,
-  pdf:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h1a2 2 0 0 1 0 4H9v-4z"/><path d="M13 13h2"/><path d="M13 17h2"/></svg>,
-  excel:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13l2.5 4"/><path d="M13.5 13L11 17"/><line x1="8"y1="17"x2="13.5"y2="13"/></svg>,
-  sync:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>,
-  moon:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
-  sunicon:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><circle cx="12"cy="12"r="5"/><line x1="12"y1="1"x2="12"y2="3"/><line x1="12"y1="21"x2="12"y2="23"/><line x1="4.22"y1="4.22"x2="5.64"y2="5.64"/><line x1="18.36"y1="18.36"x2="19.78"y2="19.78"/><line x1="1"y1="12"x2="3"y2="12"/><line x1="21"y1="12"x2="23"y2="12"/><line x1="4.22"y1="19.78"x2="5.64"y2="18.36"/><line x1="18.36"y1="5.64"x2="19.78"y2="4.22"/></svg>,
-  back:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>,
-  chevron:(c,s=16)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
-  check:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="2.5"strokeLinecap="round"strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>,
-  warning:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12"y1="9"x2="12"y2="13"/><line x1="12"y1="17"x2="12.01"y2="17"/></svg>,
-  wifi:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><line x1="1"y1="1"x2="23"y2="23"/><path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/><path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/><path d="M10.71 5.05A16 16 0 0 1 22.56 9"/><path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12"y1="20"x2="12.01"y2="20"/></svg>,
-  table:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><rect x="3"y="3"width="18"height="18"rx="2"/><line x1="3"y1="9"x2="21"y2="9"/><line x1="3"y1="15"x2="21"y2="15"/><line x1="9"y1="3"x2="9"y2="21"/></svg>,
-  download:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12"y1="15"x2="12"y2="3"/></svg>,
-  slot:(c,s=24)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><rect x="2"y="6"width="20"height="14"rx="2"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><circle cx="12"cy="13"r="3"/><line x1="12"y1="10"x2="12"y2="8"/></svg>,
-  poker:(c,s=24)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M12 2l2.5 5h5.5l-4.5 3.5 1.5 5.5L12 13l-5 3 1.5-5.5L4 7h5.5z"/></svg>,
-  user:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12"cy="7"r="4"/></svg>,
-  lock:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><rect x="3"y="11"width="18"height="11"rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>,
-  shield:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
-  trending:(c,s=18)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+  building:(c,s=22)=><svg width={s}height={s}viewBox="0 0 32 32"fill="none"><circle cx="16"cy="16"r="11"stroke={c}strokeWidth="1.5"/><circle cx="16"cy="16"r="7"stroke={c}strokeWidth="1"opacity=".5"/><path d="M5 16h4M23 16h4M16 5v4M16 23v4"stroke={c}strokeWidth="1.5"strokeLinecap="round"/></svg>,
+  sword:(c,s=22)=><svg width={s}height={s}viewBox="0 0 32 32"fill="none"><path d="M6 26l16-16M8 26l16-16"stroke={c}strokeWidth="2"strokeLinecap="round"opacity=".3"/><path d="M7 25L25 7"stroke={c}strokeWidth="2"strokeLinecap="round"/><path d="M22 6l4 4"stroke={c}strokeWidth="2"strokeLinecap="round"/><path d="M9 23l2 2"stroke={c}strokeWidth="1.2"strokeLinecap="round"opacity=".5"/><circle cx="8"cy="25"r="1.5"fill={c}opacity=".7"/></svg>,
+  sun:(c,s=22)=><svg width={s}height={s}viewBox="0 0 32 32"fill="none"><path d="M4 27h24L16 5z"stroke={c}strokeWidth="1.5"strokeLinejoin="round"/><path d="M10 27l6-14 6 14"stroke={c}strokeWidth="1"strokeLinejoin="round"opacity=".4"/><line x1="4"y1="27"x2="28"y2="27"stroke={c}strokeWidth="1.5"strokeLinecap="round"/><circle cx="16"cy="10"r="1.5"fill={c}opacity=".8"/></svg>,
+  palmtree:(c,s=22)=><svg width={s}height={s}viewBox="0 0 32 32"fill="none"><path d="M16 29V15"stroke={c}strokeWidth="2"strokeLinecap="round"/><path d="M16 15c0-4-4-7-9-6 0 4 4 7 9 6z"stroke={c}strokeWidth="1.4"strokeLinecap="round"strokeLinejoin="round"/><path d="M16 15c0-4 4-7 9-6 0 4-4 7-9 6z"stroke={c}strokeWidth="1.4"strokeLinecap="round"strokeLinejoin="round"/><path d="M16 19c-2-3-5-3-7-1 2 3 5 3 7 1z"stroke={c}strokeWidth="1.2"strokeLinecap="round"opacity=".6"/><path d="M13 29h6"stroke={c}strokeWidth="1.5"strokeLinecap="round"/></svg>,
+  clubs:(c,s=22)=><svg width={s}height={s}viewBox="0 0 32 32"fill="none"><rect x="6"y="6"width="20"height="20"rx="4"stroke={c}strokeWidth="1.5"/><circle cx="11"cy="11"r="1.5"fill={c}/><circle cx="21"cy="11"r="1.5"fill={c}/><circle cx="16"cy="16"r="1.5"fill={c}/><circle cx="11"cy="21"r="1.5"fill={c}/><circle cx="21"cy="21"r="1.5"fill={c}/></svg>,
+  slot:(c,s=22)=><svg width={s}height={s}viewBox="0 0 32 32"fill="none"><rect x="5"y="4"width="22"height="24"rx="4"stroke={c}strokeWidth="1.5"/><rect x="9"y="8"width="4"height="8"rx="2"stroke={c}strokeWidth="1.2"/><rect x="14"y="8"width="4"height="8"rx="2"stroke={c}strokeWidth="1.2"/><rect x="19"y="8"width="4"height="8"rx="2"stroke={c}strokeWidth="1.2"/><rect x="10"y="20"width="12"height="4"rx="2"stroke={c}strokeWidth="1"/><circle cx="16"cy="22"r="1"fill={c}/></svg>,
+  counters:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"><rect x="3"y="3"width="8"height="8"rx="2"/><rect x="13"y="3"width="8"height="8"rx="2"/><rect x="3"y="13"width="8"height="8"rx="2"/><path d="M13 17h8M17 13v8"/></svg>,
+  camera:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12"cy="13"r="4"/></svg>,
+  report:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"><rect x="3"y="3"width="18"height="18"rx="3"/><path d="M8 12h8M8 8h8M8 16h5"/></svg>,
+  machines:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><rect x="4"y="2"width="16"height="20"rx="3"/><path d="M9 7h6M9 12h6M9 17h3"/><circle cx="16"cy="17"r="1"fill={c}/></svg>,
+  settings:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><circle cx="12"cy="12"r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+  edit:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+  trash:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>,
+  sync:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><polyline points="23 20 23 14 17 14"/><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10M23 14l-4.64 4.36A9 9 0 0 1 3.51 15"/></svg>,
+  warning:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12"y1="9"x2="12"y2="13"/><line x1="12"y1="17"x2="12.01"y2="17"/></svg>,
+  shield:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>,
+  trophy:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2z"/></svg>,
+  chart:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"><line x1="18"y1="20"x2="18"y2="10"/><line x1="12"y1="20"x2="12"y2="4"/><line x1="6"y1="20"x2="6"y2="14"/><path d="M2 20h20"/></svg>,
+  pdf:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M9 13h6M9 17h4"/></svg>,
+  excel:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M8 13l2 2 4-4"/></svg>,
+  table:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"><rect x="3"y="3"width="18"height="18"rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/></svg>,
+  download:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12"y1="15"x2="12"y2="3"/></svg>,
+  user:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12"cy="7"r="4"/></svg>,
+  lock:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><rect x="3"y="11"width="18"height="11"rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/><circle cx="12"cy="16"r="1"fill={c}/></svg>,
+  faceid:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M9 10h.01M15 10h.01"/><path d="M9.5 15a3.5 3.5 0 0 0 5 0"/><line x1="12"y1="7"x2="12"y2="9"/></svg>,
+  moon:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>,
+  sunicon:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><circle cx="12"cy="12"r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>,
+  wifi:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><circle cx="12"cy="20"r="1"fill={c}/></svg>,
+  trending:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>,
+  poker:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"stroke={c}strokeWidth="1.5"strokeLinecap="round"strokeLinejoin="round"><path d="M12 2C8 2 5 5 5 8c0 4 7 13 7 13s7-9 7-13c0-3-2-6-7-6z"/><circle cx="12"cy="8"r="2"fill={c}/></svg>,
+  back:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"><path d="M15 18l-6-6 6-6"stroke={c}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"/></svg>,
+  chevron:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"><path d="M9 18l6-6-6-6"stroke={c}strokeWidth="1.8"strokeLinecap="round"strokeLinejoin="round"/></svg>,
+  check:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"><path d="M20 6L9 17l-5-5"stroke={c}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"/></svg>,
+  plus:(c,s=22)=><svg width={s}height={s}viewBox="0 0 24 24"fill="none"><path d="M12 5v14M5 12h14"stroke={c}strokeWidth="2"strokeLinecap="round"/></svg>,
 };
 const Ico=({n,c,s})=>(ICONS[n]?ICONS[n](c,s):<span style={{fontSize:s||18,color:c}}>•</span>);
 
@@ -828,10 +831,10 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
       <span style={{background:`${C.green}22`,border:`1px solid ${C.green}44`,borderRadius:20,padding:"1px 8px",color:C.green}}>● Live Sheets</span>
     </div>
     <div style={{overflowX:"auto",borderRadius:14,border:`1px solid ${C.sep}`,background:C.bg2}}>
-      <table style={{width:"100%",borderCollapse:"collapse",...T.fn,color:C.label,minWidth:480}}>
-        <thead><tr style={{background:C.bg3}}>
-          {["Fecha","Máquina","IN Acum","OUT Acum","Premios","Jackpot","Utilidad"].map(h=>
-            <th key={h}style={{padding:"9px 10px",textAlign:"right",color:C.label2,fontWeight:600,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",...(h==="Fecha"||h==="Máquina"?{textAlign:"left"}:{})}}>{h}</th>)}
+      <table style={{width:"100%",borderCollapse:"collapse",...T.fn,color:C.label}}>
+        <thead><tr style={{background:C.bg3,position:"sticky",top:0,zIndex:2}}>
+          {["Fecha","Máquina","Premios","Jackpot","Utilidad"].map(h=>
+            <th key={h}style={{padding:"9px 8px",textAlign:h==="Fecha"||h==="Máquina"?"left":"right",color:C.label2,fontWeight:600,borderBottom:`1px solid ${C.sep}`,whiteSpace:"nowrap",fontSize:12}}>{h}</th>)}
         </tr></thead>
         <tbody>
           {paginated.map((r,i)=>{
@@ -839,21 +842,30 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
             const mq=mqs.find(m=>m.id===maqId);
             const col=mq?maqC(mq.factor,C):C.label2;
             return<tr key={i}style={{borderBottom:`0.5px solid ${C.sep}`,background:i%2===0?"transparent":C.fill4}}>
-              <td style={{padding:"7px 10px",whiteSpace:"nowrap",color:C.label2}}>{fmtF(fecha)}</td>
-              <td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>
-                <div style={{display:"flex",alignItems:"center",gap:6}}>
-                  <div style={{width:6,height:6,borderRadius:3,background:col,flexShrink:0}}/>
-                  {mq?.nombre||maqId}
+              <td style={{padding:"7px 8px",whiteSpace:"nowrap",color:C.label2,fontSize:12}}>{fmtF(fecha)}</td>
+              <td style={{padding:"7px 8px",whiteSpace:"nowrap",maxWidth:100,overflow:"hidden",textOverflow:"ellipsis"}}>
+                <div style={{display:"flex",alignItems:"center",gap:5}}>
+                  <div style={{width:5,height:5,borderRadius:3,background:col,flexShrink:0}}/>
+                  <span style={{fontSize:12,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{mq?.nombre||maqId}</span>
                 </div>
               </td>
-              <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{inAcum?.toLocaleString()||"—"}</td>
-              <td style={{padding:"7px 10px",textAlign:"right",color:C.label2}}>{outAcum?.toLocaleString()||"—"}</td>
-              <td style={{padding:"7px 10px",textAlign:"right",color:C.orange}}>{premios!=null?fmtE(premios):"—"}</td>
-              <td style={{padding:"7px 10px",textAlign:"right",color:C.purple}}>{jackpot!=null?fmtE(jackpot):"—"}</td>
-              <td style={{padding:"7px 10px",textAlign:"right",color:utilidad!=null?(utilidad>=0?C.green:C.red):C.label3,fontWeight:utilidad!=null?600:400}}>{utilidad!=null?fmtE(utilidad):"—"}</td>
+              <td style={{padding:"7px 8px",textAlign:"right",color:C.orange,fontSize:12}}>{premios!=null?fmtE(premios):"—"}</td>
+              <td style={{padding:"7px 8px",textAlign:"right",color:C.purple,fontSize:12}}>{jackpot!=null&&jackpot>0?fmtE(jackpot):"—"}</td>
+              <td style={{padding:"7px 8px",textAlign:"right",color:utilidad!=null?(utilidad>=0?C.green:C.red):C.label3,fontWeight:utilidad!=null?600:400,fontSize:12}}>{utilidad!=null?fmtE(utilidad):"—"}</td>
             </tr>;
           })}
         </tbody>
+        {filtered.length>0&&(()=>{
+          const totP=filtered.reduce((s,r)=>s+(r[4]||0),0);
+          const totJ=filtered.reduce((s,r)=>s+(r[6]||0),0);
+          const totU=filtered.reduce((s,r)=>s+(r[5]||0),0);
+          return<tfoot><tr style={{borderTop:`2px solid ${C.sep}`,background:C.bg3}}>
+            <td colSpan={2}style={{padding:"8px 8px",color:C.label2,fontSize:12,fontWeight:600}}>Total ({filtered.length})</td>
+            <td style={{padding:"8px 8px",textAlign:"right",color:C.orange,fontWeight:700,fontSize:12}}>{fmtE(totP)}</td>
+            <td style={{padding:"8px 8px",textAlign:"right",color:C.purple,fontWeight:700,fontSize:12}}>{totJ>0?fmtE(totJ):"—"}</td>
+            <td style={{padding:"8px 8px",textAlign:"right",color:totU>=0?C.green:C.red,fontWeight:700,fontSize:12}}>{fmtE(totU)}</td>
+          </tr></tfoot>;
+        })()}
       </table>
     </div>
     {totalPages>1&&<div style={{display:"flex",justifyContent:"center",gap:8,marginTop:10}}>
@@ -1867,7 +1879,7 @@ function Comparar({onBack}){
 
 // ─── CASINO SHELL ─────────────────────────────────────────────────────────────
 function Casino({cid,cont,setCont,apiKey,onBack,user}){
-  const C=getC();const[tab,setTab]=useState("lectura");const m=META[cid];const color=C[m.c];
+  const C=getC();const[tab,setTab]=useState("reporte");const m=META[cid];const color=C[m.c];
   return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg}}>
     <style>{ANIM_CSS}</style>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
