@@ -68,67 +68,102 @@ const COL_MAP={
 const _sheetsCache={};
 const _sheetsCacheTime={};
 
+async function fetchSheetHistFallback(cid,mqs,cidColMap,resets){
+  // Parallel individual requests as fallback
+  const maqResults=await Promise.all(mqs.map(async mq=>{
+    const url="https://sheets.googleapis.com/v4/spreadsheets/"+SHEET_IDS[cid]+"/values/"+encodeURIComponent(mq.nombre)+"!A:H?key="+GAPI_KEY;
+    try{
+      const r=await fetch(url);if(!r.ok)return[];
+      const data=await r.json();if(data.error)return[];
+      return processSheetRows(mq,data.values||[],cidColMap,resets);
+    }catch(e){return[];}
+  }));
+  return maqResults.flat();
+}
+
+function processSheetRows(mq,rows,cidColMap,resets){
+  const startIdx=(rows.length>0&&!parseSheetDate(rows[0][0]))?1:0;
+  const maqCols=cidColMap[mq.nombre]||{};
+  const pIdx=maqCols.p!=null?maqCols.p:5;
+  const uIdx=maqCols.u!=null?maqCols.u:6;
+  const isPoker=mq.factor===50;
+  const resetDate=(resets[mq.id])||null;
+  let prevIn=null,prevOut=null,prevJack=null,resetApplied=false;
+  const result=[];
+  for(let i=startIdx;i<rows.length;i++){
+    const row=rows[i];
+    const fecha=parseSheetDate(row[0]);if(!fecha)continue;
+    const inAcum=parseNum(row[1]),outAcum=parseNum(row[2]);
+    if(inAcum==null||outAcum==null||inAcum===0)continue;
+    if(resetDate&&fecha<resetDate){prevIn=inAcum;prevOut=outAcum;if(isPoker)prevJack=parseNum(row[3]);continue;}
+    if(resetDate&&!resetApplied&&fecha>=resetDate){prevIn=null;prevOut=null;prevJack=null;resetApplied=true;}
+    let premios=parseNum(row[pIdx]);
+    let utilidad=parseNum(row[uIdx]);
+    let jackpot=null;
+    if(isPoker){
+      const jackAcum=parseNum(row[3]);
+      if(jackAcum!=null&&prevJack!=null&&jackAcum>prevJack){
+        jackpot=jackAcum-prevJack;
+        if(premios!=null)premios+=jackpot;else premios=jackpot;
+      }
+      prevJack=jackAcum;
+    }
+    if(utilidad==null&&prevIn!=null&&inAcum>prevIn){
+      const inPer=inAcum-prevIn,outPer=outAcum-prevOut;
+      if(premios==null)premios=outPer*mq.factor;
+      utilidad=(inPer-outPer)*mq.factor;
+    }
+    result.push([mq.id,fecha,inAcum,outAcum,premios,utilidad,jackpot]);
+    prevIn=inAcum;prevOut=outAcum;
+  }
+  return result;
+}
+
 async function fetchSheetHist(cid){
   if(META[cid]?.sim)return[];
   if(_sheetsCache[cid]&&_sheetsCacheTime[cid]&&(Date.now()-_sheetsCacheTime[cid])<120000)return _sheetsCache[cid];
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
   const mqs=getMaqs(cid).filter(m=>!m.disabled);
+  if(!mqs.length)return[];
   const cidColMap=COL_MAP[cid]||{};
   const resets=loadResets(cid);
 
-  // Fetch ALL machines in PARALLEL instead of sequential loop
-  const maqResults=await Promise.all(mqs.map(async mq=>{
-    const url="https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values/"+encodeURIComponent(mq.nombre)+"!A:H?key="+GAPI_KEY;
-    try{
-      const r=await fetch(url);
-      if(!r.ok)return[];
-      const data=await r.json();
-      if(data.error)return[];
-      const rows=data.values||[];
-      const startIdx=(rows.length>0&&!parseSheetDate(rows[0][0]))?1:0;
-      const maqCols=cidColMap[mq.nombre]||{};
-      const pIdx=maqCols.p!=null?maqCols.p:5;
-      const uIdx=maqCols.u!=null?maqCols.u:6;
-      const isPoker=mq.factor===50;
-      const resetDate=resets[mq.id]||null;
-      let prevIn=null,prevOut=null,prevJack=null,resetApplied=false;
-      const maqRows=[];
-      for(let i=startIdx;i<rows.length;i++){
-        const row=rows[i];
-        const fecha=parseSheetDate(row[0]);
-        if(!fecha)continue;
-        const inAcum=parseNum(row[1]);
-        const outAcum=parseNum(row[2]);
-        if(inAcum==null||outAcum==null||inAcum===0)continue;
-        if(resetDate&&fecha<resetDate){prevIn=inAcum;prevOut=outAcum;if(isPoker)prevJack=parseNum(row[3]);continue;}
-        if(resetDate&&!resetApplied&&fecha>=resetDate){prevIn=null;prevOut=null;prevJack=null;resetApplied=true;}
-        let premios=parseNum(row[pIdx]);
-        let utilidad=parseNum(row[uIdx]);
-        let jackpot=null;
-        if(isPoker){
-          const jackAcum=parseNum(row[3]);
-          if(jackAcum!=null&&prevJack!=null&&jackAcum>prevJack){
-            jackpot=jackAcum-prevJack;
-            if(premios!=null)premios+=jackpot;else premios=jackpot;
-          }
-          prevJack=jackAcum;
-        }
-        if(utilidad==null&&prevIn!=null&&inAcum>prevIn){
-          const inPer=inAcum-prevIn;const outPer=outAcum-prevOut;
-          if(premios==null)premios=outPer*mq.factor;
-          utilidad=(inPer-outPer)*mq.factor;
-        }
-        maqRows.push([mq.id,fecha,inAcum,outAcum,premios,utilidad,jackpot]);
-        prevIn=inAcum;prevOut=outAcum;
-      }
-      return maqRows;
-    }catch(e){console.warn("Sheets "+cid+"/"+mq.nombre+":",e.message);return[];}
-  }));
+  // ONE single batchGet request for ALL machines — much faster and more reliable
+  const ranges=mqs.map(mq=>encodeURIComponent(mq.nombre)+"!A:H").join("&ranges=");
+  const url="https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values:batchGet?ranges="+ranges+"&key="+GAPI_KEY;
 
-  const results=maqResults.flat();
-  if(results.length>0){_sheetsCache[cid]=results;_sheetsCacheTime[cid]=Date.now();}
-  return results;
+  try{
+    const r=await fetch(url);
+    if(!r.ok){
+      console.warn("batchGet "+cid+" failed ("+r.status+") — falling back to individual requests");
+      const results=await fetchSheetHistFallback(cid,mqs,cidColMap,resets);
+      if(results.length>0){_sheetsCache[cid]=results;_sheetsCacheTime[cid]=Date.now();}
+      return results;
+    }
+    const data=await r.json();
+    if(data.error){
+      console.warn("batchGet "+cid+" error:",data.error.message,"— falling back");
+      const results=await fetchSheetHistFallback(cid,mqs,cidColMap,resets);
+      if(results.length>0){_sheetsCache[cid]=results;_sheetsCacheTime[cid]=Date.now();}
+      return results;
+    }
+    const valueRanges=data.valueRanges||[];
+    const results=[];
+    mqs.forEach((mq,idx)=>{
+      const rows=valueRanges[idx]?.values||[];
+      const maqRows=processSheetRows(mq,rows,cidColMap,resets);
+      results.push(...maqRows);
+    });
+    console.log("batchGet "+cid+": "+results.length+" rows in 1 request");
+    if(results.length>0){_sheetsCache[cid]=results;_sheetsCacheTime[cid]=Date.now();}
+    return results;
+  }catch(e){
+    console.warn("batchGet "+cid+" exception:",e.message,"— falling back");
+    const results=await fetchSheetHistFallback(cid,mqs,cidColMap,resets);
+    if(results.length>0){_sheetsCache[cid]=results;_sheetsCacheTime[cid]=Date.now();}
+    return results;
+  }
 }
 
 // Reset de contadores
@@ -298,7 +333,7 @@ const Ico=({n,c,s})=>(ICONS[n]?ICONS[n](c,s):<span style={{fontSize:s||18,color:
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 const fmt=n=>{if(n==null||isNaN(n))return"—";const a=Math.abs(n),s=n<0?"-":"";if(a>=1e6)return s+"$"+(a/1e6).toFixed(1)+"M";if(a>=1e3)return s+"$"+(a/1e3).toFixed(0)+"K";return s+"$"+a.toLocaleString();};
 const fmtE=n=>{if(n==null||isNaN(n))return"—";const s=n<0?"-":"";return s+"$"+Math.abs(Math.round(n)).toLocaleString("es-CO");};
-const today=()=>new Date().toISOString().slice(0,10);
+const today=()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");};
 const MESES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 const fmtF=f=>f?`${f.slice(8)}-${MESES[parseInt(f.slice(5,7))-1]}`:"—";
 const maqC=(f,C)=>f===50?C.purple:f===10?C.blue:C.orange;
@@ -644,18 +679,18 @@ function Counters({cid,cont,setCont,user}){
       {mqs.map((mq,idx)=>{
         const u=prevU(mq);const prev=getUlt(mq.id);const col=maqC(mq.factor,C);
         const histCount=(cont[cid]||[]).filter(c=>c.i===mq.id).length;
-        return<div key={mq.id}style={{background:C.bg2,borderRadius:14,marginBottom:8,overflow:"hidden",border:`1px solid ${C.sep}`,animation:`fadeSlideUp .3s ease ${idx*.03}s both`}}>
+        return<div key={mq.id}style={{background:C.bg2,borderRadius:14,marginBottom:8,overflow:"hidden",border:`1px solid ${u!=null?(u>=0?C.green+"33":C.red+"33"):C.sep}`,animation:`fadeSlideUp .3s ease ${idx*.03}s both`,transition:"border-color .3s"}}>
           <div style={{display:"flex",alignItems:"center",padding:"10px 12px",borderBottom:`0.5px solid ${C.sep}`,cursor:"pointer"}}onClick={()=>editMode&&setViewHist(mq.id)}>
             <MaqIcon factor={mq.factor}nombre={mq.nombre}size={32}/>
             <div style={{flex:1,marginLeft:10}}>
               <div style={{...T.h,color:C.label}}>{mq.nombre}</div>
-              <div style={{...T.cap,color:C.label2}}>×{mq.factor}{prev?` · ${fmtF(prev.fecha)}`:""}{histCount>0?` · ${histCount}✓`:""}</div>
+              <div style={{...T.cap,color:C.label2}}>×{mq.factor}{prev?.fecha&&prev.fecha!=="Base"?` · ${fmtF(prev.fecha)}`:prev?"":" · Sin base"}{histCount>0?` · ${histCount}✓`:""}</div>
             </div>
-            {u!=null&&<div style={{...T.c,color:u>=0?C.green:C.red,fontWeight:700,animation:"countUp .3s ease both"}}>{fmt(u)}</div>}
+            {u!=null&&<div style={{...T.s,color:u>=0?C.green:C.red,fontWeight:700,fontSize:18,animation:"countUp .3s ease both",padding:"2px 0"}}>{fmtE(u)}</div>}
             {editMode&&<div style={{marginLeft:8}}><Ico n="chevron"c={C.label3}s={16}/></div>}
           </div>
           <div style={{padding:"10px 12px",display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-            {[["d","TOTAL IN",prev?.drop],["p","TOTAL OUT",prev?.phys],["y","IN-OUT",null]].map(([f,lbl,ph])=>
+            {[["d","TOTAL IN",prev?.drop],["p","TOTAL OUT",prev?.phys],["y","Resultado",null]].map(([f,lbl,ph])=>
               <div key={f}>
                 <div style={{...T.cap,color:C.label2,marginBottom:3}}>{lbl}</div>
                 <input type="number"inputMode="numeric"value={gi(mq.id,f)}onChange={e=>si(mq.id,f,e.target.value)}
@@ -681,6 +716,10 @@ function Counters({cid,cont,setCont,user}){
         style={{width:"100%",background:st==="ok"?C.green:nOk===0?C.fill3:color,border:"none",borderRadius:14,padding:"15px",color:nOk===0?C.label2:"#000",...T.h,cursor:nOk===0?"default":"pointer",marginTop:4,display:"flex",alignItems:"center",justifyContent:"center",gap:8,boxShadow:nOk>0&&st!=="ok"?`0 4px 16px ${color}44`:"none",transition:"all .2s"}}>
         {st==="ok"?<><Ico n="check"c="#000"s={18}/>Guardado</>:`Guardar ${nOk} máquina${nOk!==1?"s":""}`}
       </button>
+      {nWithUtil>0&&<div style={{marginTop:8,padding:"10px 14px",background:totalUtil>=0?`${C.green}15`:`${C.red}15`,borderRadius:14,border:`1px solid ${totalUtil>=0?C.green:C.red}33`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <span style={{...T.fn,color:C.label2}}>{nWithUtil} máqs · Utilidad est.</span>
+        <span style={{...T.h,color:totalUtil>=0?C.green:C.red,fontWeight:700,fontSize:18}}>{fmtE(totalUtil)}</span>
+      </div>}
     </div>
   </div>;
 }
@@ -692,7 +731,7 @@ function Camera({cid,cont,setCont,apiKey}){
   const[fecha,setFecha]=useState(today());const[queue,setQueue]=useState([]);
   const[driveStatus,setDriveStatus]=useState("");const[saved,setSaved]=useState(false);
   const fRef=useRef(null);
-  const getUlt=useCallback(id=>{const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];if(loc)return{d:loc.d,p:loc.p};return d?.ul?.[id]||null;},[cont,cid,d]);
+  const getUlt=useCallback(id=>{const loc=(cont[cid]||[]).filter(c=>c.i===id).sort((a,b)=>b.f.localeCompare(a.f))[0];if(loc)return{d:loc.d,p:loc.p,fecha:loc.f};return d?.ul?.[id]?{...d.ul[id],fecha:null}:null;},[cont,cid,d]);
   async function analyzePhoto(blob,idx){
     setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"analyzing"}:x));
     try{
@@ -1173,7 +1212,10 @@ function Report({cid,cont}){
         {[["todo","Todo"],["semana","7 días"],["mes","Mes"],["custom","Rango"]].map(([v,l])=>
           <button key={v}onClick={()=>setFiltro(v)}style={{flexShrink:0,background:filtro===v?color:"transparent",border:`1px solid ${filtro===v?color:C.sep}`,borderRadius:20,padding:"5px 14px",color:filtro===v?"#000":C.label2,cursor:"pointer",...T.fn,fontWeight:filtro===v?700:400,transition:"all .15s"}}>{l}</button>)}
       </div>
-      {filtro==="mes"&&<div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",gap:8,alignItems:"center",border:`1px solid ${C.sep}`}}><span style={{...T.s,color:C.label2}}>Mes:</span><input type="month"value={mes}onChange={e=>setMes(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.c,cursor:"pointer"}}/></div>}
+      {filtro==="mes"&&<div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",gap:8,alignItems:"center",border:`1px solid ${C.sep}`}}><span style={{...T.s,color:C.label2}}>Mes:</span>
+        <button onClick={()=>{const[y,m]=mes.split("-");const pm=parseInt(m)-1;setMes(pm===0?`${parseInt(y)-1}-12`:`${y}-${String(pm).padStart(2,"0")}`);}}style={{background:"transparent",border:"none",color:C.label2,cursor:"pointer",...T.s,padding:"0 4px"}}>‹</button>
+        <span style={{...T.s,color:C.blue,fontWeight:600}}>{["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][parseInt(mes.split("-")[1])-1]} {mes.split("-")[0]}</span>
+        <button onClick={()=>{const[y,m]=mes.split("-");const nm=parseInt(m)+1;setMes(nm===13?`${parseInt(y)+1}-01`:`${y}-${String(nm).padStart(2,"0")}`);}}style={{background:"transparent",border:"none",color:C.label2,cursor:"pointer",...T.s,padding:"0 4px"}}>›</button></div>}
       {filtro==="custom"&&<div style={{background:C.bg2,borderRadius:10,padding:"8px 12px",marginBottom:10,display:"flex",gap:12,flexWrap:"wrap",border:`1px solid ${C.sep}`}}>
         <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{...T.fn,color:C.label2}}>Desde</span><input type="date"value={desde}onChange={e=>setDesde(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.fn}}/></div>
         <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{...T.fn,color:C.label2}}>Hasta</span><input type="date"value={hasta}onChange={e=>setHasta(e.target.value)}style={{background:"transparent",border:"none",color:C.blue,...T.fn}}/></div>
@@ -1388,7 +1430,7 @@ function Machines({cid,cont}){
                     </div>
                     <div style={{...T.fn,color:C.label2,marginTop:1}}>
                       <span style={{color:col,fontWeight:600}}>×{mq.factor}</span>
-                      {lr&&<span style={{marginLeft:8}}>IN: {lr.drop?.toLocaleString()} · {fmtF(lr.fecha)}</span>}
+                      {lr&&<span style={{marginLeft:8}}>IN: {(lr.d||lr.drop)?.toLocaleString()}{lr.fecha?` · ${fmtF(lr.fecha)}`:""}</span>}
                     </div>
                   </div>
                   {/* Action buttons */}
@@ -1972,7 +2014,15 @@ function Comparar({onBack}){
         {[["semana","7d"],["mes","Mes"],["3m","3m"],["todo","Todo"]].map(([v,l])=>
           <button key={v}onClick={()=>setPeriod(v)}className="btn-press"style={{flexShrink:0,background:period===v?C.indigo:"transparent",border:"1px solid "+(period===v?C.indigo:C.sep),borderRadius:20,padding:"5px 14px",color:period===v?"#FFF":C.label2,cursor:"pointer",...T.fn,fontWeight:period===v?700:400}}>{l}</button>)}
       </div>
-      {period==="mes"&&<input type="month"value={mes}onChange={e=>setMes(e.target.value)}style={{background:C.bg2,border:"1px solid "+C.sep,borderRadius:10,padding:"8px 12px",color:C.blue,...T.s,marginBottom:12,display:"block"}}/>}
+      {period==="mes"&&<div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+        <button onClick={()=>{const[y,m]=mes.split("-");const pm=parseInt(m)-1;setMes(pm===0?`${parseInt(y)-1}-12`:`${y}-${String(pm).padStart(2,"0")}`);}}
+          style={{background:C.fill3,border:"1px solid "+C.sep,borderRadius:10,padding:"6px 12px",color:C.label,cursor:"pointer",...T.s}}>‹</button>
+        <div style={{flex:1,textAlign:"center",...T.s,color:C.blue,fontWeight:600,background:C.fill3,borderRadius:10,padding:"6px 12px",border:"1px solid "+C.sep}}>
+          {["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][parseInt(mes.split("-")[1])-1]} {mes.split("-")[0]}
+        </div>
+        <button onClick={()=>{const[y,m]=mes.split("-");const nm=parseInt(m)+1;setMes(nm===13?`${parseInt(y)+1}-01`:`${y}-${String(nm).padStart(2,"0")}`);}}
+          style={{background:C.fill3,border:"1px solid "+C.sep,borderRadius:10,padding:"6px 12px",color:C.label,cursor:"pointer",...T.s}}>›</button>
+      </div>}
       <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:14,border:"1px solid "+C.sep}}>
         {[["util","Utilidad"],["phys","Premios"],["caja","Caja"]].map(([v,l])=>
           <button key={v}onClick={()=>setMetric(v)}className="btn-press"style={{flex:1,background:metric===v?metricColor[v]+"22":"transparent",border:metric===v?"1px solid "+metricColor[v]+"33":"1px solid transparent",borderRadius:12,padding:"8px",color:metric===v?metricColor[v]:C.label2,cursor:"pointer",...T.fn,fontWeight:metric===v?700:400}}>{l}</button>)}
