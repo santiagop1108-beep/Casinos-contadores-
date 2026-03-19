@@ -806,6 +806,91 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
 
 
 // ─── REPORT ───────────────────────────────────────────────────────────────────
+function ChartBarras({chartPts,C,color,bals,fmtE}){
+    const[cbHov,setCbHov]=useState(null);const[cbExp,setCbExp]=useState(false);
+    const pts=chartPts;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
+    const maxV=Math.max(...pts.map(p=>Math.max(Math.abs(p.util),p.caja||0)),1);
+    const W=360,H=140,pad=10;const bw=Math.max(3,Math.floor((W-pad*2)/pts.length)-3);
+    return<div>
+      <svg width="100%"viewBox={`0 0 ${W} ${H+36}`}style={{overflow:"visible"}}>
+        {pts.map((p,i)=>{
+          const x=pad+i*((W-pad*2)/pts.length);
+          const hUtil=Math.max(2,Math.abs(p.util)/maxV*(H-10));
+          const hCaja=Math.max(2,(p.caja||0)/maxV*(H-10));
+          const isPos=p.util>=0;
+          const barYUtil=isPos?H-hUtil:H;
+          return<g key={i}onMouseEnter={()=>setCbHov(i)}onMouseLeave={()=>setCbHov(null)}>
+            {/* Caja bar (lighter, behind) */}
+            <rect x={x+bw/4}y={H-hCaja}width={bw/2}height={hCaja}fill={color}opacity=".25"rx="1"/>
+            {/* Util bar */}
+            <rect x={x}y={barYUtil}width={bw}height={hUtil}fill={isPos?C.green:C.red}opacity={cbHov===i?.95:.75}rx="2"
+              style={{transformOrigin:`${x+bw/2}px ${H}px`,animation:`barGrow .5s ease ${i*.02}s both`}}/>
+            {i%(Math.ceil(pts.length/8))===0&&<text x={x+bw/2}y={H+12}fontSize="7.5"fill={C.label2}textAnchor="middle">{p.f}</text>}
+            {cbHov===i&&<>
+              <rect x={Math.min(x-2,W-80)}y={barYUtil-26}width={78}height={22}fill={C.bg3}rx="4"/>
+              <text x={Math.min(x+bw/2,W-40)}y={barYUtil-11}fontSize="8"fill={isPos?C.green:C.red}textAnchor="middle"fontWeight="600">{fmt(p.util)}</text>
+            </>}
+          </g>;
+        })}
+        <line x1={pad}y1={H}x2={W-pad}y2={H}stroke={C.sep}strokeWidth="1"/>
+        <text x={pad}y={H-maxV/maxV*(H-10)+8}fontSize="8"fill={C.label3}>{fmt(maxV)}</text>
+      </svg>
+      <div style={{display:"flex",gap:12,justifyContent:"center",marginTop:4}}>
+        {[[C.green,"Utilidad"],[C.red,"Pérdida"],[color+"66","Caja física"]].map(([col,lbl])=>
+          <div key={lbl}style={{display:"flex",alignItems:"center",gap:4,...T.cap,color:C.label2}}>
+            <div style={{width:10,height:10,borderRadius:3,background:col}}/>
+            {lbl}
+          </div>
+        )}
+      </div>
+    </div>;
+  }
+function ChartLinea({chartPts,C,color,bals}){
+    const[clHov,setClHov]=useState(null);const[clExp,setClExp]=useState(false);
+    const pts=chartPts;if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
+    const vals=pts.map(p=>p.util);
+    const min=Math.min(...vals),max=Math.max(...vals);const range=max-min||1;
+    const W=360,H=120,pad=20;
+    const toX=i=>pad+i*(W-pad*2)/(pts.length-1);
+    const toY=v=>H-((v-min)/range)*(H-10)-5;
+    // Build path
+    const linePts=pts.map((p,i)=>`${toX(i)},${toY(p.util)}`).join(" ");
+    // Area fill
+    const areaPath=`M${toX(0)},${H} `+pts.map((p,i)=>`L${toX(i)},${toY(p.util)}`).join(" ")+` L${toX(pts.length-1)},${H} Z`;
+    const trend=vals.length>1?(vals[vals.length-1]-vals[0])>=0:true;
+    const trendColor=trend?C.green:C.red;
+    return<div>
+      <svg width="100%"viewBox={`0 0 ${W} ${H+28}`}style={{overflow:"visible"}}>
+        <defs>
+          <linearGradient id="areaGrad"x1="0"y1="0"x2="0"y2="1">
+            <stop offset="0%"stopColor={trendColor}stopOpacity=".3"/>
+            <stop offset="100%"stopColor={trendColor}stopOpacity="0"/>
+          </linearGradient>
+        </defs>
+        {/* Grid lines */}
+        {[0,.25,.5,.75,1].map(f=>{const y=H-f*(H-10)-5;return<line key={f}x1={pad}y1={y}x2={W-pad}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>;})  }
+        {/* Area */}
+        <path d={areaPath}fill="url(#areaGrad)"/>
+        {/* Line */}
+        <polyline points={linePts}fill="none"stroke={trendColor}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"
+          style={{strokeDasharray:2000,strokeDashoffset:2000,animation:"lineDrawIn 1s ease .1s forwards"}}/>
+        {/* Points */}
+        {pts.map((p,i)=><circle key={i}cx={toX(i)}cy={toY(p.util)}r={clHov===i?5:3}fill={p.util>=0?C.green:C.red}stroke={C.bg2}strokeWidth="2"
+          onMouseEnter={()=>setClHov(i)}onMouseLeave={()=>setClHov(null)}style={{cursor:"default",transition:"r .1s"}}/>)}
+        {/* X labels */}
+        {pts.filter((_,i)=>i%(Math.ceil(pts.length/6))===0).map((p,i)=><text key={i}x={toX(pts.findIndex(pt=>pt.f===p.f))}y={H+14}fontSize="8"fill={C.label2}textAnchor="middle">{p.f}</text>)}
+        {/* Hover tooltip */}
+        {clHov!=null&&<>
+          <rect x={Math.min(toX(clHov)-36,W-80)}y={toY(pts[clHov].util)-26}width={72}height={20}fill={C.bg3}rx="4"/>
+          <text x={Math.min(toX(clHov),W-40)}y={toY(pts[clHov].util)-12}fontSize="8.5"fill={pts[clHov].util>=0?C.green:C.red}textAnchor="middle"fontWeight="700">{fmt(pts[clHov].util)}</text>
+        </>}
+      </svg>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
+        <span style={{...T.cap,color:C.label2}}>Tendencia {trend?"↗ alcista":"↘ bajista"}</span>
+        <span style={{...T.fn,color:trendColor,fontWeight:600}}>{fmtE(vals[vals.length-1]-vals[0])}</span>
+      </div>
+    </div>;
+  }
 function Report({cid,cont}){
   const C=getC();const m=META[cid];const d=D[cid];const color=C[m.c];
   const[sy,setSy]=useState(0);const[vista,setVista]=useState("balance");
@@ -863,93 +948,10 @@ function Report({cid,cont}){
   const top5=useMemo(()=>[...maqData].sort((a,b)=>b.total-a.total).slice(0,5),[maqData]);
 
   // ── Gráfico de barras mejorado ─────────────────────────────────────────
-  function ChartBarras(){
-    const pts=chartPts;if(!pts.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
-    const maxV=Math.max(...pts.map(p=>Math.max(Math.abs(p.util),p.caja||0)),1);
-    const W=360,H=140,pad=10;const bw=Math.max(3,Math.floor((W-pad*2)/pts.length)-3);
-    const[hovered,setHovered]=useState(null);
-    return<div>
-      <svg width="100%"viewBox={`0 0 ${W} ${H+36}`}style={{overflow:"visible"}}>
-        {pts.map((p,i)=>{
-          const x=pad+i*((W-pad*2)/pts.length);
-          const hUtil=Math.max(2,Math.abs(p.util)/maxV*(H-10));
-          const hCaja=Math.max(2,(p.caja||0)/maxV*(H-10));
-          const isPos=p.util>=0;
-          const barYUtil=isPos?H-hUtil:H;
-          return<g key={i}onMouseEnter={()=>setHovered(i)}onMouseLeave={()=>setHovered(null)}>
-            {/* Caja bar (lighter, behind) */}
-            <rect x={x+bw/4}y={H-hCaja}width={bw/2}height={hCaja}fill={color}opacity=".25"rx="1"/>
-            {/* Util bar */}
-            <rect x={x}y={barYUtil}width={bw}height={hUtil}fill={isPos?C.green:C.red}opacity={hovered===i?.95:.75}rx="2"
-              style={{transformOrigin:`${x+bw/2}px ${H}px`,animation:`barGrow .5s ease ${i*.02}s both`}}/>
-            {i%(Math.ceil(pts.length/8))===0&&<text x={x+bw/2}y={H+12}fontSize="7.5"fill={C.label2}textAnchor="middle">{p.f}</text>}
-            {hovered===i&&<>
-              <rect x={Math.min(x-2,W-80)}y={barYUtil-26}width={78}height={22}fill={C.bg3}rx="4"/>
-              <text x={Math.min(x+bw/2,W-40)}y={barYUtil-11}fontSize="8"fill={isPos?C.green:C.red}textAnchor="middle"fontWeight="600">{fmt(p.util)}</text>
-            </>}
-          </g>;
-        })}
-        <line x1={pad}y1={H}x2={W-pad}y2={H}stroke={C.sep}strokeWidth="1"/>
-        <text x={pad}y={H-maxV/maxV*(H-10)+8}fontSize="8"fill={C.label3}>{fmt(maxV)}</text>
-      </svg>
-      <div style={{display:"flex",gap:12,justifyContent:"center",marginTop:4}}>
-        {[[C.green,"Utilidad"],[C.red,"Pérdida"],[color+"66","Caja física"]].map(([col,lbl])=>
-          <div key={lbl}style={{display:"flex",alignItems:"center",gap:4,...T.cap,color:C.label2}}>
-            <div style={{width:10,height:10,borderRadius:3,background:col}}/>
-            {lbl}
-          </div>
-        )}
-      </div>
-    </div>;
-  }
+
 
   // ── Gráfico de línea (tendencia) ──────────────────────────────────────
-  function ChartLinea(){
-    const pts=chartPts;if(pts.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos</div>;
-    const vals=pts.map(p=>p.util);
-    const min=Math.min(...vals),max=Math.max(...vals);const range=max-min||1;
-    const W=360,H=120,pad=20;
-    const toX=i=>pad+i*(W-pad*2)/(pts.length-1);
-    const toY=v=>H-((v-min)/range)*(H-10)-5;
-    // Build path
-    const linePts=pts.map((p,i)=>`${toX(i)},${toY(p.util)}`).join(" ");
-    // Area fill
-    const areaPath=`M${toX(0)},${H} `+pts.map((p,i)=>`L${toX(i)},${toY(p.util)}`).join(" ")+` L${toX(pts.length-1)},${H} Z`;
-    const trend=vals.length>1?(vals[vals.length-1]-vals[0])>=0:true;
-    const trendColor=trend?C.green:C.red;
-    const[hov,setHov]=useState(null);
-    return<div>
-      <svg width="100%"viewBox={`0 0 ${W} ${H+28}`}style={{overflow:"visible"}}>
-        <defs>
-          <linearGradient id="areaGrad"x1="0"y1="0"x2="0"y2="1">
-            <stop offset="0%"stopColor={trendColor}stopOpacity=".3"/>
-            <stop offset="100%"stopColor={trendColor}stopOpacity="0"/>
-          </linearGradient>
-        </defs>
-        {/* Grid lines */}
-        {[0,.25,.5,.75,1].map(f=>{const y=H-f*(H-10)-5;return<line key={f}x1={pad}y1={y}x2={W-pad}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="4,4"/>;})  }
-        {/* Area */}
-        <path d={areaPath}fill="url(#areaGrad)"/>
-        {/* Line */}
-        <polyline points={linePts}fill="none"stroke={trendColor}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"
-          style={{strokeDasharray:2000,strokeDashoffset:2000,animation:"lineDrawIn 1s ease .1s forwards"}}/>
-        {/* Points */}
-        {pts.map((p,i)=><circle key={i}cx={toX(i)}cy={toY(p.util)}r={hov===i?5:3}fill={p.util>=0?C.green:C.red}stroke={C.bg2}strokeWidth="2"
-          onMouseEnter={()=>setHov(i)}onMouseLeave={()=>setHov(null)}style={{cursor:"default",transition:"r .1s"}}/>)}
-        {/* X labels */}
-        {pts.filter((_,i)=>i%(Math.ceil(pts.length/6))===0).map((p,i)=><text key={i}x={toX(pts.findIndex(pt=>pt.f===p.f))}y={H+14}fontSize="8"fill={C.label2}textAnchor="middle">{p.f}</text>)}
-        {/* Hover tooltip */}
-        {hov!=null&&<>
-          <rect x={Math.min(toX(hov)-36,W-80)}y={toY(pts[hov].util)-26}width={72}height={20}fill={C.bg3}rx="4"/>
-          <text x={Math.min(toX(hov),W-40)}y={toY(pts[hov].util)-12}fontSize="8.5"fill={pts[hov].util>=0?C.green:C.red}textAnchor="middle"fontWeight="700">{fmt(pts[hov].util)}</text>
-        </>}
-      </svg>
-      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:4}}>
-        <span style={{...T.cap,color:C.label2}}>Tendencia {trend?"↗ alcista":"↘ bajista"}</span>
-        <span style={{...T.fn,color:trendColor,fontWeight:600}}>{fmtE(vals[vals.length-1]-vals[0])}</span>
-      </div>
-    </div>;
-  }
+
 
   // ── Top 5 máquinas con sparklines ────────────────────────────────────
   function ChartTop5(){
@@ -1069,8 +1071,8 @@ function Report({cid,cont}){
           <div style={{...T.fn,color:C.label2,marginBottom:10,paddingLeft:4,fontWeight:600}}>
             {chartTab==="barras"?"Utilidad por período (últimos 30)":chartTab==="linea"?"Línea de tendencia":"Top 5 máquinas"}
           </div>
-          {chartTab==="barras"&&<ChartBarras/>}
-          {chartTab==="linea"&&<ChartLinea/>}
+          {chartTab==="barras"&&<ChartBarras chartPts={chartPts}C={C}color={color}bals={bals}fmtE={fmtE}/>}
+          {chartTab==="linea"&&<ChartLinea chartPts={chartPts}C={C}color={color}bals={bals}/>}
           {chartTab==="top5"&&<ChartTop5/>}
         </div>
       </>}
