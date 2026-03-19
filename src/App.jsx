@@ -166,14 +166,13 @@ function saveReset(cid,maqId,fecha){
 
 function parseSheetDate(raw){
   if(!raw||typeof raw!=="string")return null;
-  // Normalize: "18 -marzo" -> "18-marzo", "03/01" stays, "2026-03-18" stays
-  const s=raw.trim().replace(/\s*[-]\s*/g,"-").replace(/\s*[/]\s*/g,"/");
-  const sl=s.toLowerCase();
+  // Normalize spaces around dash: "18 -marzo" -> "18-marzo"
+  const s=raw.trim().replace(/\s*-\s*/g,"-");
   const MMAP={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12,
     enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
-  const nowY=new Date().getFullYear();const nowM=new Date().getMonth()+1;
-  // Format: "18-marzo", "3-ene", "10-mar-25"
-  const m1=sl.match(/^(\d{1,2})-([a-záéíóú]+)(?:-(\d{2,4}))?$/);
+  const nowY=new Date().getFullYear();
+  // "3-ene", "18-marzo", "10-mar-25"
+  const m1=s.toLowerCase().match(/^(\d{1,2})-([a-z]+)(?:-(\d{2,4}))?$/);
   if(m1){
     const day=parseInt(m1[1]);
     const monKey=m1[2];
@@ -181,20 +180,20 @@ function parseSheetDate(raw){
     if(!mon)return null;
     let year=nowY;
     if(m1[3]){year=parseInt(m1[3]);if(year<100)year+=2000;}
-    else if(mon>nowM+1)year=nowY-1;
+    else if(mon>new Date().getMonth()+2)year--;
     return year+"-"+String(mon).padStart(2,"0")+"-"+String(day).padStart(2,"0");
   }
-  // Format: "03/01" (dd/mm) or "03/01/2026"
+  // "03/01" (dd/mm) or "03/01/2026" - Playa Rica
   const m2=s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
   if(m2){
     const day=parseInt(m2[1]),mon=parseInt(m2[2]);
     let year=nowY;
     if(m2[3]){year=parseInt(m2[3]);if(year<100)year+=2000;}
-    else if(mon>nowM+1)year=nowY-1;
+    else if(mon>new Date().getMonth()+2)year--;
     return year+"-"+String(mon).padStart(2,"0")+"-"+String(day).padStart(2,"0");
   }
-  // ISO format "2026-03-18"
-  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  // ISO "2026-03-18"
+  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
   return null;
 }
 
@@ -236,8 +235,9 @@ async function fetchBalanceFromSheets(cid){
         if(!fecha)continue;
         const phys=parseNum(row[1]),util=parseNum(row[2]);
         if(phys==null||util==null)continue;
-        // Skip formula errors (huge values)
+        // Skip formula errors (huge values or negative premios)
         if(Math.abs(phys)>500000000||Math.abs(util)>500000000)continue;
+        if(phys<0)continue; // premios never negative
         // Skip completely empty rows
         if(phys===0&&util===0)continue;
         result.push({fecha,phys_total:phys,util_total:util});
@@ -1698,7 +1698,22 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}
 // ─── HOME ─────────────────────────────────────────────────────────────────────
 function Home({onSelect,onCfg,onComparar,user,pending}){
   const C=getC();const[sy,setSy]=useState(0);
-  const lastBal=cid=>{const d=D[cid];if(!d?.b?.length)return null;return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];};
+  const[liveBals,setLiveBals]=useState({});
+  useEffect(()=>{
+    Object.keys(META).filter(k=>!META[k].sim).forEach(cid=>{
+      fetchBalanceFromSheets(cid).then(rows=>{
+        if(rows&&rows.length){
+          const last=[...rows].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+          setLiveBals(prev=>({...prev,[cid]:last}));
+        }
+      }).catch(()=>{});
+    });
+  },[]);
+  const lastBal=cid=>{
+    if(liveBals[cid])return liveBals[cid];
+    const d=D[cid];if(!d?.b?.length)return null;
+    return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];
+  };
   const total=Object.keys(META).filter(cid=>!META[cid].sim).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
   const uCol=user==="Santiago"?C.indigo:user==="Eliza"?C.pink:C.teal;
 
