@@ -68,8 +68,8 @@ const _sheetsCacheTime={};
 
 async function fetchSheetHist(cid){
   if(META[cid]?.sim)return[];
-  const now=Date.now();
-  if(_sheetsCache[cid]&&_sheetsCacheTime[cid]&&(now-_sheetsCacheTime[cid])<CACHE_TTL)return _sheetsCache[cid];
+  // Always fetch fresh - no cache so new readings appear immediately
+  if(_sheetsCache[cid])return _sheetsCache[cid]; // keep for same session only
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
   const mqs=getMaqs(cid);
@@ -166,27 +166,38 @@ function saveReset(cid,maqId,fecha){
 
 function parseSheetDate(raw){
   if(!raw||typeof raw!=="string")return null;
-  const s=raw.trim();
-  const MMAP={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12};
-  const nowY=new Date().getFullYear();
-  // "3-ene" or "10-mar-25"
-  const m1=s.toLowerCase().match(/^(\d{1,2})[-/]([a-z]{3})(?:[-/](\d{2,4}))?$/);
+  // Normalize: "18 -marzo" -> "18-marzo", "03/01" stays, "2026-03-18" stays
+  const s=raw.trim().replace(/\s*[-]\s*/g,"-").replace(/\s*[/]\s*/g,"/");
+  const sl=s.toLowerCase();
+  const MMAP={ene:1,feb:2,mar:3,abr:4,may:5,jun:6,jul:7,ago:8,sep:9,oct:10,nov:11,dic:12,
+    enero:1,febrero:2,marzo:3,abril:4,mayo:5,junio:6,julio:7,agosto:8,septiembre:9,octubre:10,noviembre:11,diciembre:12};
+  const nowY=new Date().getFullYear();const nowM=new Date().getMonth()+1;
+  // Format: "18-marzo", "3-ene", "10-mar-25"
+  const m1=sl.match(/^(\d{1,2})-([a-záéíóú]+)(?:-(\d{2,4}))?$/);
   if(m1){
-    const day=parseInt(m1[1]),mon=MMAP[m1[2]];if(!mon)return null;
-    let year=nowY;if(m1[3]){year=parseInt(m1[3]);if(year<100)year+=2000;}else if(mon>new Date().getMonth()+2)year--;
-    return`${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    const day=parseInt(m1[1]);
+    const monKey=m1[2];
+    const mon=MMAP[monKey]||MMAP[monKey.slice(0,3)];
+    if(!mon)return null;
+    let year=nowY;
+    if(m1[3]){year=parseInt(m1[3]);if(year<100)year+=2000;}
+    else if(mon>nowM+1)year=nowY-1;
+    return year+"-"+String(mon).padStart(2,"0")+"-"+String(day).padStart(2,"0");
   }
-  // "03/01" (dd/mm) or "03/01/2026" (dd/mm/yyyy) - Playa Rica format
+  // Format: "03/01" (dd/mm) or "03/01/2026"
   const m2=s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?$/);
   if(m2){
     const day=parseInt(m2[1]),mon=parseInt(m2[2]);
-    let year=nowY;if(m2[3]){year=parseInt(m2[3]);if(year<100)year+=2000;}else if(mon>new Date().getMonth()+2)year--;
-    return`${year}-${String(mon).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+    let year=nowY;
+    if(m2[3]){year=parseInt(m2[3]);if(year<100)year+=2000;}
+    else if(mon>nowM+1)year=nowY-1;
+    return year+"-"+String(mon).padStart(2,"0")+"-"+String(day).padStart(2,"0");
   }
-  // ISO "2026-01-03"
-  if(/^\d{4}-\d{2}-\d{2}$/.test(s))return s;
+  // ISO format "2026-03-18"
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
   return null;
 }
+
 function parseNum(v){
   if(v==null||v==="")return null;
   let s=String(v).replace(/[$\s]/g,"").trim();
@@ -203,37 +214,49 @@ const _balanceCacheTime={};
 const CACHE_TTL=5*60*1000; // 5 minutes
 async function fetchBalanceFromSheets(cid){
   if(META[cid]?.sim)return null;
-  const now=Date.now();
-  if(_balanceCache[cid]&&_balanceCacheTime[cid]&&(now-_balanceCacheTime[cid])<CACHE_TTL)return _balanceCache[cid];
+  // Always fetch fresh - no cache for balance so liquidaciones appear immediately
   const sheetId=SHEET_IDS[cid];if(!sheetId)return null;
   const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],playarica:[" Balance","Balance"],vikingos:["balance","Balance"]};
   const namesToTry=balNames[cid]||["Balance"];
-  const n=new Date();
-  // Add 1 day buffer to avoid timezone issues cutting off today's data
-  const tomorrow=new Date(n);tomorrow.setDate(n.getDate()+1);
-  const TODAY=tomorrow.getFullYear()+"-"+String(tomorrow.getMonth()+1).padStart(2,"0")+"-"+String(tomorrow.getDate()).padStart(2,"0");
+
   for(const rawName of namesToTry){
     try{
       const r=await fetch("https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values/"+encodeURIComponent(rawName)+"!A:C?key="+GAPI_KEY);
-      if(!r.ok)continue;const data=await r.json();if(data.error)continue;
+      if(!r.ok)continue;
+      const data=await r.json();if(data.error)continue;
       const rows=data.values||[];if(!rows.length)continue;
       const result=[];
       for(const row of rows){
+        // Parse date - handle all formats: "18 -marzo", "18-mar", "03/18", ISO
         let fecha=parseSheetDate(row[0]);
-        if(!fecha&&row[0]){const s=String(row[0]).trim();if(s.match(/^[0-9]{4}/))fecha=s.slice(0,10);}
-        if(!fecha||fecha>TODAY)continue;
+        if(!fecha&&row[0]){
+          const s=String(row[0]).trim();
+          if(/^\d{4}-\d{2}-\d{2}/.test(s))fecha=s.slice(0,10);
+        }
+        if(!fecha)continue;
         const phys=parseNum(row[1]),util=parseNum(row[2]);
-        if(phys==null||util==null||Math.abs(phys)>200000000||Math.abs(util)>200000000||phys===0&&util===0)continue;
+        if(phys==null||util==null)continue;
+        // Skip formula errors (huge values)
+        if(Math.abs(phys)>500000000||Math.abs(util)>500000000)continue;
+        // Skip completely empty rows
+        if(phys===0&&util===0)continue;
         result.push({fecha,phys_total:phys,util_total:util});
       }
       result.sort((a,b)=>a.fecha.localeCompare(b.fecha));
-      if(result.length>0){_balanceCache[cid]=result;_balanceCacheTime[cid]=Date.now();return result;}
-    }catch(e){}
+      if(result.length>0){
+        console.log("Balance "+cid+"/"+rawName+": "+result.length+" rows, last="+result[result.length-1].fecha);
+        return result;
+      }
+    }catch(e){console.warn("Balance "+cid+":"+e.message);}
   }
+  // Fallback to hardcoded data
+  console.warn("Balance "+cid+": using hardcoded fallback");
   const fb=(D[cid]?.b||[]).map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}));
   return fb.length?fb:null;
 }
-function invalidateSheetsCaches(cid){delete _sheetsCache[cid];delete _balanceCache[cid];}
+
+
+function invalidateSheetsCaches(cid){delete _sheetsCache[cid];delete _balanceCache[cid];delete _sheetsCacheTime[cid];delete _balanceCacheTime[cid];}
 
 const META={
   obrero:{n:"Casino Obrero",e:"building",c:"indigo",liq:"3-4 días"},
