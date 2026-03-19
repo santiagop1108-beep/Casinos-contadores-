@@ -70,7 +70,8 @@ const _sheetsCacheTime={};
 
 async function fetchSheetHist(cid){
   if(META[cid]?.sim)return[];
-  // No persistent cache - always fetch fresh from Sheets
+  // Session cache with 2-min TTL - prevents hammering Sheets API on re-renders
+  if(_sheetsCache[cid]&&_sheetsCacheTime[cid]&&(Date.now()-_sheetsCacheTime[cid])<120000)return _sheetsCache[cid];
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
   const mqs=getMaqs(cid);
@@ -145,6 +146,7 @@ async function fetchSheetHist(cid){
       }
     }catch(e){console.warn(`Sheets ${cid}/${mq.nombre}:`,e.message);}
   }
+  if(results.length>0){_sheetsCache[cid]=results;_sheetsCacheTime[cid]=Date.now();}
   return results;
 }
 
@@ -213,7 +215,8 @@ const _balanceCacheTime={};
 const CACHE_TTL=5*60*1000; // 5 minutes
 async function fetchBalanceFromSheets(cid){
   if(META[cid]?.sim)return null;
-  // Always fetch fresh - no cache for balance so liquidaciones appear immediately
+  // Cache balance for 2 minutes to avoid repeat fetches on re-renders
+  if(_balanceCache[cid]&&_balanceCacheTime[cid]&&(Date.now()-_balanceCacheTime[cid])<120000)return _balanceCache[cid];
   const sheetId=SHEET_IDS[cid];if(!sheetId)return null;
   const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],playarica:[" Balance","Balance"],vikingos:["balance","Balance"]};
   const namesToTry=balNames[cid]||["Balance"];
@@ -245,6 +248,7 @@ async function fetchBalanceFromSheets(cid){
       result.sort((a,b)=>a.fecha.localeCompare(b.fecha));
       if(result.length>0){
         console.log("Balance "+cid+"/"+rawName+": "+result.length+" rows, last="+result[result.length-1].fecha);
+        _balanceCache[cid]=result;_balanceCacheTime[cid]=Date.now();
         return result;
       }
     }catch(e){console.warn("Balance "+cid+":"+e.message);}
@@ -1003,7 +1007,6 @@ function Report({cid,cont}){
   const[liveBalance,setLiveBalance]=useState(null);
   const[balLoading,setBalLoading]=useState(true);
   useEffect(()=>{
-    invalidateSheetsCaches(cid);
     setBalLoading(true);setSheetsData([]);setLiveBalance(null);
     Promise.all([
       fetchSheetHist(cid).catch(()=>[]),
