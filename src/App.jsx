@@ -64,10 +64,12 @@ const COL_MAP={
 };
 
 const _sheetsCache={};
+const _sheetsCacheTime={};
 
 async function fetchSheetHist(cid){
   if(META[cid]?.sim)return[];
-  if(_sheetsCache[cid])return _sheetsCache[cid];
+  const now=Date.now();
+  if(_sheetsCache[cid]&&_sheetsCacheTime[cid]&&(now-_sheetsCacheTime[cid])<CACHE_TTL)return _sheetsCache[cid];
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
   const mqs=getMaqs(cid);
@@ -197,9 +199,12 @@ function parseNum(v){
 
 
 const _balanceCache={};
+const _balanceCacheTime={};
+const CACHE_TTL=5*60*1000; // 5 minutes
 async function fetchBalanceFromSheets(cid){
   if(META[cid]?.sim)return null;
-  if(_balanceCache[cid])return _balanceCache[cid];
+  const now=Date.now();
+  if(_balanceCache[cid]&&_balanceCacheTime[cid]&&(now-_balanceCacheTime[cid])<CACHE_TTL)return _balanceCache[cid];
   const sheetId=SHEET_IDS[cid];if(!sheetId)return null;
   const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],playarica:[" Balance","Balance"],vikingos:["balance","Balance"]};
   const namesToTry=balNames[cid]||["Balance"];
@@ -219,7 +224,7 @@ async function fetchBalanceFromSheets(cid){
         result.push({fecha,phys_total:phys,util_total:util});
       }
       result.sort((a,b)=>a.fecha.localeCompare(b.fecha));
-      if(result.length>0){_balanceCache[cid]=result;return result;}
+      if(result.length>0){_balanceCache[cid]=result;_balanceCacheTime[cid]=Date.now();return result;}
     }catch(e){}
   }
   const fb=(D[cid]?.b||[]).map(b=>({fecha:b.fecha,phys_total:b.phys_total,util_total:b.util_total}));
@@ -1091,7 +1096,8 @@ function Report({cid,cont}){
 
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
     <style>{ANIM_CSS}</style>
-    <Nav title="Reporte"sub={m.n}sy={sy}right={[{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
+    <Nav title="Reporte"sub={m.n}sy={sy}right={[
+      {icon:"sync",fn:()=>{invalidateSheetsCaches(cid);setLiveBalance(null);setBalLoading(true);Promise.all([fetchSheetHist(cid).catch(()=>[]),fetchBalanceFromSheets(cid).catch(()=>null)]).then(([hist,bal])=>{setSheetsData(hist||[]);setLiveBalance(bal);setBalLoading(false);});}},{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
       {/* Vista tabs */}
       <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(10px)"}}>
@@ -1771,7 +1777,7 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
 function CompararLineChart({allDates,data,selected,metric,C}){
   const[hov,setHov]=useState(null);
   const H=200,W=380,PAD=52;
-  const activeCids=Object.keys(META).filter(cid=>!META[cid].sim);
+  const activeCids=selected&&selected.length>0?selected.filter(cid=>!META[cid]?.sim):Object.keys(META).filter(cid=>!META[cid].sim);
 
   // Build per-casino data points only where they have values
   const casinoPoints={};
@@ -1835,6 +1841,7 @@ function Comparar({onBack}){
   const[metric,setMetric]=useState("util");const[period,setPeriod]=useState("mes");
   const[mes,setMes]=useState(today().slice(0,7));const[data,setData]=useState({});
   const[loading,setLoading]=useState(true);const[chartType,setChartType]=useState("barras");
+  const[selectedCasinos,setSelectedCasinos]=useState(Object.keys(META).filter(k=>!META[k].sim));
   const metricLabel={util:"Utilidad",phys:"Premios",caja:"Caja"};
   const metricColor={util:C.green,phys:C.orange,caja:C.blue};
   useEffect(()=>{
@@ -1898,10 +1905,19 @@ function Comparar({onBack}){
           </div>;})}
         </div>}
         {chartType==="linea"&&<div className="lg-card"style={{padding:"16px 14px",marginBottom:14}}>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:10}}>
-            {Object.keys(META).filter(k=>!META[k].sim).map(cid=>{const col=C[META[cid].c];return<div key={cid}style={{display:"flex",alignItems:"center",gap:5,...T.cap,color:col,fontWeight:600}}><div style={{width:16,height:3,borderRadius:2,background:col}}/>{META[cid].n.split(" ").pop()}</div>;})}
+          {/* Casino selector toggles */}
+          <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+            {Object.keys(META).filter(k=>!META[k].sim).map(cid=>{
+              const col=C[META[cid].c];
+              const active=selectedCasinos.includes(cid);
+              return<button key={cid}onClick={()=>setSelectedCasinos(prev=>prev.includes(cid)?prev.length>1?prev.filter(c=>c!==cid):prev:[...prev,cid])}
+                className="btn-press"style={{display:"flex",alignItems:"center",gap:5,padding:"5px 10px",borderRadius:20,border:`1.5px solid ${active?col:C.sep}`,background:active?`${col}18`:"transparent",cursor:"pointer",transition:"all .2s"}}>
+                <div style={{width:10,height:10,borderRadius:5,background:active?col:C.label3,transition:"background .2s"}}/>
+                <span style={{...T.cap,color:active?col:C.label3,fontWeight:active?700:400,fontSize:11}}>{META[cid].n.split(" ").pop()}</span>
+              </button>;
+            })}
           </div>
-          <CompararLineChart allDates={allDates}data={data}selected={Object.keys(META).filter(k=>!META[k].sim)}metric={metric}C={C}/>
+          <CompararLineChart allDates={allDates}data={data}selected={selectedCasinos}metric={metric}C={C}/>
         </div>}
         {chartType==="ranking"&&<div style={{marginBottom:14}}>
           {totals.map((t,i)=>{const col=C[META[t.cid].c];const medals=["🥇","🥈","🥉"];
