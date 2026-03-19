@@ -1694,8 +1694,8 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
               style={{background:`${col}14`,border:`1px solid ${col}25`,borderRadius:14,padding:"9px 11px",cursor:"pointer",textAlign:"left",flex:"1 0 auto",minWidth:76,backdropFilter:"blur(10px)",transition:"all .2s"}}
               onMouseEnter={e=>{e.currentTarget.style.background=`${col}28`;e.currentTarget.style.transform="translateY(-2px)";}}
               onMouseLeave={e=>{e.currentTarget.style.background=`${col}14`;e.currentTarget.style.transform="";}}>
-              <div style={{...T.cap,color:col,fontWeight:700,letterSpacing:.5,fontSize:10,marginBottom:3}}>{m.n.split(" ").pop().slice(0,7).toUpperCase()}</div>
-              <div style={{fontSize:13,fontWeight:700,color:isPos?C.green:C.red}}>{fmt(b?.util_total)}</div>
+              <div style={{fontSize:10,fontWeight:700,letterSpacing:.5,color:"rgba(0,0,0,.7)",marginBottom:3}}>{m.n.split(" ").pop().slice(0,7).toUpperCase()}</div>
+              <div style={{fontSize:13,fontWeight:700,color:isPos?"#00873A":"#C0392B"}}>{fmt(b?.util_total)}</div>
             </button>;
           })}
         </div>
@@ -1770,24 +1770,63 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
 
 function CompararLineChart({allDates,data,selected,metric,C}){
   const[hov,setHov]=useState(null);
-  const H=200,W=380,PAD=48;
+  const H=200,W=380,PAD=52;
   const activeCids=Object.keys(META).filter(cid=>!META[cid].sim);
-  const allVals=activeCids.flatMap(cid=>(data[cid]||[]).filter(r=>allDates.includes(r.fecha)).map(r=>r[metric]||0)).filter(v=>isFinite(v));
-  if(!allVals.length||allDates.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos</div>;
-  const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);const range=maxV-minV||1;
-  const toX=i=>PAD+i*(W-PAD-8)/(allDates.length-1||1);
-  const toY=v=>H-((v-minV)/range)*(H-16)-8;
+
+  // Build per-casino data points only where they have values
+  const casinoPoints={};
+  activeCids.forEach(cid=>{
+    const rows=(data[cid]||[]).filter(r=>r[metric]!=null&&isFinite(r[metric]));
+    casinoPoints[cid]=rows.map(r=>({fecha:r.fecha,val:r[metric]})).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  });
+
+  const allVals=Object.values(casinoPoints).flatMap(pts=>pts.map(p=>p.val)).filter(v=>isFinite(v));
+  if(!allVals.length||allDates.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos suficientes</div>;
+
+  const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);
+  const range=maxV-minV||1;
+
+  // Map date to X position using sorted unique dates across all casinos
+  const sortedDates=[...new Set(Object.values(casinoPoints).flatMap(pts=>pts.map(p=>p.fecha)))].sort();
+  const toX=i=>PAD+i*(W-PAD-8)/(Math.max(sortedDates.length-1,1));
+  const toY=v=>H-((v-minV)/range)*(H-20)-10;
+
   return<svg width="100%"viewBox={"0 0 "+W+" "+(H+28)}style={{overflow:"visible"}}onMouseLeave={()=>setHov(null)}>
-    {[0,.5,1].map(f=>{const y=H-f*(H-16)-8;return<g key={f}><line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/><text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(minV+(maxV-minV)*f)}</text></g>;})}
+    {/* Grid */}
+    {[0,.5,1].map(f=>{const y=H-f*(H-20)-10;return<g key={f}>
+      <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/>
+      <text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(minV+(maxV-minV)*f)}</text>
+    </g>;})}
+    {/* Lines per casino - connect all points with a continuous path */}
     {activeCids.map(cid=>{
       const col=C[META[cid].c];
-      const pts=allDates.map(fecha=>{const row=(data[cid]||[]).find(r=>r.fecha===fecha);return row?row[metric]:null;});
-      let d2="";let seg=false;
-      pts.forEach((v,i)=>{if(v!=null&&isFinite(toX(i))&&isFinite(toY(v))){if(!seg){d2+="M"+toX(i)+","+toY(v);seg=true;}else d2+="L"+toX(i)+","+toY(v);}else seg=false;});
-      return<g key={cid}><path d={d2}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn 1s ease forwards"}}/>{pts.map((v,i)=>v!=null&&<circle key={i}cx={toX(i)}cy={toY(v)}r={hov===i?5:2.5}fill={col}stroke="#080810"strokeWidth="1.5"onMouseEnter={()=>setHov(i)}/>)}</g>;
+      const pts=casinoPoints[cid];
+      if(pts.length<1)return null;
+      // Build path connecting all points of this casino
+      const pathD=pts.map((p,i)=>{
+        const xi=sortedDates.indexOf(p.fecha);
+        const x=toX(xi);const y=toY(p.val);
+        return(i===0?"M":"L")+x+","+y;
+      }).join(" ");
+      return<g key={cid}>
+        {/* Line connecting dots */}
+        <path d={pathD}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"opacity=".85"
+          style={{strokeDasharray:2000,strokeDashoffset:2000,animation:"lineIn 1s ease forwards"}}/>
+        {/* Dots */}
+        {pts.map((p,i)=>{
+          const xi=sortedDates.indexOf(p.fecha);
+          const x=toX(xi);const y=toY(p.val);
+          return<circle key={i}cx={x}cy={y}r={hov===cid+p.fecha?6:3.5}
+            fill={col}stroke={C.bg||"#080810"}strokeWidth="1.5"
+            onMouseEnter={()=>setHov(cid+p.fecha)}
+            style={{transition:"r .12s"}}/>;
+        })}
+      </g>;
     })}
-    {allDates.filter((_,i)=>i%Math.max(1,Math.ceil(allDates.length/6))===0).map((d,i)=><text key={i}x={toX(allDates.indexOf(d))}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>)}
-    {hov!=null&&<line x1={toX(hov)}y1={8}x2={toX(hov)}y2={H}stroke={C.sep}strokeWidth="1"strokeDasharray="3,3"/>}
+    {/* X labels */}
+    {sortedDates.filter((_,i)=>i%Math.max(1,Math.ceil(sortedDates.length/6))===0).map((d,i)=>(
+      <text key={i}x={toX(sortedDates.indexOf(d))}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>
+    ))}
   </svg>;
 }
 
