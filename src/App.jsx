@@ -421,65 +421,125 @@ function Sparkline({data,color,height=32,width=80}){
 
 
 // ─── LOGIN ────────────────────────────────────────────────────────────────────
+function CasinoAvatar({cid,size=40}){
+  const C=getC();const m=META[cid];const col=C[m.c];
+  return<div style={{width:size,height:size,borderRadius:size*.26,background:`linear-gradient(145deg,${col}44,${col}88)`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,border:`1px solid ${col}44`,boxShadow:`0 4px 16px ${col}33`}}>
+    <Ico n={m.e}c="#FFF"s={size*.52}/>
+  </div>;
+}
+
 function Login({onAuth}){
   const C=getC();
   const[user,setUser]=useState(null);const[pin,setPin]=useState("");const[pin2,setPin2]=useState("");
   const[paso,setPaso]=useState("sel");const[err,setErr]=useState("");const[faceLoading,setFL]=useState(false);
-  const uColor=u=>u==="Santiago"?C.indigo:u==="Eliza"?C.pink:C.teal;
-  function selUser(u){setUser(u);setPin("");setPin2("");setErr("");setPaso(localStorage.getItem("cp_"+u)?"in":"new");}
+  const[shake,setShake]=useState(false);
+
+  const uCol=u=>u==="Santiago"?C.indigo:u==="Eliza"?C.pink:C.teal;
+
+  function triggerShake(){setShake(true);setTimeout(()=>setShake(false),500);}
+
   function go(){
     setErr("");
     if(paso==="new"){if(pin.length<4)return setErr("Mínimo 4 dígitos");return setPaso("conf");}
-    if(paso==="conf"){if(pin!==pin2)return setErr("PINs no coinciden");savePin(user,pin);onAuth(user);return;}
-    if(paso==="in"){if(checkPin(user,pin)){onAuth(user);}else{saveLog({action:"login_fail",target:user});setErr("PIN incorrecto");}}
+    if(paso==="conf"){if(pin!==pin2){setErr("PINs no coinciden");triggerShake();return;}savePin(user,pin);onAuth(user);return;}
+    if(paso==="in"){if(checkPin(user,pin)){onAuth(user);}else{saveLog({action:"login_fail",target:user});setErr("PIN incorrecto");triggerShake();setPin("");}}
   }
+
   async function doFaceId(){setFL(true);setErr("");try{if(!hasFaceId(user)){await registerFaceId(user);onAuth(user);}else{await authFaceId(user);onAuth(user);}}catch(e){setErr(e.message||"Face ID falló");}setFL(false);}
 
+  // Selector de usuario
   if(paso==="sel")return(
-    <div style={{minHeight:"100dvh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{minHeight:"100dvh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:28,position:"relative",overflow:"hidden"}}>
       <style>{ANIM_CSS}</style>
-      <div style={{width:"100%",maxWidth:320}}>
-        <div style={{textAlign:"center",marginBottom:36,animation:"fadeSlideUp .4s ease both"}}>
-          <div style={{width:76,height:76,borderRadius:22,background:`linear-gradient(135deg,${C.indigo},${C.blue})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:`0 8px 32px ${C.indigo}44`}}><Ico n="slot"c="#FFF"s={40}/></div>
-          <div style={{...T.lg,color:C.label}}>Casinos</div>
-          <div style={{...T.s,color:C.label2,marginTop:4}}>¿Quién eres?</div>
+      {/* Ambient background */}
+      <div style={{position:"absolute",top:"5%",left:"15%",width:280,height:280,borderRadius:140,background:`radial-gradient(circle,${C.indigo}20,transparent)`,filter:"blur(60px)",animation:"orb 9s ease infinite",pointerEvents:"none"}}/>
+      <div style={{position:"absolute",bottom:"10%",right:"10%",width:200,height:200,borderRadius:100,background:`radial-gradient(circle,${C.blue}18,transparent)`,filter:"blur(50px)",animation:"orb 12s ease infinite reverse",pointerEvents:"none"}}/>
+      <div style={{width:"100%",maxWidth:340,position:"relative",zIndex:1}}>
+        {/* Logo */}
+        <div className="fade-up"style={{textAlign:"center",marginBottom:44}}>
+          <div style={{width:90,height:90,borderRadius:26,background:`linear-gradient(145deg,${C.indigo}cc,${C.blue})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 20px",boxShadow:`0 16px 48px ${C.indigo}55`,animation:"floatUp 3s ease infinite"}}>
+            <Ico n="slot"c="#FFF"s={48}/>
+          </div>
+          <div style={{...T.lg,color:C.label,fontSize:30,fontWeight:700,letterSpacing:-.5}}>Casino Contadores</div>
+          <div style={{...T.s,color:C.label2,marginTop:6}}>Selecciona tu perfil</div>
         </div>
-        {USERS.map((u,i)=><button key={u}onClick={()=>selUser(u)}style={{width:"100%",background:C.bg2,border:`1px solid ${C.sep}`,borderRadius:16,padding:"14px",marginBottom:10,cursor:"pointer",display:"flex",alignItems:"center",gap:12,textAlign:"left",animation:`fadeSlideUp .4s ease ${.1+i*.08}s both`,transition:"transform .15s,box-shadow .15s"}}
-          onMouseEnter={e=>{e.currentTarget.style.transform="translateY(-1px)";e.currentTarget.style.boxShadow=`0 4px 20px ${uColor(u)}22`;}}
-          onMouseLeave={e=>{e.currentTarget.style.transform="";e.currentTarget.style.boxShadow="";}}>
-          <div style={{width:46,height:46,borderRadius:23,background:uColor(u),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 4px 12px ${uColor(u)}44`}}><Ico n="user"c="#FFF"s={22}/></div>
-          <div style={{flex:1}}><div style={{...T.h,color:C.label}}>{u}</div><div style={{...T.fn,color:C.label2,display:"flex",alignItems:"center",gap:4,marginTop:2}}>{hasFaceId(u)&&<Ico n="faceid"c={C.blue}s={13}/>}{localStorage.getItem("cp_"+u)?"PIN configurado":"Primera vez"}</div></div>
-          <Ico n="chevron"c={C.label3}s={16}/>
-        </button>)}
+        {/* User cards */}
+        <div style={{display:"flex",flexDirection:"column",gap:10}}>
+          {["Santiago","Eliza","Jessica"].map((u,i)=>{
+            const col=uCol(u);
+            return<button key={u}onClick={()=>{setUser(u);setPin("");setPin2("");setErr("");setPaso(localStorage.getItem("cp_"+u)?"in":"new");}}
+              className={`btn-press fade-up-${i+1} lg-card`}
+              style={{borderRadius:20,padding:"16px 18px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",border:`1px solid ${C.sep}`,transition:"border-color .2s,transform .15s"}}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor=`${col}55`;}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=C.sep;}}>
+              <div style={{width:50,height:50,borderRadius:25,background:`linear-gradient(145deg,${col}88,${col})`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:`0 6px 20px ${col}55`}}>
+                <Ico n="user"c="#FFF"s={24}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{...T.h,color:C.label,fontSize:17}}>{u}</div>
+                <div style={{...T.fn,color:C.label2,marginTop:3,display:"flex",alignItems:"center",gap:5}}>
+                  {hasFaceId(u)&&<><Ico n="faceid"c={C.blue}s={13}/><span>Face ID</span><span style={{opacity:.4}}>·</span></>}
+                  <span>{localStorage.getItem("cp_"+u)?"PIN activo":"Primera vez"}</span>
+                </div>
+              </div>
+              <div style={{width:30,height:30,borderRadius:15,background:`${col}15`,display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <Ico n="chevron"c={col}s={14}/>
+              </div>
+            </button>;
+          })}
+        </div>
       </div>
     </div>
   );
+
+  const col=uCol(user);
   return(
-    <div style={{minHeight:"100dvh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:20}}>
+    <div style={{minHeight:"100dvh",background:C.bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:28,position:"relative",overflow:"hidden"}}>
       <style>{ANIM_CSS}</style>
-      <div style={{width:"100%",maxWidth:320,animation:"scaleIn .3s ease both"}}>
-        <button onClick={()=>setPaso("sel")}style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:4,marginBottom:24,...T.b}}>
-          <Ico n="back"c={C.blue}s={18}/>Cambiar
+      <div style={{position:"absolute",top:"0%",left:"0%",right:0,height:"50%",background:`radial-gradient(ellipse 80% 100% at 50% 0%, ${col}18, transparent)`,pointerEvents:"none"}}/>
+      <div style={{width:"100%",maxWidth:320,position:"relative",zIndex:1,animation:"scaleIn .3s cubic-bezier(.16,1,.3,1) both"}}>
+        <button onClick={()=>{setPaso("sel");setUser(null);setErr("");}}
+          style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:5,marginBottom:32,...T.b,padding:0}}>
+          <Ico n="back"c={C.blue}s={18}/><span>Cambiar usuario</span>
         </button>
-        <div style={{textAlign:"center",marginBottom:28}}>
-          <div style={{width:58,height:58,borderRadius:29,background:uColor(user),display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px",boxShadow:`0 6px 20px ${uColor(user)}55`}}><Ico n="user"c="#FFF"s={28}/></div>
-          <div style={{...T.lg,color:C.label,fontSize:26}}>{user}</div>
-          <div style={{...T.s,color:C.label2,marginTop:4}}>{paso==="new"?"Crear PIN":paso==="conf"?"Confirmar PIN":"Ingresa tu PIN"}</div>
+        {/* Avatar */}
+        <div style={{textAlign:"center",marginBottom:32}}>
+          <div style={{width:72,height:72,borderRadius:36,background:`linear-gradient(145deg,${col}88,${col})`,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 14px",boxShadow:`0 10px 32px ${col}55`}}>
+            <Ico n="user"c="#FFF"s={34}/>
+          </div>
+          <div style={{...T.lg,color:C.label,fontSize:26,letterSpacing:-.3}}>{user}</div>
+          <div style={{...T.s,color:C.label2,marginTop:5}}>{paso==="new"?"Crea tu PIN":paso==="conf"?"Confirma tu PIN":"Ingresa tu PIN"}</div>
         </div>
-        {paso==="in"&&hasFaceId(user)&&<button onClick={doFaceId}disabled={faceLoading}style={{width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:14,padding:"14px",marginBottom:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-          <Ico n="faceid"c={C.blue}s={24}/><span style={{...T.h,color:C.blue}}>{faceLoading?"Verificando...":"Entrar con Face ID"}</span>
+        {/* Face ID */}
+        {paso==="in"&&hasFaceId(user)&&<button onClick={doFaceId}disabled={faceLoading}className="btn-press"
+          style={{width:"100%",background:`${C.blue}12`,border:`1px solid ${C.blue}33`,borderRadius:16,padding:"14px",marginBottom:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,backdropFilter:"blur(10px)"}}>
+          <Ico n="faceid"c={C.blue}s={28}/><span style={{...T.h,color:C.blue}}>{faceLoading?"Verificando...":"Entrar con Face ID"}</span>
         </button>}
-        <input type="password"inputMode="numeric"value={paso==="conf"?pin2:pin}onChange={e=>paso==="conf"?setPin2(e.target.value):setPin(e.target.value)}onKeyDown={e=>e.key==="Enter"&&go()}placeholder="••••"autoFocus
-          style={{width:"100%",background:C.bg2,border:`1px solid ${C.sep}`,borderRadius:14,padding:"13px",color:C.label,...T.lg,fontSize:28,textAlign:"center",boxSizing:"border-box",outline:"none",marginBottom:12,letterSpacing:10}}/>
-        {err&&<div style={{...T.s,color:C.red,textAlign:"center",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:4,animation:"fadeIn .2s ease both"}}><Ico n="warning"c={C.red}s={14}/>{err}</div>}
-        <button onClick={go}style={{width:"100%",background:C.blue,border:"none",borderRadius:14,padding:"14px",...T.h,color:"#FFF",cursor:"pointer",boxShadow:`0 4px 16px ${C.blue}44`}}>{paso==="in"?"Entrar":paso==="new"?"Siguiente":"Confirmar PIN"}</button>
-        {paso==="in"&&<button onClick={()=>{if(confirm("¿Resetear PIN de "+user+"?"))localStorage.removeItem("cp_"+user),setPaso("new"),setPin("");}}style={{width:"100%",background:"transparent",border:"none",color:C.label2,cursor:"pointer",marginTop:10,...T.s,padding:"8px"}}>Olvidé mi PIN</button>}
+        {/* PIN dots */}
+        <div style={{display:"flex",justifyContent:"center",gap:14,marginBottom:18,animation:shake?"shake .4s ease":"none"}}>
+          {[0,1,2,3].map(i=>{const filled=(paso==="conf"?pin2:pin).length>i;return<div key={i}style={{width:14,height:14,borderRadius:7,background:filled?col:"transparent",border:`2px solid ${filled?col:C.label3}`,transition:"all .15s cubic-bezier(.16,1,.3,1)",transform:filled?"scale(1.1)":"scale(1)"}}/>;})}
+        </div>
+        {/* PIN input */}
+        <input type="password"inputMode="numeric"value={paso==="conf"?pin2:pin}
+          onChange={e=>{const v=e.target.value.slice(0,8);paso==="conf"?setPin2(v):setPin(v);}}
+          onKeyDown={e=>e.key==="Enter"&&go()}placeholder="••••"autoFocus
+          style={{width:"100%",background:"rgba(255,255,255,.06)",border:`1.5px solid ${err?C.red:C.sep}`,borderRadius:16,padding:"16px",color:C.label,...T.lg,fontSize:28,textAlign:"center",boxSizing:"border-box",outline:"none",marginBottom:12,letterSpacing:14,backdropFilter:"blur(10px)",transition:"border-color .2s"}}/>
+        {err&&<div style={{...T.fn,color:C.red,textAlign:"center",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6,animation:"fadeIn .2s ease"}}>
+          <Ico n="warning"c={C.red}s={14}/>{err}
+        </div>}
+        <button onClick={go}className="btn-press"style={{width:"100%",background:`linear-gradient(135deg,${col},${col}bb)`,border:"none",borderRadius:16,padding:"16px",...T.h,color:"#FFF",cursor:"pointer",boxShadow:`0 8px 24px ${col}44`,fontSize:16}}>
+          {paso==="in"?"Entrar →":paso==="new"?"Siguiente →":"Confirmar PIN ✓"}
+        </button>
+        {paso==="in"&&<button onClick={()=>{if(confirm("¿Resetear PIN de "+user+"?"))localStorage.removeItem("cp_"+user),setPaso("new"),setPin("");}}
+          style={{width:"100%",background:"transparent",border:"none",color:C.label3,cursor:"pointer",marginTop:10,...T.s,padding:"8px"}}>
+          Olvidé mi PIN
+        </button>}
       </div>
+      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}`}</style>
     </div>
   );
 }
 
-// ─── COUNTERS ─────────────────────────────────────────────────────────────────
 function Counters({cid,cont,setCont,user}){
   const C=getC();const m=META[cid];const d=D[cid];const mqs=getMaqs(cid).filter(mq=>!mq.disabled);
   const[fecha,setFecha]=useState(today());const[inp,setInp]=useState({});
@@ -967,7 +1027,7 @@ function Report({cid,cont}){
 
   // ── Top 5 máquinas con sparklines ────────────────────────────────────
   function ChartTop5(){
-    if(!top5.filter(m=>m.periods>0).length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Sin datos aún</div>;
+    if(!top5.filter(m=>m.periods>0).length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:20}}>Ingresa lecturas para ver el Top 5</div>;
     const maxTot=Math.max(...top5.map(m=>Math.abs(m.total)),1);
     return<div style={{padding:"4px 0"}}>
       {top5.filter(m=>m.periods>0).map((mq,i)=>{
@@ -1022,9 +1082,9 @@ function Report({cid,cont}){
     <Nav title="Reporte"sub={m.n}sy={sy}right={[{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
       {/* Vista tabs */}
-      <div style={{display:"flex",background:C.bg2,borderRadius:12,padding:3,marginBottom:12,border:`1px solid ${C.sep}`}}>
+      <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:14,border:`1px solid ${C.sep}`,backdropFilter:"blur(10px)"}}>
         {[["balance","Balance"],["tabla","Tabla"],["grafica","Gráfica"]].map(([v,l])=>
-          <button key={v}onClick={()=>setVista(v)}style={{flex:1,background:vista===v?C.bg3:"transparent",border:"none",borderRadius:10,padding:"8px",color:vista===v?C.label:C.label2,cursor:"pointer",...T.s,fontWeight:vista===v?700:400,transition:"all .15s"}}>{l}</button>)}
+          <button key={v}onClick={()=>setVista(v)}className="btn-press"style={{flex:1,background:vista===v?`${color}22`:"transparent",border:vista===v?`1px solid ${color}33`:"1px solid transparent",borderRadius:12,padding:"9px",color:vista===v?color:C.label2,cursor:"pointer",...T.s,fontWeight:vista===v?700:400,transition:"all .2s"}}>{l}</button>)}
       </div>
       {/* Filtros */}
       <div style={{display:"flex",gap:6,marginBottom:10,overflowX:"auto",paddingBottom:2}}>
@@ -1075,9 +1135,9 @@ function Report({cid,cont}){
 
       {/* GRÁFICA */}
       {vista==="grafica"&&<>
-        <div style={{display:"flex",background:C.bg2,borderRadius:12,padding:3,marginBottom:12,border:`1px solid ${C.sep}`}}>
-          {[["barras","Barras"],["linea","Tendencia"],["top5","Top Máquinas"]].map(([v,l])=>
-            <button key={v}onClick={()=>setChartTab(v)}style={{flex:1,background:chartTab===v?C.bg3:"transparent",border:"none",borderRadius:10,padding:"8px",color:chartTab===v?C.label:C.label2,cursor:"pointer",...T.fn,fontWeight:chartTab===v?700:400,transition:"all .15s"}}>{l}</button>)}
+        <div style={{display:"flex",background:"rgba(255,255,255,.04)",borderRadius:14,padding:3,marginBottom:12,border:`1px solid ${C.sep}`,overflowX:"auto"}}>
+          {[["barras","Barras"],["linea","Líneas"],["top5","Top Máqs"]].map(([v,l])=>
+            <button key={v}onClick={()=>setChartTab(v)}className="btn-press"style={{flex:"0 0 auto",background:chartTab===v?`${color}22`:"transparent",border:chartTab===v?`1px solid ${color}33`:"1px solid transparent",borderRadius:12,padding:"8px 16px",color:chartTab===v?color:C.label2,cursor:"pointer",...T.fn,fontWeight:chartTab===v?700:400,whiteSpace:"nowrap"}}>{l}</button>)}
         </div>
         <div style={{background:C.bg2,borderRadius:16,padding:"16px 12px 10px",border:`1px solid ${C.sep}`,animation:"fadeSlideUp .3s ease both"}}>
           <div style={{...T.fn,color:C.label2,marginBottom:10,paddingLeft:4,fontWeight:600}}>
@@ -1595,60 +1655,100 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
   const C=getC();const[sy,setSy]=useState(0);
   const lastBal=cid=>{const d=D[cid];if(!d?.b?.length)return null;return[...d.b].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];};
   const total=Object.keys(META).filter(cid=>!META[cid].sim).reduce((s,cid)=>s+(lastBal(cid)?.util_total||0),0);
-  const allRecent=Object.keys(META).map(cid=>{const b=lastBal(cid);return{cid,util:b?.util_total||0};}).sort((a,b)=>b.util-a.util);
-  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+  const uCol=user==="Santiago"?C.indigo:user==="Eliza"?C.pink:C.teal;
+
+  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch",scrollBehavior:"smooth",background:C.bg}}>
     <style>{ANIM_CSS}</style>
-    <Nav title="Mis Casinos"sub={user}sy={sy}right={[
-      ...(pending>0?[{icon:<div style={{position:"relative"}}><Ico n="sync"c={C.orange}s={17}/><div style={{position:"absolute",top:-4,right:-4}}><Badge n={pending}c={C.orange}/></div></div>,fn:()=>{}}]:[]),
+    {/* Ambient */}
+    <div style={{position:"fixed",top:0,left:0,right:0,height:320,pointerEvents:"none",zIndex:0,background:`radial-gradient(ellipse 80% 60% at 50% -10%, ${C.indigo}18, transparent)`}}/>
+
+    <Nav title="Casinos"sub={`Hola, ${user} 👋`}sy={sy}right={[
+      ...(pending>0?[{icon:<div style={{position:"relative"}}><Ico n="sync"c={C.orange}s={17}/><div style={{position:"absolute",top:-5,right:-5}}><Badge n={pending}c={C.orange}/></div></div>,fn:()=>{}}]:[]),
+      {icon:<svg width="17"height="17"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="1.5"strokeLinecap="round"><rect x="3"y="3"width="7"height="7"rx="1.5"/><rect x="14"y="3"width="7"height="7"rx="1.5"/><rect x="3"y="14"width="7"height="7"rx="1.5"/><rect x="14"y="14"width="7"height="7"rx="1.5"/></svg>,fn:onComparar},
       {icon:"settings",fn:onCfg}
     ]}/>
-    <div style={{padding:"0 14px",paddingBottom:60}}>
-      {/* Hero KPI */}
-      <div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:20,padding:20,marginBottom:20,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .4s ease both",position:"relative",overflow:"hidden"}}>
-        <div style={{position:"absolute",top:-20,right:-20,width:120,height:120,borderRadius:60,background:`${C[allRecent[0]?.cid?META[allRecent[0].cid]?.c:"indigo"]||C.indigo}18`,pointerEvents:"none"}}/>
-        <div style={{...T.cap,color:C.label2,marginBottom:4,letterSpacing:1}}>ÚLTIMO PERÍODO — TODOS</div>
-        <AnimNumber value={total}style={{...T.lg,color:C.label,fontSize:38,display:"block",marginBottom:16}}/>
-        <div style={{display:"flex",gap:10,flexWrap:"wrap"}}>
-          {Object.entries(META).map(([cid,m],i)=>{const b=lastBal(cid);const col=C[m.c];
-            return<div key={cid}onClick={()=>onSelect(cid)}style={{flex:"1 0 auto",background:C.fill3,borderRadius:12,padding:"8px 10px",cursor:"pointer",border:`1px solid ${C.sep}`,transition:"transform .15s",animation:`fadeSlideUp .4s ease ${.1+i*.05}s both`}}
-              onMouseEnter={e=>e.currentTarget.style.transform="translateY(-2px)"}onMouseLeave={e=>e.currentTarget.style.transform=""}>
-              <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
-                <Ico n={m.e}c={col}s={14}/>
-                <span style={{...T.cap,color:C.label2}}>{m.n.split(" ").pop()}</span>
-              </div>
-              <div style={{...T.s,color:b?.util_total>=0?C.green:C.red,fontWeight:700}}>{fmt(b?.util_total)}</div>
-            </div>;
+
+    <div style={{padding:"0 14px",paddingBottom:90,position:"relative",zIndex:1}}>
+
+      {/* Hero */}
+      <div className="fade-up"style={{background:"linear-gradient(145deg, rgba(124,109,250,.18), rgba(61,142,255,.1), rgba(0,206,201,.05))",borderRadius:26,padding:"22px 18px",marginBottom:20,border:"1px solid rgba(124,109,250,.2)",backdropFilter:"blur(30px)",position:"relative",overflow:"hidden"}}>
+        <div style={{position:"absolute",top:-50,right:-50,width:180,height:180,borderRadius:90,background:`radial-gradient(circle,${C.indigo}22,transparent)`,filter:"blur(20px)",animation:"orb 8s ease infinite",pointerEvents:"none"}}/>
+        <div style={{...T.cap,color:"rgba(255,255,255,.45)",letterSpacing:1.5,marginBottom:8,textTransform:"uppercase",fontSize:11}}>Último período · Red completa</div>
+        <AnimNumber value={total}style={{...T.lg,color:"#FFF",fontSize:40,fontWeight:700,letterSpacing:-1.5,display:"block",marginBottom:18,textShadow:`0 2px 20px ${C.indigo}55`}}/>
+        <div style={{display:"flex",gap:7,flexWrap:"wrap"}}>
+          {Object.entries(META).filter(([cid,m])=>!m.sim).map(([cid,m])=>{
+            const b=lastBal(cid);const col=C[m.c];const isPos=(b?.util_total||0)>=0;
+            return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press"
+              style={{background:`${col}14`,border:`1px solid ${col}25`,borderRadius:14,padding:"9px 11px",cursor:"pointer",textAlign:"left",flex:"1 0 auto",minWidth:76,backdropFilter:"blur(10px)",transition:"all .2s"}}
+              onMouseEnter={e=>{e.currentTarget.style.background=`${col}28`;e.currentTarget.style.transform="translateY(-2px)";}}
+              onMouseLeave={e=>{e.currentTarget.style.background=`${col}14`;e.currentTarget.style.transform="";}}>
+              <div style={{...T.cap,color:col,fontWeight:700,letterSpacing:.5,fontSize:10,marginBottom:3}}>{m.n.split(" ").pop().slice(0,7).toUpperCase()}</div>
+              <div style={{fontSize:13,fontWeight:700,color:isPos?C.green:C.red}}>{fmt(b?.util_total)}</div>
+            </button>;
           })}
         </div>
       </div>
+
       {/* Casino list */}
-      <Sec hdr="Locales"delay={.15}>
-        {Object.entries(META).map(([cid,m],i,a)=>{const b=lastBal(cid);const dd=D[cid];const col=C[m.c];
-          return<Row key={cid}ic={m.e}icC={col}lbl={m.n}sub={`${dd?.m?.length||0} máqs · ${m.liq}${b?` · ${b.fecha.slice(5)}`:""}`}
-            right={b?<span style={{...T.c,color:b.util_total>=0?C.green:C.red,fontWeight:700}}>{fmt(b.util_total)}</span>:null}
-            fn={()=>onSelect(cid)}last={i===a.length-1}/>;
+      <div style={{...T.cap,color:C.label2,paddingLeft:2,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600,fontSize:11}}>Locales</div>
+      <div style={{display:"flex",flexDirection:"column",gap:9,marginBottom:22}}>
+        {Object.entries(META).filter(([cid,m])=>!m.sim).map(([cid,m],i)=>{
+          const b=lastBal(cid);const col=C[m.c];const isPos=(b?.util_total||0)>=0;
+          const mqs=getMaqs(cid);const activeCount=mqs.filter(m=>!m.disabled).length;
+          return<button key={cid}onClick={()=>onSelect(cid)}className={`btn-press lg-card fade-up`}
+            style={{borderRadius:20,padding:"15px 16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,textAlign:"left",animationDelay:`${.08+i*.04}s`,border:`1px solid ${C.sep}`,transition:"border-color .2s,box-shadow .2s"}}
+            onMouseEnter={e=>{e.currentTarget.style.borderColor=`${col}44`;e.currentTarget.style.boxShadow=`0 8px 32px ${col}18`;}}
+            onMouseLeave={e=>{e.currentTarget.style.borderColor=C.sep;e.currentTarget.style.boxShadow="";}}>
+            <CasinoAvatar cid={cid}size={48}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{...T.h,color:C.label,marginBottom:3,fontSize:16}}>{m.n}</div>
+              <div style={{...T.fn,color:C.label2,display:"flex",gap:8,flexWrap:"wrap"}}>
+                <span>{activeCount} máqs</span>
+                <span style={{opacity:.4}}>·</span>
+                <span>{m.liq}</span>
+                {b&&<><span style={{opacity:.4}}>·</span><span style={{color:C.label3}}>{b.fecha.slice(5)}</span></>}
+              </div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0}}>
+              {b?<>
+                <div style={{...T.h,color:isPos?C.green:C.red,fontWeight:700,fontSize:17}}>{fmt(b.util_total)}</div>
+                <div style={{...T.cap,color:isPos?`${C.green}88`:`${C.red}88`,marginTop:3}}>{isPos?"↑":"↓"} {m.liq}</div>
+              </>:<div style={{...T.cap,color:C.label3}}>Sin datos</div>}
+            </div>
+            <Ico n="chevron"c={C.label3}s={16}/>
+          </button>;
         })}
-      </Sec>
-      <Sec hdr="Liquidación diaria"delay={.2}>
+      </div>
+
+      {/* Daily */}
+      <div style={{...T.cap,color:C.label2,paddingLeft:2,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600,fontSize:11}}>Liquidación diaria</div>
+      <div style={{display:"flex",gap:9,marginBottom:22}}>
         {["vikingos","faraon"].map((cid,i)=>{const m=META[cid];const b=lastBal(cid);const col=C[m.c];
-          return<Row key={cid}ic={m.e}icC={col}lbl={`Ingresar hoy — ${m.n}`}sub={`Última: ${b?.fecha||"—"}`}fn={()=>onSelect(cid)}last={i===1}/>;
+          return<button key={cid}onClick={()=>onSelect(cid)}className="btn-press fade-up"
+            style={{flex:1,background:`linear-gradient(145deg,${col}18,${col}08)`,border:`1px solid ${col}28`,borderRadius:20,padding:"14px",cursor:"pointer",textAlign:"left",animationDelay:`${.32+i*.06}s`}}>
+            <CasinoAvatar cid={cid}size={38}/>
+            <div style={{marginTop:10,...T.h,color:C.label,fontSize:15}}>{m.n}</div>
+            <div style={{...T.fn,color:C.label2,marginTop:2}}>{b?`Últ: ${b.fecha.slice(5)}`:"Sin datos"}</div>
+            {b&&<div style={{...T.h,color:(b.util_total||0)>=0?C.green:C.red,marginTop:4,fontWeight:700}}>{fmt(b.util_total)}</div>}
+          </button>;
         })}
-      </Sec>
-      {/* Simulation / OCR Lab */}
-      <div style={{...T.cap,color:C.teal,paddingLeft:4,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600,display:"flex",alignItems:"center",gap:8,marginTop:4}}>
+      </div>
+
+      {/* Simulacion OCR */}
+      <div style={{...T.cap,color:C.teal,paddingLeft:2,paddingBottom:10,textTransform:"uppercase",letterSpacing:1.2,fontWeight:600,fontSize:11,display:"flex",alignItems:"center",gap:6}}>
         <div style={{width:6,height:6,borderRadius:3,background:C.teal,animation:"pulse 1.5s infinite"}}/>
         Laboratorio OCR
       </div>
       <button onClick={()=>onSelect("simulacion")}className="btn-press fade-up"
-        style={{width:"100%",background:`linear-gradient(135deg,${C.teal}12,${C.teal}06)`,border:`2px dashed ${C.teal}33`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:14,textAlign:"left",animationDelay:".4s",marginBottom:8}}>
-        <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(145deg,${C.teal}33,${C.teal}66)`,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.teal}44`,flexShrink:0}}>
-          <Ico n="slot"c={C.teal}s={24}/>
+        style={{width:"100%",background:`linear-gradient(145deg,${C.teal}10,${C.teal}05)`,border:`2px dashed ${C.teal}30`,borderRadius:20,padding:"16px",cursor:"pointer",display:"flex",alignItems:"center",gap:12,textAlign:"left",animationDelay:".42s"}}>
+        <div style={{width:46,height:46,borderRadius:14,background:`linear-gradient(145deg,${C.teal}33,${C.teal}66)`,display:"flex",alignItems:"center",justifyContent:"center",border:`1px solid ${C.teal}44`}}>
+          <Ico n="slot"c={C.teal}s={22}/>
         </div>
         <div style={{flex:1}}>
-          <div style={{...T.h,color:C.teal}}>Casino Simulación</div>
-          <div style={{...T.fn,color:C.label2,marginTop:3}}>Entorno de pruebas OCR · Desconectado de Sheets</div>
+          <div style={{...T.h,color:C.teal,fontSize:15}}>Casino Simulación</div>
+          <div style={{...T.fn,color:C.label2,marginTop:3}}>Pruebas OCR · Desconectado de Sheets</div>
         </div>
-        <div style={{background:`${C.teal}15`,borderRadius:20,padding:"3px 10px",border:`1px solid ${C.teal}25`,flexShrink:0}}>
+        <div style={{background:`${C.teal}15`,borderRadius:20,padding:"3px 10px",border:`1px solid ${C.teal}25`}}>
           <span style={{...T.cap,color:C.teal,fontWeight:700}}>TEST</span>
         </div>
       </button>
@@ -1656,8 +1756,6 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
   </div>;
 }
 
-
-// ─── COMPARAR CASINOS ─────────────────────────────────────────────────────────
 function CompararLineChart({allDates,data,selected,metric,C}){
   const[hov,setHov]=useState(null);
   const H=200,W=380,PAD=48;
