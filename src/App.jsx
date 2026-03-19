@@ -208,7 +208,10 @@ async function fetchBalanceFromSheets(cid){
   const sheetId=SHEET_IDS[cid];if(!sheetId)return null;
   const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],playarica:[" Balance","Balance"],vikingos:["balance","Balance"]};
   const namesToTry=balNames[cid]||["Balance"];
-  const n=new Date();const TODAY=n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");
+  const n=new Date();
+  // Add 1 day buffer to avoid timezone issues cutting off today's data
+  const tomorrow=new Date(n);tomorrow.setDate(n.getDate()+1);
+  const TODAY=tomorrow.getFullYear()+"-"+String(tomorrow.getMonth()+1).padStart(2,"0")+"-"+String(tomorrow.getDate()).padStart(2,"0");
   for(const rawName of namesToTry){
     try{
       const r=await fetch("https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values/"+encodeURIComponent(rawName)+"!A:C?key="+GAPI_KEY);
@@ -978,7 +981,8 @@ function Report({cid,cont}){
   const[liveBalance,setLiveBalance]=useState(null);
   const[balLoading,setBalLoading]=useState(true);
   useEffect(()=>{
-    setBalLoading(true);
+    invalidateSheetsCaches(cid);
+    setBalLoading(true);setSheetsData([]);setLiveBalance(null);
     Promise.all([
       fetchSheetHist(cid).catch(()=>[]),
       fetchBalanceFromSheets(cid).catch(()=>null)
@@ -1777,24 +1781,27 @@ function Home({onSelect,onCfg,onComparar,user,pending}){
 function CompararLineChart({allDates,data,selected,metric,C}){
   const[hov,setHov]=useState(null);
   const H=200,W=380,PAD=52;
-  const activeCids=selected&&selected.length>0?selected.filter(cid=>!META[cid]?.sim):Object.keys(META).filter(cid=>!META[cid].sim);
+  const activeCids=(selected&&selected.length>0?selected:Object.keys(META)).filter(cid=>!META[cid]?.sim);
 
-  // Build per-casino data points only where they have values
-  const casinoPoints={};
-  activeCids.forEach(cid=>{
-    const rows=(data[cid]||[]).filter(r=>r[metric]!=null&&isFinite(r[metric]));
-    casinoPoints[cid]=rows.map(r=>({fecha:r.fecha,val:r[metric]})).sort((a,b)=>a.fecha.localeCompare(b.fecha));
-  });
+  // Each casino gets its OWN sorted dates and X scale
+  // We use a shared global date range for consistent X axis
+  const allCasinoDates=activeCids.flatMap(cid=>(data[cid]||[]).map(r=>r.fecha));
+  const globalDates=[...new Set(allCasinoDates)].sort();
 
-  const allVals=Object.values(casinoPoints).flatMap(pts=>pts.map(p=>p.val)).filter(v=>isFinite(v));
-  if(!allVals.length||allDates.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos suficientes</div>;
+  const allVals=activeCids.flatMap(cid=>(data[cid]||[]).map(r=>r[metric]||0)).filter(v=>isFinite(v));
+  if(!allVals.length||globalDates.length<2)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos suficientes</div>;
 
   const minV=Math.min(...allVals,0),maxV=Math.max(...allVals,1);
   const range=maxV-minV||1;
+  const dateMin=globalDates[0];
+  const dateMax=globalDates[globalDates.length-1];
+  const totalSpan=Math.max(1,new Date(dateMax)-new Date(dateMin));
 
-  // Map date to X position using sorted unique dates across all casinos
-  const sortedDates=[...new Set(Object.values(casinoPoints).flatMap(pts=>pts.map(p=>p.fecha)))].sort();
-  const toX=i=>PAD+i*(W-PAD-8)/(Math.max(sortedDates.length-1,1));
+  // X based on actual date value (not index) — no gaps
+  const toX=fecha=>{
+    const span=new Date(fecha)-new Date(dateMin);
+    return PAD+(span/totalSpan)*(W-PAD-8);
+  };
   const toY=v=>H-((v-minV)/range)*(H-20)-10;
 
   return<svg width="100%"viewBox={"0 0 "+W+" "+(H+28)}style={{overflow:"visible"}}onMouseLeave={()=>setHov(null)}>
@@ -1803,39 +1810,29 @@ function CompararLineChart({allDates,data,selected,metric,C}){
       <line x1={PAD}y1={y}x2={W-8}y2={y}stroke={C.sep}strokeWidth=".5"strokeDasharray="3,4"/>
       <text x={PAD-4}y={y+4}fontSize="7"fill={C.label3}textAnchor="end">{fmt(minV+(maxV-minV)*f)}</text>
     </g>;})}
-    {/* Lines per casino - connect all points with a continuous path */}
+    {/* One line per casino */}
     {activeCids.map(cid=>{
       const col=C[META[cid].c];
-      const pts=casinoPoints[cid];
+      const pts=(data[cid]||[])
+        .filter(r=>r[metric]!=null&&isFinite(r[metric]))
+        .sort((a,b)=>a.fecha.localeCompare(b.fecha));
       if(pts.length<1)return null;
-      // Build path connecting all points of this casino
-      const pathD=pts.map((p,i)=>{
-        const xi=sortedDates.indexOf(p.fecha);
-        const x=toX(xi);const y=toY(p.val);
-        return(i===0?"M":"L")+x+","+y;
-      }).join(" ");
+      const pathD=pts.map((p,i)=>(i===0?"M":"L")+toX(p.fecha)+","+toY(p[metric])).join(" ");
       return<g key={cid}>
-        {/* Line connecting dots */}
-        <path d={pathD}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"opacity=".85"
-          style={{strokeDasharray:2000,strokeDashoffset:2000,animation:"lineIn 1s ease forwards"}}/>
-        {/* Dots */}
-        {pts.map((p,i)=>{
-          const xi=sortedDates.indexOf(p.fecha);
-          const x=toX(xi);const y=toY(p.val);
-          return<circle key={i}cx={x}cy={y}r={hov===cid+p.fecha?6:3.5}
-            fill={col}stroke={C.bg||"#080810"}strokeWidth="1.5"
-            onMouseEnter={()=>setHov(cid+p.fecha)}
-            style={{transition:"r .12s"}}/>;
-        })}
+        <path d={pathD}fill="none"stroke={col}strokeWidth="2"strokeLinecap="round"strokeLinejoin="round"opacity=".9"
+          style={{strokeDasharray:3000,strokeDashoffset:3000,animation:"lineIn .8s ease forwards"}}/>
+        {pts.map((p,i)=><circle key={i}cx={toX(p.fecha)}cy={toY(p[metric])}r={hov===cid+p.fecha?6:3}
+          fill={col}stroke={C.bg||"#080810"}strokeWidth="1.5"
+          onMouseEnter={()=>setHov(cid+p.fecha)}
+          style={{transition:"r .1s"}}/>)}
       </g>;
     })}
-    {/* X labels */}
-    {sortedDates.filter((_,i)=>i%Math.max(1,Math.ceil(sortedDates.length/6))===0).map((d,i)=>(
-      <text key={i}x={toX(sortedDates.indexOf(d))}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>
+    {/* X labels - pick ~6 evenly spaced dates */}
+    {globalDates.filter((_,i)=>i%Math.max(1,Math.ceil(globalDates.length/6))===0).map((d,i)=>(
+      <text key={i}x={toX(d)}y={H+18}fontSize="7"fill={C.label3}textAnchor="middle">{d.slice(5)}</text>
     ))}
   </svg>;
 }
-
 function Comparar({onBack}){
   const C=getC();
   const[metric,setMetric]=useState("util");const[period,setPeriod]=useState("mes");
