@@ -70,28 +70,21 @@ const _sheetsCacheTime={};
 
 async function fetchSheetHist(cid){
   if(META[cid]?.sim)return[];
-  // Session cache with 2-min TTL - prevents hammering Sheets API on re-renders
   if(_sheetsCache[cid]&&_sheetsCacheTime[cid]&&(Date.now()-_sheetsCacheTime[cid])<120000)return _sheetsCache[cid];
   const sheetId=SHEET_IDS[cid];
   if(!sheetId)return[];
-  const mqs=getMaqs(cid);
+  const mqs=getMaqs(cid).filter(m=>!m.disabled);
   const cidColMap=COL_MAP[cid]||{};
-  const resets=loadResets(cid); // { maqId: "YYYY-MM-DD" }
-  const results=[];
+  const resets=loadResets(cid);
 
-  for(const mq of mqs){
-    if(mq.disabled)continue;
-    const sheetName=encodeURIComponent(mq.nombre);
-    const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:H?key=${GAPI_KEY}`;
+  // Fetch ALL machines in PARALLEL instead of sequential loop
+  const maqResults=await Promise.all(mqs.map(async mq=>{
+    const url="https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values/"+encodeURIComponent(mq.nombre)+"!A:H?key="+GAPI_KEY;
     try{
-      // Retry up to 2 times on failure
-      let r=null;
-      for(let attempt=0;attempt<2;attempt++){
-        try{r=await fetch(url);if(r.ok)break;}catch(fe){if(attempt===1)throw fe;await new Promise(res=>setTimeout(res,500));}
-      }
-      if(!r||!r.ok)continue;
+      const r=await fetch(url);
+      if(!r.ok)return[];
       const data=await r.json();
-      if(data.error){console.warn("Sheets error for "+mq.nombre+":",data.error.message);continue;}
+      if(data.error)return[];
       const rows=data.values||[];
       const startIdx=(rows.length>0&&!parseSheetDate(rows[0][0]))?1:0;
       const maqCols=cidColMap[mq.nombre]||{};
@@ -99,9 +92,8 @@ async function fetchSheetHist(cid){
       const uIdx=maqCols.u!=null?maqCols.u:6;
       const isPoker=mq.factor===50;
       const resetDate=resets[mq.id]||null;
-      let prevIn=null,prevOut=null,prevJack=null;
-      let resetApplied=false;
-
+      let prevIn=null,prevOut=null,prevJack=null,resetApplied=false;
+      const maqRows=[];
       for(let i=startIdx;i<rows.length;i++){
         const row=rows[i];
         const fecha=parseSheetDate(row[0]);
@@ -109,48 +101,32 @@ async function fetchSheetHist(cid){
         const inAcum=parseNum(row[1]);
         const outAcum=parseNum(row[2]);
         if(inAcum==null||outAcum==null||inAcum===0)continue;
-
-        // Si hay un reset manual definido para esta máquina,
-        // ignorar lecturas anteriores a la fecha de reset
-        if(resetDate&&fecha<resetDate){
-          prevIn=inAcum;prevOut=outAcum;
-          if(isPoker)prevJack=parseNum(row[3]);
-          continue;
-        }
-        // Primera lectura después del reset - partir desde 0
-        if(resetDate&&!resetApplied&&fecha>=resetDate){
-          prevIn=null;prevOut=null;prevJack=null;
-          resetApplied=true;
-        }
-
+        if(resetDate&&fecha<resetDate){prevIn=inAcum;prevOut=outAcum;if(isPoker)prevJack=parseNum(row[3]);continue;}
+        if(resetDate&&!resetApplied&&fecha>=resetDate){prevIn=null;prevOut=null;prevJack=null;resetApplied=true;}
         let premios=parseNum(row[pIdx]);
         let utilidad=parseNum(row[uIdx]);
-
-        // Jackpot para Poker: ΔD (col D idx 3) se suma a premios
         let jackpot=null;
         if(isPoker){
           const jackAcum=parseNum(row[3]);
           if(jackAcum!=null&&prevJack!=null&&jackAcum>prevJack){
             jackpot=jackAcum-prevJack;
-            if(premios!=null)premios+=jackpot;
-            else premios=jackpot;
+            if(premios!=null)premios+=jackpot;else premios=jackpot;
           }
           prevJack=jackAcum;
         }
-
-        // Fallback: calcular desde diferencia si no hay datos de período
         if(utilidad==null&&prevIn!=null&&inAcum>prevIn){
-          const inPer=inAcum-prevIn;
-          const outPer=outAcum-prevOut;
+          const inPer=inAcum-prevIn;const outPer=outAcum-prevOut;
           if(premios==null)premios=outPer*mq.factor;
           utilidad=(inPer-outPer)*mq.factor;
         }
-
-        results.push([mq.id,fecha,inAcum,outAcum,premios,utilidad,jackpot]);
+        maqRows.push([mq.id,fecha,inAcum,outAcum,premios,utilidad,jackpot]);
         prevIn=inAcum;prevOut=outAcum;
       }
-    }catch(e){console.warn(`Sheets ${cid}/${mq.nombre}:`,e.message);}
-  }
+      return maqRows;
+    }catch(e){console.warn("Sheets "+cid+"/"+mq.nombre+":",e.message);return[];}
+  }));
+
+  const results=maqResults.flat();
   if(results.length>0){_sheetsCache[cid]=results;_sheetsCacheTime[cid]=Date.now();}
   return results;
 }
@@ -827,7 +803,7 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
   useEffect(()=>{
     setLoading(true);setError(null);setPagina(0);
     // Timeout fallback: if takes more than 15s, show error
-    const timeout=setTimeout(()=>{setLoading(false);setError("Tiempo de espera agotado. Verifica tu conexión y que los Sheets sean públicos.");},15000);
+    const timeout=setTimeout(()=>{setLoading(false);setError("Tiempo de espera agotado. Verifica tu conexión y que los Sheets sean públicos.");},20000);
     fetchSheetHist(cid)
       .then(data=>{setRows(data);setLoading(false);})
       .catch(e=>{setError(e.message);setLoading(false);});
