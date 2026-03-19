@@ -21,6 +21,8 @@ const ANIM_CSS=`
 .lg-card{background:rgba(255,255,255,.06);backdrop-filter:blur(30px) saturate(180%);-webkit-backdrop-filter:blur(30px) saturate(180%);border:1px solid rgba(255,255,255,.14);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 32px rgba(0,0,0,.2);border-radius:18px}
 @media(prefers-color-scheme:light){.lg{background:rgba(255,255,255,.75);border-color:rgba(0,0,0,.08)}.lg-card{background:rgba(255,255,255,.85);border-color:rgba(0,0,0,.08)}}
 
+@keyframes lineIn{to{stroke-dashoffset:0}}
+
 `;
 
 // ─── THEME ────────────────────────────────────────────────────────────────────
@@ -1902,6 +1904,9 @@ function Comparar({onBack}){
   }).sort((a,b)=>b.total-a.total);
   const maxTotal=Math.max(...totals.map(t=>Math.abs(t.total)),1);
   const allDates=[...new Set(Object.values(data).flatMap(rows=>filterRows(rows).map(r=>r.fecha)))].sort();
+  // Build filtered data per casino for the chart
+  const filteredData={};
+  Object.keys(META).filter(k=>!META[k].sim).forEach(cid=>{filteredData[cid]=filterRows(data[cid]||[]);});
   return<div style={{height:"100%",overflowY:"auto",background:C.bg}}>
     <style>{ANIM_CSS}</style>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
@@ -1952,7 +1957,7 @@ function Comparar({onBack}){
               </button>;
             })}
           </div>
-          <CompararLineChart allDates={allDates}data={data}selected={selectedCasinos}metric={metric}C={C}/>
+          <CompararLineChart allDates={allDates}data={filteredData}selected={selectedCasinos}metric={metric}C={C}/>
         </div>}
         {chartType==="ranking"&&<div style={{marginBottom:14}}>
           {totals.map((t,i)=>{const col=C[META[t.cid].c];const medals=["🥇","🥈","🥉"];
