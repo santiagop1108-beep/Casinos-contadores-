@@ -1,4 +1,5 @@
 import{useState,useEffect,useRef,useCallback,useMemo}from"react";
+import emailjs from'@emailjs/browser';
 
 // ─── CSS ANIMATIONS ───────────────────────────────────────────────────────────
 const ANIM_CSS=`
@@ -359,6 +360,162 @@ function loadLogs(){try{return JSON.parse(localStorage.getItem(LOG_KEY)||"[]");}
 const TIMEOUT_KEY="cc_timeout";
 function saveTimeouts(t){localStorage.setItem(TIMEOUT_KEY,JSON.stringify(t));}
 function loadTimeouts(){try{return JSON.parse(localStorage.getItem(TIMEOUT_KEY)||"{}");}catch{return{};}}
+
+// ─── EMAILJS CONFIG ───────────────────────────────────────────────────────────
+const EJ_KEYS={svc:"ej_service_id",tpl:"ej_template_id",pub:"ej_public_key",email:"ej_report_email"};
+function loadEmailCfg(){return{serviceId:localStorage.getItem(EJ_KEYS.svc)||"",templateId:localStorage.getItem(EJ_KEYS.tpl)||"",publicKey:localStorage.getItem(EJ_KEYS.pub)||"",reportEmail:localStorage.getItem(EJ_KEYS.email)||""};}
+function saveEmailCfg(cfg){Object.entries({[EJ_KEYS.svc]:cfg.serviceId,[EJ_KEYS.tpl]:cfg.templateId,[EJ_KEYS.pub]:cfg.publicKey,[EJ_KEYS.email]:cfg.reportEmail}).forEach(([k,v])=>localStorage.setItem(k,v||""));}
+function emailCfgReady(){const c=loadEmailCfg();return!!(c.serviceId&&c.templateId&&c.publicKey);}
+
+// ─── PDF GENERATOR ────────────────────────────────────────────────────────────
+// Carga jsPDF dinámicamente (CDN) y retorna la clase
+async function loadJsPDF(){
+  if(!window.jspdf){
+    const s=document.createElement("script");
+    s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    await new Promise(r=>{s.onload=r;document.head.appendChild(s);});
+  }
+  return window.jspdf.jsPDF;
+}
+
+// Genera el PDF del reporte. returnBase64=true devuelve string base64 en lugar de guardar.
+async function buildReportePDF({casinoId,casinoName,color,bals,maqData,fmtEFn,periodoLabel,returnBase64=false}){
+  const JsPDF=await loadJsPDF();
+  // ── Configuración landscape A4 ─────────────────────────────────────────
+  const doc=new JsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  const PW=297,PH=210,M=16;
+  const fechaGen=new Date().toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"});
+
+  // ── COLORES TEMA ───────────────────────────────────────────────────────
+  const clrBg=[10,10,20];
+  const clrAccent=hexToRgb(color)||[61,142,255];
+  const clrGray=[100,100,110];
+  const clrLight=[235,235,245];
+  const clrGreen=[46,213,115];
+  const clrDark=[20,20,32];
+
+  // ── ENCABEZADO ─────────────────────────────────────────────────────────
+  doc.setFillColor(...clrBg);doc.rect(0,0,PW,36,"F");
+  doc.setFillColor(...clrAccent);doc.rect(0,0,4,36,"F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("helvetica","bold");doc.setFontSize(22);
+  doc.text(casinoName,M+6,14);
+  doc.setFont("helvetica","normal");doc.setFontSize(10);
+  doc.text("Reporte de Rendimiento",M+6,22);
+  doc.text(`Período: ${periodoLabel}`,M+6,29);
+  doc.setTextColor(...clrGray);doc.setFontSize(9);
+  doc.text(`Generado: ${fechaGen}`,PW-M,29,{align:"right"});
+  doc.text("Casinos Contadores",PW-M,22,{align:"right"});
+
+  let y=44;
+
+  // ── KPIs ───────────────────────────────────────────────────────────────
+  const totUtil=bals.reduce((s,b)=>s+(b.util||0),0);
+  const totPhys=bals.reduce((s,b)=>s+(b.phys||0),0);
+  const totPA=bals.reduce((s,b)=>s+(b.pa||0),0);
+  const totCaja=totUtil+totPhys-totPA;
+  const avg=bals.length?Math.round(totUtil/bals.length):0;
+
+  const kpis=[["UTILIDAD TOTAL",fmtEFn(totUtil),clrAccent],["PREMIOS TOTALES",fmtEFn(totPhys),[255,165,0]],["CAJA FÍSICA",fmtEFn(totCaja),clrGreen],["PROMEDIO DIARIO",fmtEFn(avg),[108,92,231]]];
+  const kW=(PW-M*2-9)/4;
+  kpis.forEach(([lbl,val,col],i)=>{
+    const x=M+i*(kW+3);
+    doc.setFillColor(...clrDark);doc.roundedRect(x,y,kW,20,2,2,"F");
+    doc.setFillColor(...col);doc.rect(x,y,3,20,"F");
+    doc.setTextColor(...clrGray);doc.setFont("helvetica","normal");doc.setFontSize(7);
+    doc.text(lbl,x+6,y+7);
+    doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(11);
+    doc.text(val,x+6,y+16);
+  });
+  y+=28;
+
+  // ── GRÁFICA DE BARRAS (últimos 20 períodos) ────────────────────────────
+  const chartPts=[...bals].reverse().slice(-20);
+  if(chartPts.length>0){
+    doc.setFillColor(...clrDark);doc.roundedRect(M,y,PW-M*2-80,68,2,2,"F");
+    const cX=M+4,cY=y+10,cW=PW-M*2-88,cH=50;
+    doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(8);
+    doc.text("Utilidad por Período",cX+2,y+7);
+    const maxV=Math.max(...chartPts.map(p=>Math.abs(p.util||0)),1);
+    const bw=Math.max(2,(cW-4)/chartPts.length-1);
+    chartPts.forEach((b,i)=>{
+      const bh=Math.max(1,(Math.abs(b.util||0)/maxV)*cH*0.85);
+      const bx=cX+2+i*(bw+1);
+      const by=b.util>=0?cY+cH-bh:cY+cH-1;
+      doc.setFillColor(...(b.util>=0?clrAccent:[255,71,87]));
+      doc.rect(bx,by,bw,bh,"F");
+      if(i%5===0&&i<chartPts.length){
+        doc.setTextColor(...clrGray);doc.setFont("helvetica","normal");doc.setFontSize(5);
+        const label=(b.fecha||"").slice(5).replace("-","/");
+        doc.text(label,bx,cY+cH+5);
+      }
+    });
+    // eje
+    doc.setDrawColor(...clrGray);doc.setLineWidth(0.2);
+    doc.line(cX,cY+cH,cX+cW,cY+cH);
+  }
+
+  // ── TOP 10 MÁQUINAS ────────────────────────────────────────────────────
+  const top10=[...maqData].filter(mq=>mq.total!==0).sort((a,b)=>b.total-a.total).slice(0,10);
+  const tX=PW-M-76,tY=y,tW=74;
+  doc.setFillColor(...clrDark);doc.roundedRect(tX,tY,tW,68,2,2,"F");
+  doc.setFillColor(...clrAccent);doc.roundedRect(tX,tY,tW,10,2,2,"F");
+  doc.setTextColor(255,255,255);doc.setFont("helvetica","bold");doc.setFontSize(8);
+  doc.text("Top 10 Máquinas · Utilidad",tX+3,tY+7);
+  top10.forEach((mq,i)=>{
+    const ry=tY+12+i*5.5;
+    if(i%2===0){doc.setFillColor(25,25,40);doc.rect(tX,ry-3,tW,5.5,"F");}
+    doc.setTextColor(...(i<3?clrAccent:clrLight));doc.setFont("helvetica",i<3?"bold":"normal");doc.setFontSize(6.5);
+    const rank=`${i+1}.`;
+    doc.text(rank,tX+2,ry+1.5);
+    const nombre=(mq.nombre||mq.id||"").slice(0,20);
+    doc.text(nombre,tX+8,ry+1.5);
+    doc.setTextColor(...(mq.total>=0?clrGreen:[255,71,87]));
+    doc.text(fmtEFn(mq.total),tX+tW-2,ry+1.5,{align:"right"});
+  });
+  y+=76;
+
+  // ── HISTORIAL ──────────────────────────────────────────────────────────
+  if(bals.length>0){
+    doc.setFont("helvetica","bold");doc.setFontSize(9);doc.setTextColor(255,255,255);
+    doc.text(`Historial (${bals.length} períodos)`,M,y+5);y+=9;
+    const cols=[["Fecha",24],["Utilidad",32],["Premios",32],["Caja Física",34],["Períodos",24]];
+    let rx=M;
+    doc.setFillColor(...clrAccent);doc.rect(M,y,PW-M*2,7,"F");
+    doc.setTextColor(0,0,0);doc.setFont("helvetica","bold");doc.setFontSize(7);
+    cols.forEach(([h,w])=>{doc.text(h,rx+2,y+5);rx+=w;});y+=7;
+    bals.slice(0,20).forEach((b,i)=>{
+      if(y>PH-20){doc.addPage();y=20;}
+      const caja=(b.util||0)+(b.phys||0)-(b.pa||0);
+      doc.setFillColor(...(i%2===0?clrDark:[15,15,26]));
+      doc.rect(M,y,PW-M*2,6.5,"F");
+      doc.setFont("helvetica","normal");doc.setFontSize(7);
+      let cx2=M;
+      const row=[(b.fecha||"").slice(5),fmtEFn(b.util||0),fmtEFn(b.phys||0),fmtEFn(caja),String(bals.length)];
+      row.forEach((val,ci)=>{
+        doc.setTextColor(...(ci===1?(b.util>=0?clrGreen:[255,71,87]):ci===3?(caja>=0?clrAccent:[255,165,0]):clrLight));
+        doc.text(val,cx2+2,y+4.5);cx2+=cols[ci][1];
+      });
+      y+=6.5;
+    });
+  }
+
+  // ── FOOTER ─────────────────────────────────────────────────────────────
+  [1,...Array(doc.internal.getNumberOfPages()-1).keys().map(i=>i+2)].forEach(pg=>{
+    doc.setPage(pg);
+    doc.setFillColor(...clrBg);doc.rect(0,PH-10,PW,10,"F");
+    doc.setTextColor(...clrGray);doc.setFont("helvetica","normal");doc.setFontSize(7);
+    doc.text(`${casinoName} · ${periodoLabel} · Generado ${fechaGen}`,M,PH-4);
+    doc.text(`Página ${pg} / ${doc.internal.getNumberOfPages()}`,PW-M,PH-4,{align:"right"});
+  });
+
+  if(returnBase64)return doc.output("datauristring");
+  doc.save(`${casinoName}_${periodoLabel.replace(/\s/g,"_")}.pdf`);
+  return null;
+}
+
+// Convierte hex #RRGGBB → [r,g,b]
+function hexToRgb(hex){if(!hex||typeof hex!=="string")return null;const h=hex.replace("#","");if(h.length!==6)return null;return[parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)];}
 
 // ─── FACE ID ─────────────────────────────────────────────────────────────────
 const WA=window.PublicKeyCredential;
@@ -1084,6 +1241,14 @@ function Report({cid,cont}){
   const[filtro,setFiltro]=useState("todo");const[mes,setMes]=useState(today().slice(0,7));
   const[desde,setDesde]=useState("");const[hasta,setHasta]=useState("");
   const[chartTab,setChartTab]=useState("barras");const[tableMode,setTableMode]=useState("byfecha");
+  // ── Estado modal de reporte ───────────────────────────────────────────
+  const[showReportModal,setShowReportModal]=useState(false);
+  const[rPeriod,setRPeriod]=useState("mes");
+  const[rMes,setRMes]=useState(today().slice(0,7));
+  const[rDesde,setRDesde]=useState("");const[rHasta,setRHasta]=useState("");
+  const[rEmail,setREmail]=useState(()=>loadEmailCfg().reportEmail||"");
+  const[emailStatus,setEmailStatus]=useState(null); // null|'sending'|'sent'|'error'
+  const[pdfLoading,setPdfLoading]=useState(false);
   const[sheetsData,setSheetsData]=useState([]);
   const[liveBalance,setLiveBalance]=useState(null);
   const[balLoading,setBalLoading]=useState(true);
@@ -1192,23 +1357,122 @@ function Report({cid,cont}){
     XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(balRows),"Balance");
     XLSX.writeFile(wb,`${m.n}_${today()}.xlsx`);
   }
+  // ── Construye etiqueta de período para el PDF ──────────────────────────
+  function getPeriodoLabel(period,rM,rD,rH){
+    if(period==="semana")return"Últimos 7 días";
+    if(period==="mes_anterior"){const[y2,mo]=rM.split("-");const pm=parseInt(mo)-1;const py=pm===0?parseInt(y2)-1:parseInt(y2);const pmn=pm===0?12:pm;return`${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][pmn-1]} ${py}`;}
+    if(period==="tres_meses")return"Últimos 3 meses";
+    if(period==="custom"&&rD&&rH)return`${rD} a ${rH}`;
+    const[y2,mo]=rM.split("-");return`${["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"][parseInt(mo)-1]} ${y2}`;
+  }
+
+  // ── Filtra bals según period del modal ────────────────────────────────
+  function getModalBals(period,rM,rD,rH){
+    if(period==="semana"){const d7=new Date(today());d7.setDate(d7.getDate()-6);return allBals.filter(b=>b.fecha>=d7.toISOString().slice(0,10)&&b.fecha<=today());}
+    if(period==="mes_anterior"){const[y2,mo]=rM.split("-");const pm=parseInt(mo)-1;const py=pm===0?parseInt(y2)-1:parseInt(y2);const pmn=pm===0?12:pm;const ymStr=`${py}-${String(pmn).padStart(2,"0")}`;return allBals.filter(b=>b.fecha.slice(0,7)===ymStr);}
+    if(period==="tres_meses"){const d3=new Date(today());d3.setMonth(d3.getMonth()-3);return allBals.filter(b=>b.fecha>=d3.toISOString().slice(0,10));}
+    if(period==="custom"&&rD&&rH)return allBals.filter(b=>b.fecha>=rD&&b.fecha<=rH);
+    return allBals.filter(b=>b.fecha.slice(0,7)===rM);
+  }
+
+  // ── Export PDF (botón rápido, usa filtro actual) ───────────────────────
   async function exportPDF(){
-    if(!window.jspdf){const s=document.createElement("script");s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";await new Promise(r=>{s.onload=r;document.head.appendChild(s);});}
-    const{jsPDF}=window.jspdf;const doc=new jsPDF({orientation:"portrait",unit:"mm",format:"a4"});
-    const W=210,M=15;let y=20;
-    doc.setFillColor(10,10,20);doc.rect(0,0,W,40,"F");doc.setTextColor(255,255,255);doc.setFontSize(20);doc.setFont("helvetica","bold");
-    doc.text(m.n,M,18);doc.setFontSize(10);doc.setFont("helvetica","normal");doc.text(`Reporte: ${filtro} · ${today()}`,M,32);y=52;
-    doc.setTextColor(0,0,0);
-    const cards=[[`Utilidad`,fmtE(totUtil)],[`Premios`,fmtE(totPhys)],[`Caja`,fmtE(totCaja)],[`Promedio`,fmtE(avg)]];
-    const cw=(W-M*2-9)/4;
-    cards.forEach(([lbl,val],i)=>{const x=M+i*(cw+3);doc.setFillColor(245,245,250);doc.roundedRect(x,y,cw,18,2,2,"F");doc.setFontSize(7);doc.setTextColor(100,100,100);doc.text(lbl,x+3,y+6);doc.setFontSize(9);doc.setFont("helvetica","bold");doc.setTextColor(0,0,0);doc.text(val,x+3,y+14);});
-    y+=26;doc.setFontSize(11);doc.setFont("helvetica","bold");doc.text("Historial",M,y);y+=6;
-    bals.slice(0,25).forEach((b,row)=>{if(y>270){doc.addPage();y=20;}doc.setFillColor(row%2===0?250:244,row%2===0?250:244,row%2===0?250:252);doc.rect(M,y,W-M*2,6,"F");doc.setFontSize(8);doc.setFont("helvetica","normal");doc.setTextColor(0,0,0);doc.text(fmtF(b.fecha),M+2,y+4.5);doc.text(fmtE(b.util),M+40,y+4.5);doc.text(`Caja: ${fmtE((b.util||0)+(b.phys||0)-(b.pa||0))}`,M+88,y+4.5);y+=6;});
-    doc.save(`${m.n}_${today()}.pdf`);
+    setPdfLoading(true);
+    const label=getPeriodoLabel(filtro==="mes"?"mes":filtro==="semana"?"semana":filtro==="custom"?"custom":"mes",mes,desde,hasta);
+    await buildReportePDF({casinoId:cid,casinoName:m.n,color,bals,maqData,fmtEFn:fmtE,periodoLabel:label,returnBase64:false});
+    setPdfLoading(false);
+  }
+
+  // ── Genera PDF y envía por EmailJS ────────────────────────────────────
+  async function handleGenerarEnviar(){
+    if(!rEmail.trim()){alert("Ingresa un correo");return;}
+    const cfg=loadEmailCfg();
+    if(!emailCfgReady()){alert("Configura EmailJS en Ajustes (Service ID, Template ID, Public Key)");return;}
+    setEmailStatus("sending");
+    try{
+      const modalBals=getModalBals(rPeriod,rMes,rDesde,rHasta);
+      // Recalcular maqData para el período del modal
+      const byMaqM={};getMaqs(cid).forEach(mq=>{byMaqM[mq.id]={...mq,total:0,periods:0,history:[]};});
+      (cont[cid]||[]).filter(c=>modalBals.find(b=>b.fecha===c.f)).forEach(c=>{if(byMaqM[c.i]){byMaqM[c.i].total+=(c.u||0);byMaqM[c.i].periods++;}});
+      sheetsData.filter(r=>modalBals.find(b=>b.fecha===r[1])).forEach(r=>{const[maqId,,,,, u]=r;if(byMaqM[maqId]&&u!=null){byMaqM[maqId].total+=(u||0);byMaqM[maqId].periods++;}});
+      const maqDataM=Object.values(byMaqM);
+      const label=getPeriodoLabel(rPeriod,rMes,rDesde,rHasta);
+      const pdfBase64=await buildReportePDF({casinoId:cid,casinoName:m.n,color,bals:modalBals,maqData:maqDataM,fmtEFn:fmtE,periodoLabel:label,returnBase64:true});
+      // Extraer solo la parte base64 (sin el prefijo data:application/pdf;base64,)
+      const b64=pdfBase64.split(",")[1]||pdfBase64;
+      const totUtil2=modalBals.reduce((s,b)=>s+(b.util||0),0);
+      const totPhys2=modalBals.reduce((s,b)=>s+(b.phys||0),0);
+      const totCaja2=totUtil2+totPhys2-modalBals.reduce((s,b)=>s+(b.pa||0),0);
+      await emailjs.send(cfg.serviceId,cfg.templateId,{
+        to_email:rEmail.trim(),
+        subject:`Reporte ${m.n} — ${label}`,
+        casino_name:m.n,
+        period:label,
+        util_total:fmtE(totUtil2),
+        premios_total:fmtE(totPhys2),
+        caja_total:fmtE(totCaja2),
+        periodos:String(modalBals.length),
+        attachment:b64,
+        fecha_gen:new Date().toLocaleDateString("es-CO"),
+      },cfg.publicKey);
+      setEmailStatus("sent");
+      // ── Notificación ntfy.sh ──────────────────────────────────────────
+      try{
+        fetch("https://ntfy.sh",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({topic:"casino-santiago",title:"📊 Reporte enviado",message:`Reporte enviado a ${rEmail.trim()} — ${m.n} ${label}`,priority:"default",tags:["casino","reporte"]})});
+      }catch(ntfyErr){console.warn("ntfy error:",ntfyErr);}
+      setTimeout(()=>{setEmailStatus(null);setShowReportModal(false);},3000);
+    }catch(e){console.error("EmailJS error:",e);setEmailStatus("error");}
+  }
+
+  // ── Modal de reporte ──────────────────────────────────────────────────
+  function ReportModal(){
+    const inp2={width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:8,padding:"9px 11px",color:C.label,fontSize:14,boxSizing:"border-box",outline:"none",marginBottom:8};
+    const periods=[["mes","Este mes"],["mes_anterior","Mes anterior"],["tres_meses","Últimos 3 meses"],["semana","Últimos 7 días"],["custom","Rango personalizado"]];
+    return<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}onClick={e=>{if(e.target===e.currentTarget)setShowReportModal(false);}}>
+      <div className="anim-scaleIn"style={{background:C.bg2,borderRadius:22,padding:24,width:"100%",maxWidth:420,border:`1px solid ${C.sep}`,maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+          <div style={{fontSize:17,fontWeight:700,color:C.label}}>📊 Generar Reporte</div>
+          <button onClick={()=>setShowReportModal(false)}style={{background:"transparent",border:"none",color:C.label2,fontSize:20,cursor:"pointer",lineHeight:1}}>✕</button>
+        </div>
+        <div style={{fontSize:12,color:C.label2,marginBottom:6,fontWeight:600}}>PERÍODO</div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
+          {periods.map(([v,l])=><button key={v}onClick={()=>setRPeriod(v)}style={{background:rPeriod===v?`${color}22`:"transparent",border:`1px solid ${rPeriod===v?color:C.sep}`,borderRadius:10,padding:"8px 6px",color:rPeriod===v?color:C.label2,cursor:"pointer",fontSize:13,fontWeight:rPeriod===v?700:400,textAlign:"center"}}>{l}</button>)}
+        </div>
+        {rPeriod==="mes"&&<div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,background:C.fill3,borderRadius:10,padding:"8px 12px"}}>
+          <button onClick={()=>{const[y2,mo]=rMes.split("-");const pm=parseInt(mo)-1;setRMes(pm===0?`${parseInt(y2)-1}-12`:`${y2}-${String(pm).padStart(2,"0")}`);}}style={{background:"transparent",border:"none",color:C.label2,cursor:"pointer",fontSize:16}}>‹</button>
+          <span style={{flex:1,textAlign:"center",color:C.blue,fontWeight:600,fontSize:14}}>{["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][parseInt(rMes.split("-")[1])-1]} {rMes.split("-")[0]}</span>
+          <button onClick={()=>{const[y2,mo]=rMes.split("-");const nm=parseInt(mo)+1;setRMes(nm===13?`${parseInt(y2)+1}-01`:`${y2}-${String(nm).padStart(2,"0")}`);}}style={{background:"transparent",border:"none",color:C.label2,cursor:"pointer",fontSize:16}}>›</button>
+        </div>}
+        {rPeriod==="custom"&&<div style={{display:"flex",gap:10,marginBottom:12}}>
+          <div style={{flex:1}}><div style={{fontSize:11,color:C.label2,marginBottom:4}}>DESDE</div><input type="date"value={rDesde}onChange={e=>setRDesde(e.target.value)}style={{...inp2,marginBottom:0}}/></div>
+          <div style={{flex:1}}><div style={{fontSize:11,color:C.label2,marginBottom:4}}>HASTA</div><input type="date"value={rHasta}onChange={e=>setRHasta(e.target.value)}style={{...inp2,marginBottom:0}}/></div>
+        </div>}
+        <div style={{fontSize:12,color:C.label2,marginBottom:6,fontWeight:600,marginTop:4}}>CASINO</div>
+        <div style={{background:C.fill3,borderRadius:10,padding:"10px 12px",marginBottom:14,display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:8,height:8,borderRadius:4,background:color}}/>
+          <span style={{color:C.label,fontSize:14,fontWeight:600}}>{m.n}</span>
+          <span style={{color:C.label2,fontSize:12,marginLeft:"auto"}}>{bals.length} períodos</span>
+        </div>
+        <div style={{fontSize:12,color:C.label2,marginBottom:6,fontWeight:600}}>CORREO DESTINATARIO</div>
+        <input type="email"value={rEmail}onChange={e=>setREmail(e.target.value)}placeholder="correo@ejemplo.com"style={inp2}/>
+        {!emailCfgReady()&&<div style={{fontSize:11,color:C.orange,marginBottom:10,background:`${C.orange}12`,borderRadius:8,padding:"6px 10px"}}>⚠️ EmailJS no configurado. Ve a Ajustes → Email Reports para configurar antes de enviar.</div>}
+        {emailStatus==="sent"&&<div style={{fontSize:13,color:C.green,marginBottom:10,background:`${C.green}12`,borderRadius:8,padding:"8px 12px",textAlign:"center"}}>✅ Reporte enviado correctamente</div>}
+        {emailStatus==="error"&&<div style={{fontSize:13,color:C.red,marginBottom:10,background:`${C.red}12`,borderRadius:8,padding:"8px 12px",textAlign:"center"}}>❌ Error al enviar. Verifica configuración EmailJS</div>}
+        <div style={{display:"flex",gap:10,marginTop:4}}>
+          <button onClick={exportPDF}disabled={pdfLoading}style={{flex:1,background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:12,padding:"12px 6px",color:C.label,cursor:"pointer",fontSize:14,fontWeight:600}}>
+            {pdfLoading?"⏳ Generando...":"⬇️ Descargar PDF"}
+          </button>
+          <button onClick={handleGenerarEnviar}disabled={emailStatus==="sending"||!rEmail.trim()}style={{flex:1,background:emailStatus==="sending"?C.fill3:color,border:"none",borderRadius:12,padding:"12px 6px",color:emailStatus==="sending"?C.label2:"#000",cursor:"pointer",fontSize:14,fontWeight:700,opacity:(!rEmail.trim()||emailStatus==="sending")?0.5:1}}>
+            {emailStatus==="sending"?"📤 Enviando...":"📧 Generar y Enviar"}
+          </button>
+        </div>
+      </div>
+    </div>;
   }
 
   return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
     <style>{ANIM_CSS}</style>
+    {showReportModal&&<ReportModal/>}
     <Nav title="Reporte"sub={m.n}sy={sy}right={[
       {icon:"sync",fn:()=>{invalidateSheetsCaches(cid);setLiveBalance(null);setBalLoading(true);Promise.all([fetchSheetHist(cid).catch(()=>[]),fetchBalanceFromSheets(cid).catch(()=>null)]).then(([hist,bal])=>{setSheetsData(hist||[]);setLiveBalance(bal);setBalLoading(false);});}},{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
@@ -1244,6 +1508,12 @@ function Report({cid,cont}){
         </div>
         {totPA>0&&<div style={{...T.fn,color:C.yellow,marginTop:10,display:"flex",alignItems:"center",gap:4}}><Ico n="trophy"c={C.yellow}s={13}/>Premio Amor: {fmtE(totPA)}</div>}
       </div>
+
+      {/* Botón Enviar Reporte por Email */}
+      <button onClick={()=>{setREmail(loadEmailCfg().reportEmail||"");setShowReportModal(true);}}className="btn-press"style={{width:"100%",background:`linear-gradient(135deg,${color}22,${color}14)`,border:`1px solid ${color}44`,borderRadius:14,padding:"13px 16px",color:color,cursor:"pointer",fontSize:15,fontWeight:700,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,backdropFilter:"blur(10px)"}}>
+        <svg width="17"height="17"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+        Enviar Reporte por Email
+      </button>
 
       {/* BALANCE */}
       {vista==="balance"&&<Sec hdr={`${bals.length} períodos`}delay={.1}>
@@ -1727,6 +1997,11 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}
   const[sbUrl,setSbUrl]=useState(()=>localStorage.getItem("sb_url")||"");const[sbKey,setSbKey]=useState(()=>localStorage.getItem("sb_key")||"");const[sbSv,setSbSv]=useState(false);
   const[gdId,setGdId]=useState(()=>localStorage.getItem("gd_client_id")||"");const[gdFolder,setGdFolder]=useState(()=>localStorage.getItem("gd_folder_id")||"");const[gdSv,setGdSv]=useState(false);
   const[syncing,setSyncing]=useState(false);const[syncMsg,setSyncMsg]=useState("");
+  // EmailJS state
+  const ejCfg0=loadEmailCfg();
+  const[ejSvc,setEjSvc]=useState(ejCfg0.serviceId);const[ejTpl,setEjTpl]=useState(ejCfg0.templateId);
+  const[ejPub,setEjPub]=useState(ejCfg0.publicKey);const[ejMail,setEjMail]=useState(ejCfg0.reportEmail);
+  const[ejSv,setEjSv]=useState(false);
   function cambiarPin(){if(p1.length<4)return setPErr("Mínimo 4 dígitos");if(p1!==p2)return setPErr("No coinciden");savePin(user,p1);setChPin(false);setP1("");setP2("");setPErr("");alert("PIN actualizado ✓");}
   async function doSync(){setSyncing(true);const n=await sbSync();setSyncMsg(n>0?`✓ ${n} sincronizadas`:"Sin pendientes");setSyncing(false);}
   const inp={width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"9px 11px",color:C.label,...T.s,boxSizing:"border-box",outline:"none",marginBottom:8};
@@ -1782,6 +2057,19 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}
           <input value={gdId}onChange={e=>setGdId(e.target.value)}placeholder="xxx.apps.googleusercontent.com"style={inp}/>
           <input value={gdFolder}onChange={e=>setGdFolder(e.target.value)}placeholder="ID de carpeta raíz"style={inp}/>
           <button onClick={()=>{localStorage.setItem("gd_client_id",gdId);localStorage.setItem("gd_folder_id",gdFolder);setGdSv(true);setTimeout(()=>setGdSv(false),2000);}}style={{width:"100%",background:gdSv?C.green:C.teal,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#000",cursor:"pointer"}}>{gdSv?"✓ Guardado":"Guardar"}</button>
+        </div>
+      </Sec>
+      <Sec hdr="📧 Email Reports"delay={.22}>
+        <div style={{padding:"10px 12px"}}>
+          <div style={{...T.fn,color:C.label2,marginBottom:10}}>
+            Configura <a href="https://www.emailjs.com"target="_blank"rel="noreferrer"style={{color:C.blue}}>EmailJS</a> para enviar reportes PDF por correo. Necesitas: Service ID, Template ID y Public Key.
+          </div>
+          {emailCfgReady()&&<div style={{...T.fn,color:C.green,marginBottom:8,display:"flex",alignItems:"center",gap:4}}>✓ EmailJS configurado</div>}
+          <input value={ejSvc}onChange={e=>setEjSvc(e.target.value)}placeholder="Service ID (ej: service_abc123)"style={{...inp,fontFamily:"monospace",fontSize:12}}/>
+          <input value={ejTpl}onChange={e=>setEjTpl(e.target.value)}placeholder="Template ID (ej: template_xyz789)"style={{...inp,fontFamily:"monospace",fontSize:12}}/>
+          <input value={ejPub}onChange={e=>setEjPub(e.target.value)}placeholder="Public Key (ej: abcXYZ123456)"style={{...inp,fontFamily:"monospace",fontSize:12}}/>
+          <input value={ejMail}onChange={e=>setEjMail(e.target.value)}placeholder="Correo destinatario por defecto"type="email"style={inp}/>
+          <button onClick={()=>{saveEmailCfg({serviceId:ejSvc,templateId:ejTpl,publicKey:ejPub,reportEmail:ejMail});setEjSv(true);setTimeout(()=>setEjSv(false),2500);}}style={{width:"100%",background:ejSv?C.green:C.blue,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer"}}>{ejSv?"✓ Guardado":"Guardar configuración Email"}</button>
         </div>
       </Sec>
       <Sec hdr="Datos"delay={.25}>

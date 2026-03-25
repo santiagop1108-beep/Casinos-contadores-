@@ -8,7 +8,27 @@ Uso desde la terminal de VS Code (raíz del repo):
     python3 deploy.py --preview           # solo muestra qué cambió, no hace push
 """
 
-import subprocess, sys, os, datetime
+import subprocess, sys, os, datetime, urllib.request, json
+
+# ── Notificaciones ntfy.sh ────────────────────────────────────────────────────
+def notify_ntfy(title, message, priority="default", tags=None):
+    data = json.dumps({
+        "topic": "casino-santiago",
+        "title": title,
+        "message": message,
+        "priority": priority,
+        "tags": tags or []
+    }).encode()
+    req = urllib.request.Request(
+        "https://ntfy.sh",
+        data=data,
+        headers={"Content-Type": "application/json"}
+    )
+    try:
+        urllib.request.urlopen(req, timeout=5)
+        print("🔔 Notificación ntfy enviada.")
+    except Exception as e:
+        print(f"⚠️  ntfy error (no crítico): {e}")
 
 # ── Detectar raíz del repo automáticamente ───────────────────────────────────
 def repo_root():
@@ -72,6 +92,19 @@ try:
     subprocess.run(["git", "push"], check=True)
     print(f"\n✅ Listo. Vercel está deployando.")
     print(f"   Commit: {msg}")
+    deploy_time = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    notify_ntfy(
+        title="✅ Casinos Contadores — Deploy exitoso",
+        message=f"Deploy completado a las {deploy_time}.\nCommit: {msg}\nVercel: https://casinos-contadores.vercel.app",
+        priority="default",
+        tags=["casino", "deploy"]
+    )
 except subprocess.CalledProcessError as e:
     print(f"\n❌ Error en git: {e}")
+    notify_ntfy(
+        title="❌ Casinos Contadores — Error en deploy",
+        message=f"El deploy falló con el siguiente error:\n{e}",
+        priority="high",
+        tags=["casino", "error"]
+    )
     sys.exit(1)
