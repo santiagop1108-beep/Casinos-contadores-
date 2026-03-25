@@ -656,6 +656,12 @@ function Counters({cid,cont,setCont,user}){
   }
   const pullRef=useRef(null);const[pullDy,setPullDy]=useState(0);const[pullActive,setPullActive]=useState(false);
   function doPullRefresh(){invalidateSheetsCaches(cid);setBalLoading(true);setSheetsData([]);setLiveBalance(null);Promise.all([fetchSheetHist(cid).catch(()=>[]),fetchBalanceFromSheets(cid).catch(()=>null)]).then(([h,b])=>{setSheetsData(h||[]);setLiveBalance(b);setBalLoading(false);});}
+  const nWithUtil = mqs.filter(mq => prevU(mq) !== null).length;
+  const totalUtil = mqs.reduce((sum, mq) => {
+    const u = prevU(mq);
+    return sum + (u !== null ? u : 0);
+  }, 0);
+
   return<div ref={pullRef}onScroll={e=>setSy(e.target.scrollTop)}
     onTouchStart={e=>{pullRef.current._py=e.touches[0].clientY;}}
     onTouchMove={e=>{if((pullRef.current?.scrollTop||0)>2)return;const dy=e.touches[0].clientY-(pullRef.current._py||0);if(dy>0){setPullDy(Math.min(dy*.35,56));setPullActive(dy>70);}}}
