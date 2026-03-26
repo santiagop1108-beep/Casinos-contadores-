@@ -51,14 +51,8 @@ const D={
 };
 
 // ─── GOOGLE SHEETS LIVE DATA ─────────────────────────────────────────────────
-const GAPI_KEY="AIzaSyDKK-hguKhbuySCe39TG_lAIR04JiAd4DI";
-const SHEET_IDS={
-  vikingos:"1M5Gf83ajZHI1a6a6qUVVn2bNi7at-5ExB7iWCb22d-s",
-  playarica:"1jWPrRZPo5W_CPOC284QUOUeE5dc21HQ4VNa1HB3734w",
-  obrero:"16RPnUniy-zHcXy1s2A9gdq_vXjbrpxFXNQ91-yupT1U",
-  hugo:"1YW1y-xmiGBV51Ta5fqzlX06Hjwefs31GCq40zK01Hvc",
-  faraon:"1uW97FYebdr3-sjSHRebiYKCWaE1m5ZEeBzsrCGLTM6U",
-};
+// GAPI_KEY y SHEET_IDS viven en el servidor (api/sheets.js + Vercel env GAPI_KEY)
+// El frontend solo llama a /api/sheets — la key nunca se expone al cliente
 
 // Columnas exactas por máquina extraídas de las fórmulas del Balance
 // { cid: { maqNombre: { p: colIdx_premios, u: colIdx_utilidad } } }
@@ -74,9 +68,9 @@ const _sheetsCache={};
 const _sheetsCacheTime={};
 
 async function fetchSheetHistFallback(cid,mqs,cidColMap,resets){
-  // Parallel individual requests as fallback
+  // Fallback: peticiones individuales por máquina via proxy backend
   const maqResults=await Promise.all(mqs.map(async mq=>{
-    const url="https://sheets.googleapis.com/v4/spreadsheets/"+SHEET_IDS[cid]+"/values/"+encodeURIComponent(mq.nombre)+"!A:H?key="+GAPI_KEY;
+    const url="/api/sheets?type=range&cid="+cid+"&sheet="+encodeURIComponent(mq.nombre);
     try{
       const r=await fetch(url);if(!r.ok)return[];
       const data=await r.json();if(data.error)return[];
@@ -127,16 +121,14 @@ function processSheetRows(mq,rows,cidColMap,resets){
 async function fetchSheetHist(cid){
   if(META[cid]?.sim)return[];
   if(_sheetsCache[cid]&&_sheetsCacheTime[cid]&&(Date.now()-_sheetsCacheTime[cid])<120000)return _sheetsCache[cid];
-  const sheetId=SHEET_IDS[cid];
-  if(!sheetId)return[];
   const mqs=getMaqs(cid).filter(m=>!m.disabled);
   if(!mqs.length)return[];
   const cidColMap=COL_MAP[cid]||{};
   const resets=loadResets(cid);
 
-  // ONE single batchGet request for ALL machines — much faster and more reliable
-  const ranges=mqs.map(mq=>encodeURIComponent(mq.nombre)+"!A:H").join("&ranges=");
-  const url="https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values:batchGet?ranges="+ranges+"&key="+GAPI_KEY;
+  // ONE single batchGet request for ALL machines via proxy backend (GAPI_KEY en servidor)
+  const rangesArr=mqs.map(mq=>mq.nombre+"!A:H");
+  const url="/api/sheets?type=batchGet&cid="+cid+"&ranges="+encodeURIComponent(JSON.stringify(rangesArr));
 
   try{
     const r=await fetch(url);
@@ -238,7 +230,6 @@ async function fetchBalanceFromSheets(cid){
   if(META[cid]?.sim)return null;
   // Cache balance for 2 minutes to avoid repeat fetches on re-renders
   if(_balanceCache[cid]&&_balanceCacheTime[cid]&&(Date.now()-_balanceCacheTime[cid])<120000)return _balanceCache[cid];
-  const sheetId=SHEET_IDS[cid];if(!sheetId)return null;
   const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],playarica:[" Balance","Balance"],vikingos:["balance","Balance"]};
   const namesToTry=balNames[cid]||["Balance"];
 
@@ -246,7 +237,7 @@ async function fetchBalanceFromSheets(cid){
     try{
       let r=null;
       for(let attempt=0;attempt<2;attempt++){
-        try{r=await fetch("https://sheets.googleapis.com/v4/spreadsheets/"+sheetId+"/values/"+encodeURIComponent(rawName)+"!A:C?key="+GAPI_KEY);if(r.ok)break;}
+        try{r=await fetch("/api/sheets?type=balance&cid="+cid+"&sheet="+encodeURIComponent(rawName));if(r.ok)break;}
         catch(fe){if(attempt===1)throw fe;await new Promise(res=>setTimeout(res,500));}
       }
       if(!r||!r.ok)continue;
