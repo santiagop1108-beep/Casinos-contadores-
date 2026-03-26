@@ -36,7 +36,8 @@ const ANIM_CSS=`
 .fade-up-3{animation:fadeSlideUp .4s cubic-bezier(.4,0,.2,1) .19s both}
 .btn-press{-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation}
 .btn-press:active{transform:scale(.97);opacity:.9}
-.shimmer-bg{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.07) 50%,transparent 100%);background-size:200% 100%;animation:shimmer 1.6s ease infinite}
+.shimmer-bg{position:relative;overflow:hidden}
+.shimmer-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.12) 50%,transparent 100%);background-size:200% 100%;animation:shimmer 1.6s ease infinite}
 .tab-in{animation:slideTabIn .22s cubic-bezier(.4,0,.2,1) both}
 * {-webkit-tap-highlight-color:transparent}
 
@@ -2527,6 +2528,7 @@ export default function App(){
 
   const W={width:"100%",maxWidth:430,margin:"0 auto",height:"100dvh",overflow:"hidden",background:C.bg,boxShadow:"0 0 80px rgba(0,0,0,.6)"};
   useEffect(()=>{document.documentElement.setAttribute("data-theme",theme);},[theme]);
+  useEffect(()=>{const s=document.createElement("style");s.id="cc-anim";s.textContent=ANIM_CSS;document.head.appendChild(s);return()=>{document.getElementById("cc-anim")?.remove();};},[]);
   if(sc==="boot")return<div style={{...W,display:"flex",alignItems:"center",justifyContent:"center"}}><div style={{animation:"pulse 1s ease infinite"}}><Ico n="slot"c={C.indigo}s={52}/></div></div>;
   if(sc==="login")return<div style={{...W}}><Login onAuth={auth}/></div>;
   if(sc==="admin"&&user==="Santiago")return<div style={{...W}}><AdminPanel onBack={()=>setSc("home")}user={user}/></div>;
