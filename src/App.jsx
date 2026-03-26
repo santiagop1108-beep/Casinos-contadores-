@@ -203,7 +203,7 @@ function parseSheetDate(raw){
     if(!mon)return null;
     let year=nowY;
     if(m1[3]){year=parseInt(m1[3]);if(year<100)year+=2000;}
-    else if(mon>new Date().getMonth()+2)year--;
+    else if(mon>parseInt(today().slice(5,7))+1)year--;
     return year+"-"+String(mon).padStart(2,"0")+"-"+String(day).padStart(2,"0");
   }
   // "03/01" (dd/mm) or "03/01/2026" - Playa Rica
@@ -212,7 +212,7 @@ function parseSheetDate(raw){
     const day=parseInt(m2[1]),mon=parseInt(m2[2]);
     let year=nowY;
     if(m2[3]){year=parseInt(m2[3]);if(year<100)year+=2000;}
-    else if(mon>new Date().getMonth()+2)year--;
+    else if(mon>parseInt(today().slice(5,7))+1)year--;
     return year+"-"+String(mon).padStart(2,"0")+"-"+String(day).padStart(2,"0");
   }
   // ISO "2026-03-18"
@@ -641,7 +641,10 @@ async function sbSync(){if(!sbReady())return 0;const pending=loadPending();if(!p
 // ─── GOOGLE DRIVE ─────────────────────────────────────────────────────────────
 async function compressImage(file,maxW=1200,quality=0.72){return new Promise(resolve=>{const img=new Image();img.onload=()=>{const scale=Math.min(1,maxW/img.width);const w=Math.round(img.width*scale),h=Math.round(img.height*scale);const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);c.toBlob(b=>resolve(b),"image/jpeg",quality);};img.src=URL.createObjectURL(file);});}
 const GDClientId=()=>localStorage.getItem("gd_client_id")||"";const GDFolderId=()=>localStorage.getItem("gd_folder_id")||"";let gdToken=null;
-async function gdAuth(){return new Promise((resolve,reject)=>{const cid=GDClientId();if(!cid)return reject(new Error("Drive no configurado"));const w=window.open(`https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(cid)}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=https://www.googleapis.com/auth/drive.file&prompt=consent`,"gda","width=500,height=600");const t=setInterval(()=>{try{if(w.closed){clearInterval(t);return;}if(w.location.href.includes(window.location.origin)){const hash=w.location.hash;w.close();clearInterval(t);const token=new URLSearchParams(hash.slice(1)).get("access_token");token?(gdToken=token,resolve(token)):reject(new Error("Sin token"));}}catch{}},500);});}
+async function gdAuth(){return new Promise((resolve,reject)=>{const cid=GDClientId();if(!cid)return reject(new Error("Drive no configurado"));const w=window.open(`https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(cid)}&redirect_uri=${encodeURIComponent(window.location.origin)}&response_type=token&scope=https://www.googleapis.com/auth/drive.file&prompt=consent`,"gda","width=500,height=600");
+  // Timeout de 2 min para limpiar el interval si el usuario cierra el popup sin autenticar
+  const timeout=setTimeout(()=>{clearInterval(t);reject(new Error("Timeout de autenticación Drive"));},120000);
+  const t=setInterval(()=>{try{if(w.closed){clearInterval(t);clearTimeout(timeout);reject(new Error("Popup cerrado"));return;}if(w.location.href.includes(window.location.origin)){const hash=w.location.hash;w.close();clearInterval(t);clearTimeout(timeout);const token=new URLSearchParams(hash.slice(1)).get("access_token");token?(gdToken=token,resolve(token)):reject(new Error("Sin token"));}}catch{}},500);});}
 async function gdMkFolder(name,parent){if(!gdToken)await gdAuth();const q=encodeURIComponent(`name='${name}' and mimeType='application/vnd.google-apps.folder' and '${parent}' in parents and trashed=false`);const r=await fetch(`https://www.googleapis.com/drive/v3/files?q=${q}&fields=files(id)`,{headers:{Authorization:"Bearer "+gdToken}});const d=await r.json();if(d.files?.length)return d.files[0].id;const cr=await fetch("https://www.googleapis.com/drive/v3/files",{method:"POST",headers:{Authorization:"Bearer "+gdToken,"Content-Type":"application/json"},body:JSON.stringify({name,mimeType:"application/vnd.google-apps.folder",parents:[parent]})});return(await cr.json()).id;}
 async function gdUpload(blob,name,parent){if(!gdToken)await gdAuth();const form=new FormData();form.append("metadata",new Blob([JSON.stringify({name,parents:[parent]})],{type:"application/json"}));form.append("file",blob,name);const r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id",{method:"POST",headers:{Authorization:"Bearer "+gdToken},body:form});return r.json();}
 async function uploadPhoto(blob,casinoName,fecha,maqNombre){const root=GDFolderId();if(!root)return;const cf=await gdMkFolder(casinoName,root);const ff=await gdMkFolder(fecha,cf);await gdUpload(blob,`${maqNombre}_${fecha}.jpg`,ff);}
@@ -833,7 +836,7 @@ function Login({onAuth}){
           onChange={e=>{const v=e.target.value.slice(0,8);paso==="conf"?setPin2(v):setPin(v);}}
           onKeyDown={e=>e.key==="Enter"&&go()}placeholder="••••"autoFocus
           style={{width:"100%",background:"rgba(255,255,255,.06)",border:`1.5px solid ${err?C.red:C.sep}`,borderRadius:16,padding:"16px",color:C.label,...T.lg,fontSize:28,textAlign:"center",boxSizing:"border-box",outline:"none",marginBottom:12,letterSpacing:14,backdropFilter:"blur(10px)",transition:"border-color .2s"}}/>
-        {err&&<div style={{...T.fn,color:C.red,textAlign:"center",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6,animation:"fadeIn .2s ease"}}>
+        {err&&<div role="alert"style={{...T.fn,color:C.red,textAlign:"center",marginBottom:12,display:"flex",alignItems:"center",justifyContent:"center",gap:6,animation:"fadeIn .2s ease"}}>
           <Ico n="warning"c={C.red}s={14}/>{err}
         </div>}
         <button onClick={go}className="btn-press"style={{width:"100%",background:`linear-gradient(135deg,${col},${col}bb)`,border:"none",borderRadius:16,padding:"16px",...T.h,color:"#FFF",cursor:"pointer",boxShadow:`0 8px 24px ${col}44`,fontSize:16}}>
@@ -1010,7 +1013,7 @@ function Camera({cid,cont,setCont,apiKey}){
     const newItems=[];
     for(const file of Array.from(files)){const blob=await compressImage(file);newItems.push({file,blob,imgUrl:URL.createObjectURL(blob),status:"pending",result:null,maqId:"",eDrop:"",ePhys:"",eYield:"",err:null});}
     const startIdx=queue.length;setQueue(q=>[...q,...newItems]);
-    for(let i=0;i<newItems.length;i++)await analyzePhoto(newItems[i].blob,startIdx+i);
+    await Promise.allSettled(newItems.map((item,i)=>analyzePhoto(item.blob,startIdx+i)));
   }
   function upd(idx,field,val){setQueue(q=>q.map((x,i)=>i===idx?{...x,[field]:val}:x));}
   function remove(idx){setQueue(q=>q.filter((_,i)=>i!==idx));}
@@ -1345,16 +1348,19 @@ function Report({cid,cont}){
   const[liveBalance,setLiveBalance]=useState(null);
   const[balLoading,setBalLoading]=useState(true);
   useEffect(()=>{
+    let cancelled=false;
     setBalLoading(true);setSheetsData([]);setLiveBalance(null);
     Promise.all([
       fetchSheetHist(cid).catch(()=>[]),
       fetchBalanceFromSheets(cid).catch(()=>null)
     ]).then(([hist,bal])=>{
+      if(cancelled)return;
       setSheetsData(hist||[]);
       setLiveBalance(bal);
       setBalLoading(false);
-      if(bal&&bal.length){const last=[...bal].sort((a,b)=>b.fecha.localeCompare(a.fecha))[0];saveLog({action:"balance_loaded",target:cid,detail:last.fecha});}
+      if(bal&&bal.length){const sorted=[...bal].sort((a,b)=>b.fecha.localeCompare(a.fecha));if(sorted[0])saveLog({action:"balance_loaded",target:cid,detail:sorted[0].fecha});}
     });
+    return()=>{cancelled=true;};
   },[cid]);
 
   const usingFallback=!balLoading&&(!liveBalance||liveBalance.length===0);
@@ -1389,9 +1395,10 @@ function Report({cid,cont}){
       if(byMaq[c.i]){byMaq[c.i].total+=(c.u||0);byMaq[c.i].periods++;byMaq[c.i].history.push(c.u||0);}
     });
     // Sheets readings - apply same date filter
+    const todayS=today();
     const filteredSheets=sheetsData.filter(r=>{
       const fecha=r[1];
-      if(filtro==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);return fecha>=d7.toISOString().slice(0,10)&&fecha<=today();}
+      if(filtro==="semana"){const d7=new Date(todayS);d7.setDate(d7.getDate()-6);return fecha>=d7.toISOString().slice(0,10)&&fecha<=todayS;}
       if(filtro==="mes")return fecha.slice(0,7)===mes;
       if(filtro==="custom"&&desde&&hasta)return fecha>=desde&&fecha<=hasta;
       return true;
@@ -1532,8 +1539,8 @@ function Report({cid,cont}){
         </div>
         <div style={{fontSize:12,color:C.label2,marginBottom:6,fontWeight:600}}>CORREO DESTINATARIO</div>
         <input type="email"value={rEmail}onChange={e=>setREmail(e.target.value)}placeholder="correo@ejemplo.com"style={inp2}/>
-        {emailStatus==="sent"&&<div style={{fontSize:13,color:C.green,marginBottom:10,background:`${C.green}12`,borderRadius:8,padding:"8px 12px",textAlign:"center"}}>✅ Reporte enviado correctamente</div>}
-        {emailStatus==="error"&&<div style={{fontSize:13,color:C.red,marginBottom:10,background:`${C.red}12`,borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+        {emailStatus==="sent"&&<div role="status"style={{fontSize:13,color:C.green,marginBottom:10,background:`${C.green}12`,borderRadius:8,padding:"8px 12px",textAlign:"center"}}>✅ Reporte enviado correctamente</div>}
+        {emailStatus==="error"&&<div role="alert"style={{fontSize:13,color:C.red,marginBottom:10,background:`${C.red}12`,borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
           <span>❌ Error al enviar</span>
           <button onClick={handleGenerarEnviar}style={{background:C.red,border:"none",borderRadius:8,padding:"4px 10px",color:"#FFF",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Reintentar</button>
         </div>}
