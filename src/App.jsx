@@ -1,5 +1,4 @@
 import{useState,useEffect,useRef,useCallback,useMemo}from"react";
-import emailjs from'@emailjs/browser';
 
 // ─── CSS ANIMATIONS ───────────────────────────────────────────────────────────
 const ANIM_CSS=`
@@ -13,6 +12,8 @@ const ANIM_CSS=`
 @keyframes barGrow{from{transform:scaleY(0);transform-origin:bottom}to{transform:scaleY(1);transform-origin:bottom}}
 @keyframes lineDrawIn{from{stroke-dashoffset:1000}to{stroke-dashoffset:0}}
 @keyframes slideRight{from{transform:translateX(-100%)}to{transform:translateX(0)}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes orb{0%,100%{transform:scale(1) translate(0,0)}50%{transform:scale(1.08) translate(8px,-8px)}}
 .anim-fadeSlideUp{animation:fadeSlideUp .35s cubic-bezier(.4,0,.2,1) both}
 .anim-fadeIn{animation:fadeIn .25s ease both}
 .anim-scaleIn{animation:scaleIn .3s cubic-bezier(.4,0,.2,1) both}
@@ -337,17 +338,25 @@ const Ico=({n,c,s})=>(ICONS[n]?ICONS[n](c,s):<span style={{fontSize:s||18,color:
 // ─── UTILS ────────────────────────────────────────────────────────────────────
 const fmt=n=>{if(n==null||isNaN(n))return"—";const a=Math.abs(n),s=n<0?"-":"";if(a>=1e6)return s+"$"+(a/1e6).toFixed(1)+"M";if(a>=1e3)return s+"$"+(a/1e3).toFixed(0)+"K";return s+"$"+a.toLocaleString("es-CO");};
 const fmtE=n=>{if(n==null||isNaN(n))return"—";const s=n<0?"-":"";return s+"$"+Math.abs(Math.round(n)).toLocaleString("es-CO");};
-const today=()=>{const n=new Date();return n.getFullYear()+"-"+String(n.getMonth()+1).padStart(2,"0")+"-"+String(n.getDate()).padStart(2,"0");};
+const today=()=>new Date(Date.now()-5*3600000).toISOString().slice(0,10);
 const MESES=["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
 const fmtF=f=>f?`${f.slice(8)}-${MESES[parseInt(f.slice(5,7))-1]}`:"—";
 const maqC=(f,C)=>f===50?C.purple:f===10?C.blue:C.orange;
 const maqIcon=n=>{const l=(n||"").toLowerCase();if(l.includes("poker"))return"poker";return"slot";};
 
 // ─── PERSISTENCE ─────────────────────────────────────────────────────────────
+// Mantener enc/dec solo para migración de PINs legacy
 const enc=(s,k)=>{let o="";for(let i=0;i<s.length;i++)o+=String.fromCharCode(s.charCodeAt(i)^k.charCodeAt(i%k.length));return btoa(o);};
 const dec=(b,k)=>{try{const s=atob(b);let o="";for(let i=0;i<s.length;i++)o+=String.fromCharCode(s.charCodeAt(i)^k.charCodeAt(i%k.length));return JSON.parse(o);}catch{return null;}};
-const savePin=(u,pin)=>localStorage.setItem("cp_"+u,enc(JSON.stringify({ok:1,u}),u+":"+pin));
-const checkPin=(u,pin)=>{const s=localStorage.getItem("cp_"+u);if(!s)return false;const d=dec(s,u+":"+pin);return d?.ok===1;};
+async function hashPin(u,pin){const d=new TextEncoder().encode(`${u}:${pin}:cc2025`);const b=await crypto.subtle.digest('SHA-256',d);return btoa(String.fromCharCode(...new Uint8Array(b)));}
+async function savePin(u,pin){localStorage.setItem("cp_"+u,"sha256:"+await hashPin(u,pin));}
+async function checkPin(u,pin){
+  const s=localStorage.getItem("cp_"+u);if(!s)return false;
+  if(s.startsWith("sha256:"))return s==="sha256:"+await hashPin(u,pin);
+  // Migración automática desde XOR legacy
+  const d=dec(s,u+":"+pin);if(d?.ok===1){await savePin(u,pin);return true;}
+  return false;
+}
 const saveApiKey=k=>localStorage.setItem("cc_ak",k);
 const loadApiKey=()=>localStorage.getItem("cc_ak")||"";
 const saveCont=data=>{try{localStorage.setItem("cc_v2",JSON.stringify(data));}catch{}};
@@ -361,11 +370,10 @@ const TIMEOUT_KEY="cc_timeout";
 function saveTimeouts(t){localStorage.setItem(TIMEOUT_KEY,JSON.stringify(t));}
 function loadTimeouts(){try{return JSON.parse(localStorage.getItem(TIMEOUT_KEY)||"{}");}catch{return{};}}
 
-// ─── EMAILJS CONFIG ───────────────────────────────────────────────────────────
-const EJ_KEYS={svc:"ej_service_id",tpl:"ej_template_id",pub:"ej_public_key",email:"ej_report_email"};
-function loadEmailCfg(){return{serviceId:localStorage.getItem(EJ_KEYS.svc)||"",templateId:localStorage.getItem(EJ_KEYS.tpl)||"",publicKey:localStorage.getItem(EJ_KEYS.pub)||"",reportEmail:localStorage.getItem(EJ_KEYS.email)||""};}
-function saveEmailCfg(cfg){Object.entries({[EJ_KEYS.svc]:cfg.serviceId,[EJ_KEYS.tpl]:cfg.templateId,[EJ_KEYS.pub]:cfg.publicKey,[EJ_KEYS.email]:cfg.reportEmail}).forEach(([k,v])=>localStorage.setItem(k,v||""));}
-function emailCfgReady(){const c=loadEmailCfg();return!!(c.serviceId&&c.templateId&&c.publicKey);}
+// ─── EMAIL CONFIG (Resend via Vercel API) ────────────────────────────────────
+function loadDefaultEmail(){return localStorage.getItem("report_email")||"";}
+function saveDefaultEmail(e){localStorage.setItem("report_email",e||"");}
+function emailCfgReady(){return true;} // La API key de Resend vive en Vercel env vars
 
 // ─── PDF GENERATOR ────────────────────────────────────────────────────────────
 // Carga jsPDF dinámicamente (CDN) y retorna la clase
@@ -735,11 +743,11 @@ function Login({onAuth}){
 
   function triggerShake(){setShake(true);setTimeout(()=>setShake(false),500);}
 
-  function go(){
+  async function go(){
     setErr("");
     if(paso==="new"){if(pin.length<4)return setErr("Mínimo 4 dígitos");return setPaso("conf");}
-    if(paso==="conf"){if(pin!==pin2){setErr("PINs no coinciden");triggerShake();return;}savePin(user,pin);onAuth(user);return;}
-    if(paso==="in"){if(checkPin(user,pin)){onAuth(user);}else{saveLog({action:"login_fail",target:user});setErr("PIN incorrecto");triggerShake();setPin("");}}
+    if(paso==="conf"){if(pin!==pin2){setErr("PINs no coinciden");triggerShake();return;}await savePin(user,pin);onAuth(user);return;}
+    if(paso==="in"){if(await checkPin(user,pin)){onAuth(user);}else{saveLog({action:"login_fail",target:user});setErr("PIN incorrecto");triggerShake();setPin("");}}
   }
 
   async function doFaceId(){setFL(true);setErr("");try{if(!hasFaceId(user)){await registerFaceId(user);onAuth(user);}else{await authFaceId(user);onAuth(user);}}catch(e){setErr(e.message||"Face ID falló");}setFL(false);}
@@ -809,8 +817,12 @@ function Login({onAuth}){
         </div>
         {/* Face ID */}
         {paso==="in"&&hasFaceId(user)&&<button onClick={doFaceId}disabled={faceLoading}className="btn-press"
-          style={{width:"100%",background:`${C.blue}12`,border:`1px solid ${C.blue}33`,borderRadius:16,padding:"14px",marginBottom:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,backdropFilter:"blur(10px)"}}>
-          <Ico n="faceid"c={C.blue}s={28}/><span style={{...T.h,color:C.blue}}>{faceLoading?"Verificando...":"Entrar con Face ID"}</span>
+          style={{width:"100%",background:faceLoading?`${C.blue}08`:`${C.blue}12`,border:`1px solid ${faceLoading?C.blue:C.blue}33`,borderRadius:16,padding:"14px",marginBottom:16,cursor:faceLoading?"default":"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:10,backdropFilter:"blur(10px)",transition:"all .2s"}}>
+          <div style={{position:"relative",display:"flex",alignItems:"center",justifyContent:"center"}}>
+            <Ico n="faceid"c={C.blue}s={28}/>
+            {faceLoading&&<div style={{position:"absolute",inset:-4,borderRadius:18,border:`2px solid ${C.blue}`,borderTopColor:"transparent",animation:"spin .8s linear infinite"}}/>}
+          </div>
+          <span style={{...T.h,color:C.blue}}>{faceLoading?"Verificando con Face ID...":"Entrar con Face ID"}</span>
         </button>}
         {/* PIN dots */}
         <div style={{display:"flex",justifyContent:"center",gap:14,marginBottom:18,animation:shake?"shake .4s ease":"none"}}>
@@ -1281,11 +1293,11 @@ function ChartLinea({chartPts,C,color,bals}){
 function ChartMaquinas({sheetsData,filtro,mes,desde,hasta,color,C,cid}){
   // Aggregate by machine from sheetsData
   const maqMap={};
-  const now=new Date();const today=now.getFullYear()+"-"+String(now.getMonth()+1).padStart(2,"0")+"-"+String(now.getDate()).padStart(2,"0");
+  const todayStr=today();
   sheetsData.forEach(([maqId,fecha,,,,utilidad,])=>{
     let ok=false;
     if(filtro==="todo")ok=true;
-    else if(filtro==="semana"){const d7=new Date();d7.setDate(d7.getDate()-6);ok=fecha>=d7.toISOString().slice(0,10)&&fecha<=today;}
+    else if(filtro==="semana"){const d7=new Date(todayStr);d7.setDate(d7.getDate()-6);ok=fecha>=d7.toISOString().slice(0,10)&&fecha<=todayStr;}
     else if(filtro==="mes")ok=fecha.slice(0,7)===mes;
     else if(filtro==="custom")ok=(!desde||fecha>=desde)&&(!hasta||fecha<=hasta);
     if(!ok||utilidad==null)return;
@@ -1326,7 +1338,7 @@ function Report({cid,cont}){
   const[rPeriod,setRPeriod]=useState("mes");
   const[rMes,setRMes]=useState(today().slice(0,7));
   const[rDesde,setRDesde]=useState("");const[rHasta,setRHasta]=useState("");
-  const[rEmail,setREmail]=useState(()=>loadEmailCfg().reportEmail||"");
+  const[rEmail,setREmail]=useState(()=>loadDefaultEmail()||"");
   const[emailStatus,setEmailStatus]=useState(null); // null|'sending'|'sent'|'error'
   const[pdfLoading,setPdfLoading]=useState(false);
   const[sheetsData,setSheetsData]=useState([]);
@@ -1463,45 +1475,28 @@ function Report({cid,cont}){
     setPdfLoading(false);
   }
 
-  // ── Genera PDF y envía por EmailJS ────────────────────────────────────
+  // ── Genera HTML y envía por Resend (via /api/send-email) ──────────────
   async function handleGenerarEnviar(){
     if(!rEmail.trim()){alert("Ingresa un correo");return;}
-    const cfg=loadEmailCfg();
-    if(!emailCfgReady()){alert("Configura EmailJS en Ajustes (Service ID, Template ID, Public Key)");return;}
     setEmailStatus("sending");
     try{
       const modalBals=getModalBals(rPeriod,rMes,rDesde,rHasta);
-      // Recalcular maqData para el período del modal
       const byMaqM={};getMaqs(cid).forEach(mq=>{byMaqM[mq.id]={...mq,total:0,periods:0,history:[]};});
       (cont[cid]||[]).filter(c=>modalBals.find(b=>b.fecha===c.f)).forEach(c=>{if(byMaqM[c.i]){byMaqM[c.i].total+=(c.u||0);byMaqM[c.i].periods++;}});
       sheetsData.filter(r=>modalBals.find(b=>b.fecha===r[1])).forEach(r=>{const[maqId,,,,, u]=r;if(byMaqM[maqId]&&u!=null){byMaqM[maqId].total+=(u||0);byMaqM[maqId].periods++;}});
       const maqDataM=Object.values(byMaqM);
       const label=getPeriodoLabel(rPeriod,rMes,rDesde,rHasta);
-      // Generar HTML del email
       const htmlContent=buildEmailHTML({casinoName:m.n,color,bals:modalBals,maqData:maqDataM,periodoLabel:label,fmtEFn:fmtE});
-      console.log("HTML length:", htmlContent.length);
-      const totUtil2=modalBals.reduce((s,b)=>s+(b.util||0),0);
-      const totPhys2=modalBals.reduce((s,b)=>s+(b.phys||0),0);
-      const totCaja2=totUtil2+totPhys2-modalBals.reduce((s,b)=>s+(b.pa||0),0);
-      await emailjs.send(cfg.serviceId,cfg.templateId,{
-        to_email:rEmail.trim(),
-        subject:`Reporte ${m.n} — ${label}`,
-        casino_name:m.n,
-        period:label,
-        util_total:fmtE(totUtil2),
-        premios_total:fmtE(totPhys2),
-        caja_total:fmtE(totCaja2),
-        periodos:String(modalBals.length),
-        html_content:htmlContent,
-        fecha_gen:new Date().toLocaleDateString("es-CO"),
-      },cfg.publicKey);
+      const r=await fetch("/api/send-email",{
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({to:rEmail.trim(),subject:`Reporte ${m.n} — ${label}`,html:htmlContent})
+      });
+      if(!r.ok){const err=await r.json();throw new Error(err.error||"Error del servidor");}
       setEmailStatus("sent");
-      // ── Notificación ntfy.sh ──────────────────────────────────────────
-      try{
-        fetch("https://ntfy.sh",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({topic:"casino-santiago",title:"📊 Reporte enviado",message:`Reporte enviado a ${rEmail.trim()} — ${m.n} ${label}`,priority:"default",tags:["casino","reporte"]})});
-      }catch(ntfyErr){console.warn("ntfy error:",ntfyErr);}
+      try{fetch("https://ntfy.sh",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({topic:"casino-santiago",title:"📊 Reporte enviado",message:`Reporte enviado a ${rEmail.trim()} — ${m.n} ${label}`,priority:"default",tags:["casino","reporte"]})});}catch{}
       setTimeout(()=>{setEmailStatus(null);setShowReportModal(false);},3000);
-    }catch(e){console.error("EmailJS error:",e);setEmailStatus("error");}
+    }catch(e){console.error("Email error:",e);setEmailStatus("error");}
   }
 
   // ── Modal de reporte ──────────────────────────────────────────────────
@@ -1537,9 +1532,11 @@ function Report({cid,cont}){
         </div>
         <div style={{fontSize:12,color:C.label2,marginBottom:6,fontWeight:600}}>CORREO DESTINATARIO</div>
         <input type="email"value={rEmail}onChange={e=>setREmail(e.target.value)}placeholder="correo@ejemplo.com"style={inp2}/>
-        {!emailCfgReady()&&<div style={{fontSize:11,color:C.orange,marginBottom:10,background:`${C.orange}12`,borderRadius:8,padding:"6px 10px"}}>⚠️ EmailJS no configurado. Ve a Ajustes → Email Reports para configurar antes de enviar.</div>}
         {emailStatus==="sent"&&<div style={{fontSize:13,color:C.green,marginBottom:10,background:`${C.green}12`,borderRadius:8,padding:"8px 12px",textAlign:"center"}}>✅ Reporte enviado correctamente</div>}
-        {emailStatus==="error"&&<div style={{fontSize:13,color:C.red,marginBottom:10,background:`${C.red}12`,borderRadius:8,padding:"8px 12px",textAlign:"center"}}>❌ Error al enviar. Verifica configuración EmailJS</div>}
+        {emailStatus==="error"&&<div style={{fontSize:13,color:C.red,marginBottom:10,background:`${C.red}12`,borderRadius:8,padding:"8px 12px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:8}}>
+          <span>❌ Error al enviar</span>
+          <button onClick={handleGenerarEnviar}style={{background:C.red,border:"none",borderRadius:8,padding:"4px 10px",color:"#FFF",cursor:"pointer",fontSize:12,fontWeight:700,flexShrink:0}}>Reintentar</button>
+        </div>}
         <div style={{display:"flex",gap:10,marginTop:4}}>
           <button onClick={exportPDF}disabled={pdfLoading}style={{flex:1,background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:12,padding:"12px 6px",color:C.label,cursor:"pointer",fontSize:14,fontWeight:600}}>
             {pdfLoading?"⏳ Generando...":"⬇️ Descargar PDF"}
@@ -1573,7 +1570,17 @@ function Report({cid,cont}){
       </div>}
 
       {/* KPI Cards */}
-      <div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:18,padding:18,marginBottom:14,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .35s ease both"}}>
+      {balLoading&&bals.length===0&&<div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:18,padding:18,marginBottom:14,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .35s ease both"}}>
+        <div style={{background:C.fill3,borderRadius:8,height:11,width:"55%",marginBottom:14,animation:"pulse 1.5s ease infinite"}}/>
+        <div style={{background:C.fill3,borderRadius:10,height:36,width:"70%",marginBottom:18,animation:"pulse 1.5s ease infinite"}}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+          {[0,1,2].map(i=><div key={i}style={{background:C.fill4,borderRadius:12,padding:"12px 10px"}}>
+            <div style={{background:C.fill3,borderRadius:6,height:9,width:"60%",marginBottom:8,animation:"pulse 1.5s ease infinite"}}/>
+            <div style={{background:C.fill3,borderRadius:6,height:16,width:"80%",animation:"pulse 1.5s ease infinite"}}/>
+          </div>)}
+        </div>
+      </div>}
+      <div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:18,padding:18,marginBottom:14,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .35s ease both",display:balLoading&&bals.length===0?"none":"block"}}>
         <div style={{...T.cap,color:C.label2,marginBottom:4,letterSpacing:1}}>UTILIDAD TOTAL · {bals.length} PERÍODOS</div>
         <AnimNumber value={totUtil}style={{...T.lg,color:C.label,fontSize:36,display:"block",marginBottom:14}}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
@@ -1587,7 +1594,7 @@ function Report({cid,cont}){
       </div>
 
       {/* Botón Enviar Reporte por Email */}
-      <button onClick={()=>{setREmail(loadEmailCfg().reportEmail||"");setShowReportModal(true);}}className="btn-press"style={{width:"100%",background:`linear-gradient(135deg,${color}22,${color}14)`,border:`1px solid ${color}44`,borderRadius:14,padding:"13px 16px",color:color,cursor:"pointer",fontSize:15,fontWeight:700,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,backdropFilter:"blur(10px)"}}>
+      <button onClick={()=>{setREmail(loadDefaultEmail()||"");setShowReportModal(true);}}className="btn-press"style={{width:"100%",background:`linear-gradient(135deg,${color}22,${color}14)`,border:`1px solid ${color}44`,borderRadius:14,padding:"13px 16px",color:color,cursor:"pointer",fontSize:15,fontWeight:700,marginBottom:14,display:"flex",alignItems:"center",justifyContent:"center",gap:8,backdropFilter:"blur(10px)"}}>
         <svg width="17"height="17"viewBox="0 0 24 24"fill="none"stroke="currentColor"strokeWidth="2"strokeLinecap="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
         Enviar Reporte por Email
       </button>
@@ -2074,12 +2081,10 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}
   const[sbUrl,setSbUrl]=useState(()=>localStorage.getItem("sb_url")||"");const[sbKey,setSbKey]=useState(()=>localStorage.getItem("sb_key")||"");const[sbSv,setSbSv]=useState(false);
   const[gdId,setGdId]=useState(()=>localStorage.getItem("gd_client_id")||"");const[gdFolder,setGdFolder]=useState(()=>localStorage.getItem("gd_folder_id")||"");const[gdSv,setGdSv]=useState(false);
   const[syncing,setSyncing]=useState(false);const[syncMsg,setSyncMsg]=useState("");
-  // EmailJS state
-  const ejCfg0=loadEmailCfg();
-  const[ejSvc,setEjSvc]=useState(ejCfg0.serviceId);const[ejTpl,setEjTpl]=useState(ejCfg0.templateId);
-  const[ejPub,setEjPub]=useState(ejCfg0.publicKey);const[ejMail,setEjMail]=useState(ejCfg0.reportEmail);
+  // Email config state
+  const[ejMail,setEjMail]=useState(()=>loadDefaultEmail());
   const[ejSv,setEjSv]=useState(false);
-  function cambiarPin(){if(p1.length<4)return setPErr("Mínimo 4 dígitos");if(p1!==p2)return setPErr("No coinciden");savePin(user,p1);setChPin(false);setP1("");setP2("");setPErr("");alert("PIN actualizado ✓");}
+  async function cambiarPin(){if(p1.length<4)return setPErr("Mínimo 4 dígitos");if(p1!==p2)return setPErr("No coinciden");await savePin(user,p1);setChPin(false);setP1("");setP2("");setPErr("");alert("PIN actualizado ✓");}
   async function doSync(){setSyncing(true);const n=await sbSync();setSyncMsg(n>0?`✓ ${n} sincronizadas`:"Sin pendientes");setSyncing(false);}
   const inp={width:"100%",background:C.fill3,border:"none",borderRadius:8,padding:"9px 11px",color:C.label,...T.s,boxSizing:"border-box",outline:"none",marginBottom:8};
   return<div style={{height:"100dvh",overflowY:"auto",background:C.bg}}>
@@ -2139,14 +2144,12 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}
       <Sec hdr="📧 Email Reports"delay={.22}>
         <div style={{padding:"10px 12px"}}>
           <div style={{...T.fn,color:C.label2,marginBottom:10}}>
-            Configura <a href="https://www.emailjs.com"target="_blank"rel="noreferrer"style={{color:C.blue}}>EmailJS</a> para enviar reportes PDF por correo. Necesitas: Service ID, Template ID y Public Key.
+            Los reportes se envían via <strong style={{color:C.label}}>Resend</strong>. Agrega <code style={{background:C.fill3,borderRadius:4,padding:"1px 5px",fontSize:11}}>RESEND_API_KEY</code> en Vercel → Settings → Environment Variables para activar el envío a cualquier correo.
           </div>
-          {emailCfgReady()&&<div style={{...T.fn,color:C.green,marginBottom:8,display:"flex",alignItems:"center",gap:4}}>✓ EmailJS configurado</div>}
-          <input value={ejSvc}onChange={e=>setEjSvc(e.target.value)}placeholder="Service ID (ej: service_abc123)"style={{...inp,fontFamily:"monospace",fontSize:12}}/>
-          <input value={ejTpl}onChange={e=>setEjTpl(e.target.value)}placeholder="Template ID (ej: template_xyz789)"style={{...inp,fontFamily:"monospace",fontSize:12}}/>
-          <input value={ejPub}onChange={e=>setEjPub(e.target.value)}placeholder="Public Key (ej: abcXYZ123456)"style={{...inp,fontFamily:"monospace",fontSize:12}}/>
-          <input value={ejMail}onChange={e=>setEjMail(e.target.value)}placeholder="Correo destinatario por defecto"type="email"style={inp}/>
-          <button onClick={()=>{saveEmailCfg({serviceId:ejSvc,templateId:ejTpl,publicKey:ejPub,reportEmail:ejMail});setEjSv(true);setTimeout(()=>setEjSv(false),2500);}}style={{width:"100%",background:ejSv?C.green:C.blue,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer"}}>{ejSv?"✓ Guardado":"Guardar configuración Email"}</button>
+          <div style={{...T.fn,color:C.green,marginBottom:10,display:"flex",alignItems:"center",gap:6,background:`${C.green}12`,borderRadius:8,padding:"6px 10px"}}>✓ Sistema listo · Sin restricciones de destinatario</div>
+          <div style={{...T.fn,color:C.label2,marginBottom:6}}>Correo por defecto:</div>
+          <input value={ejMail}onChange={e=>setEjMail(e.target.value)}placeholder="correo@ejemplo.com"type="email"style={inp}/>
+          <button onClick={()=>{saveDefaultEmail(ejMail);setEjSv(true);setTimeout(()=>setEjSv(false),2500);}}style={{width:"100%",background:ejSv?C.green:C.blue,border:"none",borderRadius:10,padding:"11px",...T.h,color:"#FFF",cursor:"pointer"}}>{ejSv?"✓ Guardado":"Guardar correo por defecto"}</button>
         </div>
       </Sec>
       <Sec hdr="Datos"delay={.25}>
