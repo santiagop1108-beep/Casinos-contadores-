@@ -1505,10 +1505,12 @@ function Report({cid,cont}){
   }
 
   // ── Modal de reporte ──────────────────────────────────────────────────
-  function ReportModal(){
-    const inp2={width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:8,padding:"9px 11px",color:C.label,fontSize:14,boxSizing:"border-box",outline:"none",marginBottom:8};
-    const periods=[["mes","Este mes"],["mes_anterior","Mes anterior"],["tres_meses","Últimos 3 meses"],["semana","Últimos 7 días"],["custom","Rango personalizado"]];
-    return<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}onClick={e=>{if(e.target===e.currentTarget)setShowReportModal(false);}}>
+  const inp2={width:"100%",background:C.fill3,border:`1px solid ${C.sep}`,borderRadius:8,padding:"9px 11px",color:C.label,fontSize:14,boxSizing:"border-box",outline:"none",marginBottom:8};
+  const rModalPeriods=[["mes","Este mes"],["mes_anterior","Mes anterior"],["tres_meses","Últimos 3 meses"],["semana","Últimos 7 días"],["custom","Rango personalizado"]];
+
+  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
+    <style>{ANIM_CSS}</style>
+    {showReportModal&&<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",padding:16}}onClick={e=>{if(e.target===e.currentTarget)setShowReportModal(false);}}>
       <div className="anim-scaleIn"style={{background:C.bg2,borderRadius:22,padding:24,width:"100%",maxWidth:420,border:`1px solid ${C.sep}`,maxHeight:"90vh",overflowY:"auto"}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
           <div style={{fontSize:17,fontWeight:700,color:C.label}}>📊 Generar Reporte</div>
@@ -1516,7 +1518,7 @@ function Report({cid,cont}){
         </div>
         <div style={{fontSize:12,color:C.label2,marginBottom:6,fontWeight:600}}>PERÍODO</div>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:6,marginBottom:12}}>
-          {periods.map(([v,l])=><button key={v}onClick={()=>setRPeriod(v)}style={{background:rPeriod===v?`${color}22`:"transparent",border:`1px solid ${rPeriod===v?color:C.sep}`,borderRadius:10,padding:"8px 6px",color:rPeriod===v?color:C.label2,cursor:"pointer",fontSize:13,fontWeight:rPeriod===v?700:400,textAlign:"center"}}>{l}</button>)}
+          {rModalPeriods.map(([v,l])=><button key={v}onClick={()=>setRPeriod(v)}style={{background:rPeriod===v?`${color}22`:"transparent",border:`1px solid ${rPeriod===v?color:C.sep}`,borderRadius:10,padding:"8px 6px",color:rPeriod===v?color:C.label2,cursor:"pointer",fontSize:13,fontWeight:rPeriod===v?700:400,textAlign:"center"}}>{l}</button>)}
         </div>
         {rPeriod==="mes"&&<div style={{display:"flex",gap:8,alignItems:"center",marginBottom:12,background:C.fill3,borderRadius:10,padding:"8px 12px"}}>
           <button onClick={()=>{const[y2,mo]=rMes.split("-");const pm=parseInt(mo)-1;setRMes(pm===0?`${parseInt(y2)-1}-12`:`${y2}-${String(pm).padStart(2,"0")}`);}}style={{background:"transparent",border:"none",color:C.label2,cursor:"pointer",fontSize:16}}>‹</button>
@@ -1547,12 +1549,7 @@ function Report({cid,cont}){
           </button>
         </div>
       </div>
-    </div>;
-  }
-
-  return<div onScroll={e=>setSy(e.target.scrollTop)}style={{height:"100%",overflowY:"auto",WebkitOverflowScrolling:"touch"}}>
-    <style>{ANIM_CSS}</style>
-    {showReportModal&&<ReportModal/>}
+    </div>}
     <Nav title="Reporte"sub={m.n}sy={sy}right={[
       {icon:"sync",fn:()=>{invalidateSheetsCaches(cid);setLiveBalance(null);setBalLoading(true);Promise.all([fetchSheetHist(cid).catch(()=>[]),fetchBalanceFromSheets(cid).catch(()=>null)]).then(([hist,bal])=>{setSheetsData(hist||[]);setLiveBalance(bal);setBalLoading(false);});}},{icon:"excel",fn:exportExcel},{icon:"pdf",fn:exportPDF}]}/>
     <div style={{padding:"0 14px",paddingBottom:100}}>
