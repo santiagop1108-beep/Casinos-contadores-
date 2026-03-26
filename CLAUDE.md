@@ -144,7 +144,7 @@ Playa Rica Multi: premios=F, util=G — fechas dd/mm
 | `cc_pending` | Cola Supabase (offline sync) |
 | `cc_access_log` | Log de accesos (max 200) |
 | `cc_timeout` | Timeouts por usuario |
-| `cp_<user>` | PIN cifrado (XOR+btoa) |
+| `cp_<user>` | PIN — formato `sha256:<hash>` (SHA-256 via crypto.subtle). Migración auto desde legacy XOR en primer login exitoso |
 | `faceid_devs_<user>` | Dispositivos Face ID |
 | `app_theme` | dark / light |
 | `sb_url` / `sb_key` | Credenciales Supabase |
@@ -177,11 +177,14 @@ Playa Rica Multi: premios=F, util=G — fechas dd/mm
 
 ---
 
-## Email (EmailJS)
+## Email (Resend via Vercel API Route)
 
-- Configurado via Settings → Email Reports (Service ID, Template ID, Public Key)
-- En el template de EmailJS, el campo "To Email" debe ser `{{to_email}}` para enviar a destinatarios dinamicos
-- Plan gratuito de EmailJS solo permite enviar a correos verificados — considerar migrar a Resend + Supabase Edge Function
+- Endpoint: `api/send-email.js` (Vercel serverless function)
+- Requiere variable de entorno `RESEND_API_KEY` en Vercel → Settings → Environment Variables
+- Sin restricciones de destinatario (cualquier correo)
+- El correo por defecto se guarda en localStorage con key `report_email` (via `saveDefaultEmail`)
+- Frontend llama `fetch("/api/send-email", {method:"POST", body: {to, subject, html}})`
+- **Sin EmailJS** — el import fue removido completamente
 
 ---
 
@@ -191,5 +194,7 @@ Playa Rica Multi: premios=F, util=G — fechas dd/mm
 - [ ] Publicar Sheets en la web — para badge Live en todos los casinos
 - [ ] Pipeline OCR→Sheets — `writeOCRToSheets()` preparada, requiere OAuth2
 - [ ] WhatsApp notifications — notificar a Santiago al reiniciarse sesion
-- [ ] Migrar envio de email de EmailJS a Resend + Supabase Edge Function
-- [ ] Reemplazar cifrado de PIN (XOR) por `crypto.subtle` (PBKDF2)
+- [x] Email migrado a Resend + Vercel API Route (`api/send-email.js`)
+- [x] PIN migrado de XOR a SHA-256 con migración automática
+- [x] `today()` corregida a UTC-5 Colombia
+- [x] Variable `today` shadoweada en `ChartMaquinas` — corregida a `todayStr`
