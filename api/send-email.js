@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+import nodemailer from 'nodemailer';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
 
-  if (!user || !pass) return res.status(503).json({ error: 'GMAIL_USER o GMAIL_APP_PASSWORD no configurados en Vercel. Ve a Settings → Environment Variables.' });
+  if (!user || !pass) return res.status(503).json({ error: 'GMAIL_USER o GMAIL_APP_PASSWORD no configurados en Vercel.' });
 
   if (!to || typeof to !== 'string') return res.status(400).json({ error: 'Campo "to" requerido' });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: 'Email destinatario inválido' });
