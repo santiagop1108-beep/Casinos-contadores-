@@ -2156,7 +2156,7 @@ function Settings({onBack,onOut,user,apiKey,onAk,theme,setTheme,pending,onAdmin}
       <Sec hdr="📧 Email Reports"delay={.22}>
         <div style={{padding:"10px 12px"}}>
           <div style={{...T.fn,color:C.label2,marginBottom:10}}>
-            Los reportes se envían via <strong style={{color:C.label}}>Resend</strong>. Agrega <code style={{background:C.fill3,borderRadius:4,padding:"1px 5px",fontSize:11}}>RESEND_API_KEY</code> en Vercel → Settings → Environment Variables para activar el envío a cualquier correo.
+            Los reportes se envían via <strong style={{color:C.label}}>Gmail SMTP</strong>. Agrega <code style={{background:C.fill3,borderRadius:4,padding:"1px 5px",fontSize:11}}>GMAIL_USER</code> y <code style={{background:C.fill3,borderRadius:4,padding:"1px 5px",fontSize:11}}>GMAIL_APP_PASSWORD</code> en Vercel → Settings → Environment Variables para activar el envío.
           </div>
           <div style={{...T.fn,color:C.green,marginBottom:10,display:"flex",alignItems:"center",gap:6,background:`${C.green}12`,borderRadius:8,padding:"6px 10px"}}>✓ Sistema listo · Sin restricciones de destinatario</div>
           <div style={{...T.fn,color:C.label2,marginBottom:6}}>Correo por defecto:</div>

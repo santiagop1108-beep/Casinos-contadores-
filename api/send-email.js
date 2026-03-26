@@ -1,12 +1,14 @@
+const nodemailer = require('nodemailer');
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { to, subject, html } = req.body || {};
-  const key = process.env.RESEND_API_KEY;
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD;
 
-  if (!key) return res.status(503).json({ error: 'RESEND_API_KEY no configurado en Vercel. Ve a Settings → Environment Variables.' });
+  if (!user || !pass) return res.status(503).json({ error: 'GMAIL_USER o GMAIL_APP_PASSWORD no configurados en Vercel. Ve a Settings → Environment Variables.' });
 
-  // Validación básica
   if (!to || typeof to !== 'string') return res.status(400).json({ error: 'Campo "to" requerido' });
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: 'Email destinatario inválido' });
   if (!html || typeof html !== 'string') return res.status(400).json({ error: 'Campo "html" requerido' });
@@ -14,19 +16,18 @@ export default async function handler(req, res) {
 
   const subjectSafe = (typeof subject === 'string' ? subject : 'Reporte Casino').slice(0, 200);
 
+  const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: { user, pass },
+  });
+
   try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from: 'Casinos Contadores <onboarding@resend.dev>',
-        to: [to],
-        subject: subjectSafe,
-        html,
-      }),
+    await transporter.sendMail({
+      from: `Casinos Contadores <${user}>`,
+      to,
+      subject: subjectSafe,
+      html,
     });
-    const data = await r.json();
-    if (!r.ok) return res.status(r.status).json({ error: data.message || 'Error Resend' });
     return res.status(200).json({ ok: true });
   } catch (e) {
     return res.status(500).json({ error: e.message });
