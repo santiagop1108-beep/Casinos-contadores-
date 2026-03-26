@@ -5,7 +5,7 @@ const SHEET_IDS = {
   obrero:    '16RPnUniy-zHcXy1s2A9gdq_vXjbrpxFXNQ91-yupT1U',
   hugo:      '1YW1y-xmiGBV51Ta5fqzlX06Hjwefs31GCq40zK01Hvc',
   faraon:    '1uW97FYebdr3-sjSHRebiYKCWaE1m5ZEeBzsrCGLTM6U',
-  simulacion:'1YBZlrOyQNBHvLwm7WMg4Y_nqMMSvkL0h',
+  simulacion:'1nQ4WH4ezM-u9U9ZY9A9Xj8m2uZMobw2iRdb1_idpSRo',
 };
 
 // Solo letras, números, espacios, guiones y puntos — previene inyección en rangos
