@@ -378,6 +378,86 @@ async function loadJsPDF(){
   return window.jspdf.jsPDF;
 }
 
+// ── Genera el HTML para email con estilos inline ────────────────────────────
+function buildEmailHTML({casinoName,color,bals,maqData,periodoLabel,fmtEFn}){
+  const fechaGen=new Date().toLocaleDateString("es-CO",{year:"numeric",month:"long",day:"numeric"});
+  const totUtil=bals.reduce((s,b)=>s+(b.util||0),0);
+  const totPhys=bals.reduce((s,b)=>s+(b.phys||0),0);
+  const totPA=bals.reduce((s,b)=>s+(b.pa||0),0);
+  const totCaja=totUtil+totPhys-totPA;
+  const avg=bals.length?Math.round(totUtil/bals.length):0;
+  const top10=[...maqData].filter(mq=>mq.total!==0).sort((a,b)=>b.total-a.total).slice(0,10);
+  const colorRgb=color.startsWith("#")?color:color;
+  return`<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#1a1a2e;">
+    <div style="background:${colorRgb};padding:24px;border-radius:12px 12px 0 0;text-align:left;">
+      <h1 style="color:white;margin:0;font-size:26px;font-weight:bold;">📊 ${casinoName}</h1>
+      <p style="color:rgba(255,255,255,0.8);margin:8px 0 0;font-size:14px;">Reporte: ${periodoLabel}</p>
+    </div>
+    <div style="padding:20px;background:#16213e;">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:8px;">
+        <div style="background:#0f3460;padding:12px;border-radius:8px;border-left:4px solid ${colorRgb};">
+          <p style="color:rgba(255,255,255,0.6);margin:0;font-size:11px;font-weight:bold;">UTILIDAD TOTAL</p>
+          <p style="color:#2ED573;margin:4px 0 0;font-size:16px;font-weight:bold;">${fmtEFn(totUtil)}</p>
+        </div>
+        <div style="background:#0f3460;padding:12px;border-radius:8px;border-left:4px solid #FFA502;">
+          <p style="color:rgba(255,255,255,0.6);margin:0;font-size:11px;font-weight:bold;">PREMIOS TOTALES</p>
+          <p style="color:#FFA502;margin:4px 0 0;font-size:16px;font-weight:bold;">${fmtEFn(totPhys)}</p>
+        </div>
+        <div style="background:#0f3460;padding:12px;border-radius:8px;border-left:4px solid #2ED573;">
+          <p style="color:rgba(255,255,255,0.6);margin:0;font-size:11px;font-weight:bold;">CAJA FÍSICA</p>
+          <p style="color:#2ED573;margin:4px 0 0;font-size:16px;font-weight:bold;">${fmtEFn(totCaja)}</p>
+        </div>
+        <div style="background:#0f3460;padding:12px;border-radius:8px;border-left:4px solid #6C5CE7;">
+          <p style="color:rgba(255,255,255,0.6);margin:0;font-size:11px;font-weight:bold;">PROMEDIO DIARIO</p>
+          <p style="color:#6C5CE7;margin:4px 0 0;font-size:16px;font-weight:bold;">${fmtEFn(avg)}</p>
+        </div>
+      </div>
+    </div>
+    <div style="padding:20px;background:#16213e;">
+      <h2 style="color:white;margin:0 0 12px;font-size:14px;font-weight:bold;">🏆 Top 10 Máquinas por Utilidad</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;">
+        <thead>
+          <tr style="background:${colorRgb};">
+            <th style="color:white;padding:8px;text-align:left;font-weight:bold;">Máquina</th>
+            <th style="color:white;padding:8px;text-align:right;font-weight:bold;">Utilidad</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${top10.map((mq,i)=>`<tr style="background:${i%2===0?"rgba(0,0,0,0.2)":"transparent"};border-bottom:1px solid rgba(255,255,255,0.1);">
+            <td style="color:white;padding:8px;text-align:left;">${i+1}. ${mq.nombre||mq.id}</td>
+            <td style="color:${mq.total>=0?"#2ED573":"#FF4757"};padding:8px;text-align:right;font-weight:bold;">${fmtEFn(mq.total)}</td>
+          </tr>`).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div style="padding:20px;background:#16213e;">
+      <h2 style="color:white;margin:0 0 12px;font-size:14px;font-weight:bold;">📅 Historial por Período</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;">
+        <thead>
+          <tr style="background:${colorRgb};">
+            <th style="color:white;padding:8px;text-align:center;font-weight:bold;">Fecha</th>
+            <th style="color:white;padding:8px;text-align:right;font-weight:bold;">Utilidad</th>
+            <th style="color:white;padding:8px;text-align:right;font-weight:bold;">Premios</th>
+            <th style="color:white;padding:8px;text-align:right;font-weight:bold;">Caja</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${bals.slice(0,15).map((b,i)=>{const caja=(b.util||0)+(b.phys||0)-(b.pa||0);return`<tr style="background:${i%2===0?"rgba(0,0,0,0.2)":"transparent"};border-bottom:1px solid rgba(255,255,255,0.1);">
+            <td style="color:rgba(255,255,255,0.8);padding:8px;text-align:center;">${(b.fecha||"").slice(5)}</td>
+            <td style="color:${(b.util||0)>=0?"#2ED573":"#FF4757"};padding:8px;text-align:right;font-weight:bold;">${fmtEFn(b.util||0)}</td>
+            <td style="color:white;padding:8px;text-align:right;">${fmtEFn(b.phys||0)}</td>
+            <td style="color:${caja>=0?"#3D8EFF":"#FFA502"};padding:8px;text-align:right;font-weight:bold;">${fmtEFn(caja)}</td>
+          </tr>`}).join("")}
+        </tbody>
+      </table>
+    </div>
+    <div style="background:#0f3460;padding:16px;text-align:center;border-radius:0 0 12px 12px;">
+      <p style="color:rgba(255,255,255,0.6);margin:0;font-size:11px;">Generado el ${fechaGen} · Casinos Contadores</p>
+      <p style="color:rgba(255,255,255,0.5);margin:4px 0 0;font-size:10px;">Sistema de reportes automáticos</p>
+    </div>
+  </div>`;
+}
+
 // Genera el PDF del reporte. returnBase64=true devuelve string base64 en lugar de guardar.
 async function buildReportePDF({casinoId,casinoName,color,bals,maqData,fmtEFn,periodoLabel,returnBase64=false}){
   const JsPDF=await loadJsPDF();
@@ -1397,9 +1477,9 @@ function Report({cid,cont}){
       sheetsData.filter(r=>modalBals.find(b=>b.fecha===r[1])).forEach(r=>{const[maqId,,,,, u]=r;if(byMaqM[maqId]&&u!=null){byMaqM[maqId].total+=(u||0);byMaqM[maqId].periods++;}});
       const maqDataM=Object.values(byMaqM);
       const label=getPeriodoLabel(rPeriod,rMes,rDesde,rHasta);
-      const pdfBase64=await buildReportePDF({casinoId:cid,casinoName:m.n,color,bals:modalBals,maqData:maqDataM,fmtEFn:fmtE,periodoLabel:label,returnBase64:true});
-      // Extraer solo la parte base64 (sin el prefijo data:application/pdf;base64,)
-      const b64=pdfBase64.split(",")[1]||pdfBase64;
+      // Generar HTML del email
+      const htmlContent=buildEmailHTML({casinoName:m.n,color,bals:modalBals,maqData:maqDataM,periodoLabel:label,fmtEFn:fmtE});
+      console.log("HTML length:", htmlContent.length);
       const totUtil2=modalBals.reduce((s,b)=>s+(b.util||0),0);
       const totPhys2=modalBals.reduce((s,b)=>s+(b.phys||0),0);
       const totCaja2=totUtil2+totPhys2-modalBals.reduce((s,b)=>s+(b.pa||0),0);
@@ -1412,7 +1492,7 @@ function Report({cid,cont}){
         premios_total:fmtE(totPhys2),
         caja_total:fmtE(totCaja2),
         periodos:String(modalBals.length),
-        attachment:b64,
+        html_content:htmlContent,
         fecha_gen:new Date().toLocaleDateString("es-CO"),
       },cfg.publicKey);
       setEmailStatus("sent");
