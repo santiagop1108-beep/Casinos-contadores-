@@ -244,7 +244,7 @@ async function fetchBalanceFromSheets(cid){
   if(META[cid]?.sim)return null;
   // Cache balance for 2 minutes to avoid repeat fetches on re-renders
   if(_balanceCache[cid]&&_balanceCacheTime[cid]&&(Date.now()-_balanceCacheTime[cid])<120000)return _balanceCache[cid];
-  const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],playarica:[" Balance","Balance"],vikingos:["balance","Balance"]};
+  const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],playarica:[" Balance","Balance"],vikingos:["balance","Balance"],simulacion:["Balance"]};
   const namesToTry=balNames[cid]||["Balance"];
 
   for(const rawName of namesToTry){
