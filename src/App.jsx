@@ -27,6 +27,18 @@ const ANIM_CSS=`
 [data-theme="dark"] .lg-card{background:rgba(255,255,255,.06)!important;border-color:rgba(255,255,255,.14)!important}
 
 @keyframes lineIn{to{stroke-dashoffset:0}}
+@keyframes floatUp{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+@keyframes slideTabIn{from{opacity:0;transform:translateX(16px)}to{opacity:1;transform:translateX(0)}}
+.fade-up{animation:fadeSlideUp .45s cubic-bezier(.4,0,.2,1) both}
+.fade-up-1{animation:fadeSlideUp .4s cubic-bezier(.4,0,.2,1) .05s both}
+.fade-up-2{animation:fadeSlideUp .4s cubic-bezier(.4,0,.2,1) .12s both}
+.fade-up-3{animation:fadeSlideUp .4s cubic-bezier(.4,0,.2,1) .19s both}
+.btn-press{-webkit-tap-highlight-color:transparent;user-select:none;touch-action:manipulation}
+.btn-press:active{transform:scale(.97);opacity:.9}
+.shimmer-bg{background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.07) 50%,transparent 100%);background-size:200% 100%;animation:shimmer 1.6s ease infinite}
+.tab-in{animation:slideTabIn .22s cubic-bezier(.4,0,.2,1) both}
+* {-webkit-tap-highlight-color:transparent}
 
 `;
 
@@ -670,12 +682,12 @@ function Nav({title,sub,right=[],sy=0,large=true,back,onBack}){
   const C=getC();const col=large&&sy>48;
   return<div style={{position:"sticky",top:0,zIndex:50,background:col?C.navBg:"transparent",backdropFilter:col?"blur(24px) saturate(180%)":"none",borderBottom:col?`0.5px solid ${C.sep}`:"none",transition:"all .2s"}}>
     <div style={{display:"flex",alignItems:"center",height:44,padding:"0 8px",position:"relative"}}>
-      {onBack&&<button onClick={onBack}style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 8px"}}>
+      {onBack&&<button onClick={onBack}className="btn-press"style={{background:"transparent",border:"none",color:C.blue,cursor:"pointer",display:"flex",alignItems:"center",gap:4,padding:"4px 8px"}}>
         <Ico n="back"c={C.blue}s={20}/><span style={{...T.b,color:C.blue}}>{back||"Atrás"}</span>
       </button>}
       {(!large||col)&&<span style={{...T.h,color:C.label,position:"absolute",left:"50%",transform:"translateX(-50%)",whiteSpace:"nowrap"}}>{title}</span>}
       <div style={{flex:1}}/>
-      {right.map((r,i)=><button key={i}onClick={r.fn}style={{background:C.fill3,border:"none",borderRadius:99,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",marginLeft:4,transition:"background .15s"}}>{typeof r.icon==="string"?<Ico n={r.icon}c={C.label}s={17}/>:r.icon}</button>)}
+      {right.map((r,i)=><button key={i}onClick={r.fn}className="btn-press"style={{background:C.fill3,border:"none",borderRadius:99,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",marginLeft:4,transition:"background .15s"}}>{typeof r.icon==="string"?<Ico n={r.icon}c={C.label}s={17}/>:r.icon}</button>)}
     </div>
     {large&&<div style={{padding:"0 18px 14px",opacity:col?0:1,transition:"opacity .2s",pointerEvents:col?"none":"auto"}}>
       <div style={{...T.lg,color:C.label}}>{title}</div>
@@ -688,9 +700,9 @@ function Tabs({tab,setTab,color}){
   const ts=[{id:"lectura",lbl:"Contadores",icon:"counters"},{id:"camara",lbl:"Cámara",icon:"camera"},{id:"reporte",lbl:"Reporte",icon:"report"},{id:"maquinas",lbl:"Máquinas",icon:"machines"}];
   return<div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,background:C.navBg,backdropFilter:"blur(24px) saturate(180%)",borderTop:`0.5px solid ${C.sep}`,zIndex:100,paddingBottom:"max(env(safe-area-inset-bottom,0px),8px)"}}>
     <div style={{display:"flex",justifyContent:"space-around",paddingTop:8}}>
-      {ts.map(t=><button key={t.id}onClick={()=>setTab(t.id)}style={{background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"0 8px",minWidth:60,transition:"all .15s"}}>
-        <div style={{transition:"transform .2s",transform:tab===t.id?"scale(1.12)":"scale(1)"}}><Ico n={t.icon}c={tab===t.id?color:C.label2}s={22}/></div>
-        <span style={{...T.cap,color:tab===t.id?color:C.label2,fontWeight:tab===t.id?700:400}}>{t.lbl}</span>
+      {ts.map(t=><button key={t.id}onClick={()=>setTab(t.id)}className="btn-press"style={{background:"transparent",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"0 8px",minWidth:60,transition:"color .15s"}}>
+        <div style={{transition:"transform .22s cubic-bezier(.34,1.56,.64,1)",transform:tab===t.id?"scale(1.15)":"scale(1)"}}><Ico n={t.icon}c={tab===t.id?color:C.label2}s={22}/></div>
+        <span style={{...T.cap,color:tab===t.id?color:C.label2,fontWeight:tab===t.id?700:400,transition:"color .15s"}}>{t.lbl}</span>
       </button>)}
     </div>
   </div>;
@@ -838,7 +850,6 @@ function Login({onAuth}){
           Olvidé mi PIN
         </button>}
       </div>
-      <style>{`@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}`}</style>
     </div>
   );
 }
@@ -878,7 +889,7 @@ function Counters({cid,cont,setCont,user}){
       <Nav title={mq?.nombre||""}large={false}back="Contadores"onBack={()=>setViewHist(null)}/>
       <div style={{padding:"0 14px 100px"}}>
         <Sec hdr="Historial">
-          {hist.length===0&&<div style={{padding:"16px",...T.s,color:C.label2,textAlign:"center"}}>Sin lecturas locales</div>}
+          {hist.length===0&&<div style={{padding:"24px 16px",textAlign:"center",animation:"fadeSlideUp .3s ease both"}}><div style={{width:36,height:36,borderRadius:10,background:C.fill3,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 8px"}}><Ico n="counters"c={C.label3}s={18}/></div><div style={{...T.s,color:C.label2}}>Sin lecturas locales</div></div>}
           {hist.map((c,i)=><div key={i}style={{padding:"12px 14px",borderBottom:i<hist.length-1?`0.5px solid ${C.sep}`:"none",animation:`fadeSlideUp .25s ease ${i*.04}s both`}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <span style={{...T.c,color:C.label,fontWeight:500}}>{fmtF(c.f)}</span>
@@ -1137,8 +1148,9 @@ function HistorialTable({cid, filtro, mes, desde, hasta, color}){
     <div style={{...T.fn,color:C.label3}}>Verifica que el Sheet sea público (compartido como "Cualquier persona con el enlace").</div>
   </div>;
 
-  if(rows.length===0)return<div style={{background:C.bg2,borderRadius:14,padding:24,textAlign:"center",border:`1px solid ${C.sep}`}}>
-    <div style={{...T.h,color:C.label2,marginBottom:4}}>Sin datos en Sheets</div>
+  if(rows.length===0)return<div style={{background:C.bg2,borderRadius:14,padding:28,textAlign:"center",border:`1px solid ${C.sep}`,animation:"fadeSlideUp .3s ease both"}}>
+    <div style={{width:44,height:44,borderRadius:14,background:C.fill3,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}><Ico n="report"c={C.label3}s={22}/></div>
+    <div style={{...T.h,color:C.label2,marginBottom:6}}>Sin datos en Sheets</div>
     <div style={{...T.fn,color:C.label3}}>Verifica que los nombres de las hojas coincidan con los nombres de las máquinas.</div>
   </div>;
 
@@ -1301,7 +1313,7 @@ function ChartMaquinas({sheetsData,filtro,mes,desde,hasta,color,C,cid}){
     maqMap[maqId].count++;
   });
   const maqs=Object.values(maqMap).sort((a,b)=>b.total-a.total);
-  if(!maqs.length)return<div style={{...T.s,color:C.label2,textAlign:"center",padding:30}}>Sin datos de máquinas</div>;
+  if(!maqs.length)return<div style={{textAlign:"center",padding:"32px 20px",animation:"fadeSlideUp .3s ease both"}}><div style={{width:40,height:40,borderRadius:12,background:C.fill3,display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 10px"}}><Ico n="machines"c={C.label3}s={20}/></div><div style={{...T.s,color:C.label2}}>Sin datos de máquinas</div></div>;
   const maxV=Math.max(...maqs.map(m=>Math.abs(m.total)),1);
   return<div style={{padding:"4px 0"}}>
     {maqs.map((m,i)=>{
@@ -1568,13 +1580,13 @@ function Report({cid,cont}){
       </div>}
 
       {/* KPI Cards */}
-      {balLoading&&bals.length===0&&<div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:18,padding:18,marginBottom:14,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .35s ease both"}}>
-        <div style={{background:C.fill3,borderRadius:8,height:11,width:"55%",marginBottom:14,animation:"pulse 1.5s ease infinite"}}/>
-        <div style={{background:C.fill3,borderRadius:10,height:36,width:"70%",marginBottom:18,animation:"pulse 1.5s ease infinite"}}/>
+      {balLoading&&bals.length===0&&<div style={{background:`linear-gradient(135deg,${C.bg2},${C.bg3})`,borderRadius:18,padding:18,marginBottom:14,border:`1px solid ${C.sep}`,animation:"fadeSlideUp .35s ease both",overflow:"hidden"}}>
+        <div className="shimmer-bg"style={{background:C.fill3,borderRadius:8,height:11,width:"55%",marginBottom:14}}/>
+        <div className="shimmer-bg"style={{background:C.fill3,borderRadius:10,height:36,width:"70%",marginBottom:18}}/>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
-          {[0,1,2].map(i=><div key={i}style={{background:C.fill4,borderRadius:12,padding:"12px 10px"}}>
-            <div style={{background:C.fill3,borderRadius:6,height:9,width:"60%",marginBottom:8,animation:"pulse 1.5s ease infinite"}}/>
-            <div style={{background:C.fill3,borderRadius:6,height:16,width:"80%",animation:"pulse 1.5s ease infinite"}}/>
+          {[0,1,2].map(i=><div key={i}style={{background:C.fill4,borderRadius:12,padding:"12px 10px",overflow:"hidden"}}>
+            <div className="shimmer-bg"style={{background:C.fill3,borderRadius:6,height:9,width:"60%",marginBottom:8}}/>
+            <div className="shimmer-bg"style={{background:C.fill3,borderRadius:6,height:16,width:"80%"}}/>
           </div>)}
         </div>
       </div>}
@@ -2456,7 +2468,7 @@ function Casino({cid,cont,setCont,apiKey,onBack,user}){
   return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg}}>
     <style>{ANIM_CSS}</style>
     <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:430,zIndex:200,pointerEvents:"none"}}>
-      <button onClick={onBack}style={{pointerEvents:"auto",background:"transparent",border:"none",color:C.blue,cursor:"pointer",padding:"10px 14px",display:"flex",alignItems:"center",gap:4}}>
+      <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"transparent",border:"none",color:C.blue,cursor:"pointer",padding:"10px 14px",display:"flex",alignItems:"center",gap:4}}>
         <Ico n="back"c={C.blue}s={18}/><span style={{...T.b,color:C.blue}}>Inicio</span>
       </button>
     </div>
@@ -2472,7 +2484,7 @@ function Casino({cid,cont,setCont,apiKey,onBack,user}){
           else if(dx>0&&i>0)setTab(TABS[i-1]);
         }
       }}>
-      <div key={tab}style={{height:"100%",animation:"fadeIn .18s ease both"}}>
+      <div key={tab}className="tab-in"style={{height:"100%"}}>
         {tab==="lectura"&&<Counters cid={cid}cont={cont}setCont={setCont}user={user}/>}
         {tab==="camara"&&<Camera cid={cid}cont={cont}setCont={setCont}apiKey={apiKey}user={user}/>}
         {tab==="reporte"&&<Report cid={cid}cont={cont}/>}
