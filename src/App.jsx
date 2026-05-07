@@ -132,6 +132,7 @@ function processSheetRows(mq,rows,cidColMap,resets){
 
 async function fetchSheetHist(cid){
   if(META[cid]?.sim)return[];
+  if(window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1')return[];
   if(_sheetsCache[cid]&&_sheetsCacheTime[cid]&&(Date.now()-_sheetsCacheTime[cid])<120000)return _sheetsCache[cid];
   const mqs=getMaqs(cid).filter(m=>!m.disabled);
   if(!mqs.length)return[];
@@ -240,6 +241,7 @@ const _balanceCacheTime={};
 const CACHE_TTL=5*60*1000; // 5 minutes
 async function fetchBalanceFromSheets(cid){
   if(META[cid]?.sim)return null;
+  if(window.location.hostname==='localhost'||window.location.hostname==='127.0.0.1')return null;
   // Cache balance for 2 minutes to avoid repeat fetches on re-renders
   if(_balanceCache[cid]&&_balanceCacheTime[cid]&&(Date.now()-_balanceCacheTime[cid])<120000)return _balanceCache[cid];
   const balNames={faraon:["Balance"],hugo:["Balance"],obrero:["Balance"],vikingos:["balance","Balance"],simulacion:["Balance"]};
