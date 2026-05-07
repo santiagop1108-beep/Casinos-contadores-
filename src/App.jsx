@@ -1111,6 +1111,7 @@ function Camera({cid,cont,setCont,apiKey}){
                 </div>;
               })}
             </div>
+            {(()=>{const badDrop=prev?.d!=null&&!isNaN(parseInt(x.eDrop))&&parseInt(x.eDrop)<prev.d;const badPhys=prev?.p!=null&&!isNaN(parseInt(x.ePhys))&&parseInt(x.ePhys)<prev.p;return(badDrop||badPhys)&&<div style={{background:`${C.red}15`,border:`1px solid ${C.red}44`,borderRadius:8,padding:"8px 10px",marginBottom:8,...T.fn,color:C.red}}>⚠️ Valor imposible: {badDrop?"TOTAL IN bajó. ":""}{badPhys?"TOTAL OUT bajó. "}Los contadores solo suben. Re-analiza o ingresa manualmente.</div>;})()}
             {util!=null&&<div style={{background:C.fill4,borderRadius:8,padding:"8px 10px",display:"flex",justifyContent:"space-between"}}>
               <span style={{...T.fn,color:C.orange}}>Premios {fmtE(pp||0)}</span>
               <span style={{...T.fn,color:util>=0?C.green:C.red,fontWeight:600}}>Util {fmtE(util)}</span>
@@ -1119,8 +1120,9 @@ function Camera({cid,cont,setCont,apiKey}){
         </div>;
       })}
       {driveStatus&&<div style={{background:C.bg2,borderRadius:10,padding:"10px 14px",marginBottom:10,...T.s,color:C.label2,textAlign:"center"}}>{driveStatus}</div>}
-      {queue.length>0&&<button onClick={confirmAll}disabled={doneOk===0||saved}
-        style={{width:"100%",background:saved?C.green:doneOk===0?C.fill3:C[m.c],border:"none",borderRadius:14,padding:"15px",color:"#000",...T.h,cursor:doneOk===0?"default":"pointer"}}>
+      {(()=>{const imposibles=queue.filter(x=>{if(x.status!=="done"||!x.maqId)return false;const prev=getUlt(x.maqId);const d=parseInt(x.eDrop),p=parseInt(x.ePhys);return(prev?.d!=null&&!isNaN(d)&&d<prev.d)||(prev?.p!=null&&!isNaN(p)&&p<prev.p);});return imposibles.length>0&&<div style={{background:`${C.red}15`,border:`1px solid ${C.red}44`,borderRadius:12,padding:"10px 14px",marginBottom:8,...T.s,color:C.red}}>⛔ {imposibles.length} máquina{imposibles.length!==1?"s":""} con valores imposibles ({imposibles.map(x=>mqs.find(q=>q.id===x.maqId)?.nombre||x.maqId).join(", ")}). Corrígelas antes de guardar.</div>;})()}
+      {queue.length>0&&<button onClick={confirmAll}disabled={doneOk===0||saved||queue.some(x=>{if(x.status!=="done"||!x.maqId)return false;const prev=getUlt(x.maqId);const d=parseInt(x.eDrop),p=parseInt(x.ePhys);return(prev?.d!=null&&!isNaN(d)&&d<prev.d)||(prev?.p!=null&&!isNaN(p)&&p<prev.p);})}
+        style={{width:"100%",background:saved?C.green:doneOk===0?C.fill3:C[m.c],border:"none",borderRadius:14,padding:"15px",color:"#000",...T.h,cursor:doneOk===0?"default":"pointer",opacity:queue.some(x=>{if(x.status!=="done"||!x.maqId)return false;const prev=getUlt(x.maqId);const d=parseInt(x.eDrop),p=parseInt(x.ePhys);return(prev?.d!=null&&!isNaN(d)&&d<prev.d)||(prev?.p!=null&&!isNaN(p)&&p<prev.p);})?0.4:1}}>
         {saved?"✓ Guardado":`Confirmar ${doneOk} máquina${doneOk!==1?"s":""}`}
       </button>}
       {!apiKey&&<div style={{background:`${C.orange}12`,border:`1px solid ${C.orange}44`,borderRadius:12,padding:12,marginTop:10}}>
