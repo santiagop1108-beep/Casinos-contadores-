@@ -1017,6 +1017,30 @@ function Camera({cid,cont,setCont,apiKey}){
       try{fetch("https://ntfy.sh/jarvis",{method:"POST",headers:{"Title":"🔴 Error OCR — Casino Contadores","Priority":"high","Tags":"warning,casino"},body:`OCR falló en ${m.n}: ${e?.message||'Error desconocido'}`});}catch{}
     }
   }
+  async function reanalyzeWithMachine(idx){
+    const item=queue[idx];const mq=mqs.find(q=>q.id===item.maqId);if(!mq||!item.blob)return;
+    setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"analyzing"}:x));
+    const tipo=mq.factor===50?"POKER":mq.factor===1?"ESPECIAL":"MULTI";
+    let regla="";
+    if(tipo==="MULTI")regla="Pantalla azul SHORT STATISTICS. Si hay 2 columnas lee SOLO la columna IZQUIERDA.\ntotal_in=TOTAL IN, total_out=TOTAL OUT, jackpot=null";
+    else if(tipo==="POKER")regla="Pantalla azul POKER IGT. total_in=DROP (billetes, NO COINS IN), total_out=PHYSICAL COINS OUT, jackpot=JACKPOTS";
+    else if(mq.id==="D18")regla="Pantalla azul dividida en 2 mitades LADO A LADO. Lee SOLO la mitad con valores menores (SHORT STATISTICS, ~50M o menos). IGNORA la mitad con valores enormes (>100M).\ntotal_in=COINS IN mitad pequeña, total_out=COINS OUT mitad pequeña";
+    else if(mq.id==="JW4")regla="Pantalla verde Contadores. Usa 'Contadores Parciales' si existe, si no 'Contadores Totales'.\ntotal_in=Acreditado, total_out=Pagado";
+    else if(mq.id==="M1")regla="Pantalla verde tabla. Usa columna 'Principios' o 'Parciales' (NO Totales).\ntotal_in=Acreditado o Introducido, total_out=Pagado o Devuelto";
+    else regla="Extrae los contadores principales visibles en pantalla.\ntotal_in=primer contador principal, total_out=segundo contador principal";
+    const prompt="Esta es la foto de la máquina "+mq.nombre+" (tipo "+tipo+").\n\n"+regla+"\n\nJSON sin markdown: {\"total_in\":<entero sin puntos ni comas>,\"total_out\":<entero sin puntos ni comas>,\"jackpot\":<entero o null>,\"confianza\":\"<alta|media|baja>\",\"notas\":\"<max 10 palabras>\"}";
+    try{
+      const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(",")[1]);fr.readAsDataURL(item.blob);});
+      const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+        headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:300,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]}]})});
+      const data=await res.json();
+      const raw=(data.content?.[0]?.text||"{}").replace(/```json|```/g,"").trim();
+      const jsonMatch=raw.match(/\{[\s\S]*\}/);
+      const parsed=JSON.parse(jsonMatch?jsonMatch[0]:raw);
+      setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"done",eDrop:String(parsed.total_in||""),ePhys:String(parsed.total_out||""),eJack:parsed.jackpot!=null?String(parsed.jackpot):"",confianza:parsed.confianza||"media",notas:parsed.notas||""}:x));
+    }catch(e){setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"error",err:e.message}:x));}
+  }
   async function addPhotos(files){
     const newItems=[];
     for(const file of Array.from(files)){const blob=await compressImage(file);newItems.push({file,blob,imgUrl:URL.createObjectURL(blob),status:"pending",result:null,maqId:"",eDrop:"",ePhys:"",eYield:"",err:null});}
@@ -1071,10 +1095,11 @@ function Camera({cid,cont,setCont,apiKey}){
           </div>
           {x.status==="error"&&<div style={{padding:"10px 14px",...T.s,color:C.red}}>❌ {x.err}<br/><button onClick={()=>analyzePhoto(x.blob,idx)}style={{background:"transparent",border:`1px solid ${C.blue}`,borderRadius:8,padding:"4px 10px",color:C.blue,cursor:"pointer",marginTop:6,...T.fn}}>Reintentar</button></div>}
           {(x.status==="done"||x.status==="analyzing")&&<div style={{padding:"10px 14px"}}>
-            <select value={x.maqId}onChange={e=>upd(idx,"maqId",e.target.value)}style={{width:"100%",background:C.fill3,border:`1px solid ${x.maqId?C.sep:C.orange}`,borderRadius:8,padding:"8px 10px",color:x.maqId?C.label:C.orange,...T.c,marginBottom:8}}>
+            <select value={x.maqId}onChange={e=>upd(idx,"maqId",e.target.value)}style={{width:"100%",background:C.fill3,border:`1px solid ${x.maqId?C.sep:C.orange}`,borderRadius:8,padding:"8px 10px",color:x.maqId?C.label:C.orange,...T.c,marginBottom:6}}>
               <option value="">— Seleccionar máquina —</option>
               {mqs.map(q=><option key={q.id}value={q.id}style={{background:C.bg2}}>{q.nombre} ×{q.factor}</option>)}
             </select>
+            {x.maqId&&x.status!=="analyzing"&&<button onClick={()=>reanalyzeWithMachine(idx)}style={{width:"100%",background:`${C.blue}15`,border:`1px solid ${C.blue}33`,borderRadius:8,padding:"7px",...T.fn,color:C.blue,cursor:"pointer",marginBottom:8}}>↻ Re-analizar como {mqs.find(q=>q.id===x.maqId)?.nombre}</button>}
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:8}}>
               {[["eDrop","TOTAL IN",prev?.d],["ePhys","TOTAL OUT",prev?.p],["eYield","IN-OUT",null]].map(([f,lbl,pv])=>{
                 const nv=parseInt(x[f]);const bad=pv!=null&&!isNaN(nv)&&nv<pv;
