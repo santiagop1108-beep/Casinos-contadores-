@@ -1062,7 +1062,7 @@ function Camera({cid,cont,setCont,apiKey}){
         const pp=mq&&prev&&!isNaN(phys)?(phys-prev.p)*mq.factor:null;
         return<div key={idx}style={{background:C.bg2,borderRadius:14,marginBottom:10,overflow:"hidden",border:`1px solid ${C.sep}`,animation:"fadeSlideUp .3s ease both"}}>
           <div style={{position:"relative"}}>
-            <img src={x.imgUrl}alt=""style={{width:"100%",maxHeight:180,objectFit:"cover"}}/>
+            <img src={x.imgUrl}alt=""style={{width:"100%",maxHeight:320,objectFit:"contain",background:"#000"}}/>
             <div style={{position:"absolute",top:8,left:8,background:"rgba(0,0,0,.8)",borderRadius:20,padding:"4px 10px",...T.fn,color:"#FFF"}}>
               {x.status==="pending"?"⏳":x.status==="analyzing"?"🤖 Analizando...":x.status==="error"?"❌ Error":"✓ Listo"}
             </div>
