@@ -1002,9 +1002,10 @@ function Camera({cid,cont,setCont,apiKey}){
       const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(",")[1]);fr.readAsDataURL(blob);});
       const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:700,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]}]})});
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:700,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]},{role:"assistant",content:"{"}]})});
       const data=await res.json();
-      const raw=(data.content?.[0]?.text||"{}").replace(/```json|```/g,"").trim();
+      const rawText=data.content?.[0]?.text||"";
+      const raw=("{"+rawText).replace(/```json|```/g,"").trim();
       const jsonMatch=raw.match(/\{[\s\S]*\}/);
       const parsed=JSON.parse(jsonMatch?jsonMatch[0]:raw);
       let assignedId=parsed.maq_id_asignado;
@@ -1028,18 +1029,19 @@ function Camera({cid,cont,setCont,apiKey}){
     else if(mq.id==="JW4")regla="Pantalla verde Contadores. Usa 'Contadores Parciales' si existe, si no 'Contadores Totales'.\ntotal_in=Acreditado, total_out=Pagado";
     else if(mq.id==="M1")regla="Pantalla verde tabla. Usa columna 'Principios' o 'Parciales' (NO Totales).\ntotal_in=Acreditado o Introducido, total_out=Pagado o Devuelto";
     else regla="Extrae los contadores principales visibles en pantalla.\ntotal_in=primer contador principal, total_out=segundo contador principal";
-    const prompt="Esta es la foto de la máquina "+mq.nombre+" (tipo "+tipo+").\n\n"+regla+"\n\nJSON sin markdown: {\"total_in\":<entero sin puntos ni comas>,\"total_out\":<entero sin puntos ni comas>,\"jackpot\":<entero o null>,\"confianza\":\"<alta|media|baja>\",\"notas\":\"<max 10 palabras>\"}";
+    const prompt="INSTRUCCIÓN CRÍTICA: Responde ÚNICAMENTE con un objeto JSON válido. NO escribas ningún texto antes ni después del JSON.\n\nFoto de la máquina "+mq.nombre+" (tipo "+tipo+").\n\n"+regla+"\n\nResponde SOLO esto (reemplaza los valores, sin texto extra):\n{\"total_in\":12345678,\"total_out\":9876543,\"jackpot\":null,\"confianza\":\"alta\",\"notas\":\"breve\"}";
     try{
       const b64=await new Promise(r=>{const fr=new FileReader();fr.onload=()=>r(fr.result.split(",")[1]);fr.readAsDataURL(item.blob);});
       const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
         headers:{"Content-Type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:300,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]}]})});
+        body:JSON.stringify({model:"claude-sonnet-4-6",max_tokens:400,messages:[{role:"user",content:[{type:"image",source:{type:"base64",media_type:"image/jpeg",data:b64}},{type:"text",text:prompt}]},{role:"assistant",content:"{"}]})});
       const data=await res.json();
-      const raw=(data.content?.[0]?.text||"{}").replace(/```json|```/g,"").trim();
+      const rawText=data.content?.[0]?.text||"";
+      const raw=("{"+rawText).replace(/```json|```/g,"").trim();
       const jsonMatch=raw.match(/\{[\s\S]*\}/);
       const parsed=JSON.parse(jsonMatch?jsonMatch[0]:raw);
       setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"done",eDrop:String(parsed.total_in||""),ePhys:String(parsed.total_out||""),eJack:parsed.jackpot!=null?String(parsed.jackpot):"",confianza:parsed.confianza||"media",notas:parsed.notas||""}:x));
-    }catch(e){setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"error",err:e.message}:x));}
+    }catch(e){setQueue(q=>q.map((x,i)=>i===idx?{...x,status:"error",err:"Re-análisis: "+(e.message||"error")}:x));}
   }
   async function addPhotos(files){
     const newItems=[];
