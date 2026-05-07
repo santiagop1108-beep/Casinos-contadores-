@@ -2466,8 +2466,11 @@ function Comparar({onBack}){
 }
 
 // ─── CASINO SHELL ─────────────────────────────────────────────────────────────
+const BASE_OBRERO_8ABR=[{i:"M1",n:"Maq 1",fc:1,f:"2026-04-08",d:10887000,p:10127150,y:null,u:5,pp:null,src:"base"},{i:"M2",n:"Multi 2",fc:10,f:"2026-04-08",d:81500,p:38619,y:null,u:6,pp:null,src:"base"},{i:"P3",n:"Poker 3",fc:50,f:"2026-04-08",d:604940,p:299700,y:null,u:7,pp:null,src:"base"},{i:"JW4",n:"Jungle Wild 4",fc:1,f:"2026-04-08",d:65761000,p:42443560,y:null,u:5,pp:null,src:"base"},{i:"M5",n:"Multi 5",fc:10,f:"2026-04-08",d:2417300,p:1809627,y:null,u:6,pp:null,src:"base"},{i:"M6",n:"Multi 6",fc:10,f:"2026-04-08",d:6135400,p:4679816,y:null,u:6,pp:null,src:"base"},{i:"M7",n:"Multi 7",fc:10,f:"2026-04-08",d:5405800,p:4166240,y:null,u:6,pp:null,src:"base"},{i:"M8",n:"Multi 8",fc:10,f:"2026-04-08",d:4685800,p:3627906,y:null,u:6,pp:null,src:"base"},{i:"M9",n:"Multi 9",fc:10,f:"2026-04-08",d:5539500,p:4036696,y:null,u:6,pp:null,src:"base"},{i:"M10",n:"Multi 10",fc:10,f:"2026-04-08",d:6071700,p:4453462,y:null,u:6,pp:null,src:"base"},{i:"M11",n:"Multi 11",fc:10,f:"2026-04-08",d:3016600,p:2316319,y:null,u:6,pp:null,src:"base"},{i:"M12",n:"Multi 12",fc:10,f:"2026-04-08",d:6665900,p:4637405,y:null,u:6,pp:null,src:"base"},{i:"M13",n:"Multi 13",fc:10,f:"2026-04-08",d:8809900,p:7060917,y:null,u:6,pp:null,src:"base"},{i:"M14",n:"Multi 14",fc:10,f:"2026-04-08",d:8284600,p:5701902,y:null,u:6,pp:null,src:"base"},{i:"M15",n:"Multi 15",fc:10,f:"2026-04-08",d:10903100,p:8518673,y:null,u:6,pp:null,src:"base"},{i:"M16",n:"Multi 16",fc:10,f:"2026-04-08",d:8095700,p:5492736,y:null,u:6,pp:null,src:"base"},{i:"M17",n:"Multi 17",fc:10,f:"2026-04-08",d:3756300,p:2856438,y:null,u:6,pp:null,src:"base"},{i:"D18",n:"Duende 18",fc:1,f:"2026-04-08",d:49418000,p:29223620,y:null,u:5,pp:null,src:"base"},{i:"M19",n:"Multi 19",fc:10,f:"2026-04-08",d:6353800,p:4830800,y:null,u:6,pp:null,src:"base"},{i:"M20",n:"Multi 20",fc:10,f:"2026-04-08",d:3317400,p:2312633,y:null,u:6,pp:null,src:"base"}];
 function Casino({cid,cont,setCont,apiKey,onBack,user}){
   const C=getC();const[tab,setTab]=useState("reporte");const m=META[cid];const color=C[m.c];
+  const[baseMsg,setBaseMsg]=useState("");
+  function loadBase(){const s=loadCont();s[cid]=BASE_OBRERO_8ABR;saveCont(s);setCont(s);setBaseMsg("✓ Base 8-abr cargada");setTimeout(()=>setBaseMsg(""),3000);}
   let _swipeX=0,_swipeY=0;
   return<div style={{height:"100dvh",display:"flex",flexDirection:"column",background:C.bg}}>
     <style>{ANIM_CSS}</style>
@@ -2475,6 +2478,7 @@ function Casino({cid,cont,setCont,apiKey,onBack,user}){
       <button onClick={onBack}className="btn-press"style={{pointerEvents:"auto",background:"transparent",border:"none",color:C.blue,cursor:"pointer",padding:"10px 14px",display:"flex",alignItems:"center",gap:4}}>
         <Ico n="back"c={C.blue}s={18}/><span style={{...T.b,color:C.blue}}>Inicio</span>
       </button>
+      {m.sim&&<button onClick={loadBase}className="btn-press"style={{pointerEvents:"auto",position:"absolute",top:8,right:14,background:C.teal,border:"none",color:"#fff",cursor:"pointer",padding:"6px 12px",borderRadius:10,fontSize:13,fontWeight:600}}>{baseMsg||"Cargar base 8-abr"}</button>}
     </div>
     <div style={{flex:1,overflow:"hidden",paddingTop:44}}
       onTouchStart={e=>{_swipeX=e.touches[0].clientX;_swipeY=e.touches[0].clientY;}}
